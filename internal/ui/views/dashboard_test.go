@@ -49,3 +49,35 @@ func TestRenderDashboardWidths(t *testing.T) {
 		t.Errorf("Expected 2D Utility classification in output")
 	}
 }
+
+func TestRenderDashboardOpaque(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.TargetExe = "Setup.exe"
+	cfg.OpaqueBackdrop = true
+
+	data := DashboardData{
+		GameTitle:      "Just Cause [DODI Repack]",
+		GameDir:        "/home/carlos/Games/Just Cause [DODI Repack]",
+		Config:         cfg,
+		Emulator:       &integrations.EmulatorInfo{Type: "Goldberg", AppID: "12345", DLCStatus: "All Unlocked", Detected: true},
+		Classification: runner.ClassifyExecutable("Setup.exe"),
+		HasNTSync:      true,
+		HasPrimeRun:    true,
+		HasGamescope:   true,
+		ProtonName:     "Proton-GE Latest",
+		PrefixSize:     "1.4 GB",
+		Width:          120,
+		Height:         35,
+		OpaqueBackdrop: true,
+	}
+
+	out := RenderDashboard(data)
+	if out == "" {
+		t.Fatal("RenderDashboard returned empty string with opaque backdrop")
+	}
+
+	if !strings.Contains(out, "Backdrop: Solid") {
+		t.Errorf("Expected 'Backdrop: Solid' toggle text in opaque mode")
+	}
+}
+

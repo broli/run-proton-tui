@@ -259,43 +259,71 @@ func renderMenuDock(width int, opaque bool) string {
 		colW = 18
 	}
 
-	cell := func(key, label string) string {
-		content := style.KeyBadge.Render(key) + " " + style.KeyDesc.Render(label)
-		return lipgloss.NewStyle().Width(colW).Render(content)
-	}
-
-	row1 := lipgloss.JoinHorizontal(lipgloss.Top,
-		cell("[Enter]", "Launch Game"),
-		cell("[2]", "Proton Runner"),
-		cell("[3]", "Executable"),
-		cell("[a]", "ProtonDB Tips"),
-	)
-	row2 := lipgloss.JoinHorizontal(lipgloss.Top,
-		cell("[g]", "Toggle Gamescope"),
-		cell("[p]", "Toggle P-Cores"),
-		cell("[v]", "Toggle GPU Runner"),
-		cell("[o]", "DLL Overrides"),
-	)
-
 	backdropLabel := "Backdrop: Solid"
 	if !opaque {
 		backdropLabel = "Backdrop: Transp"
 	}
 
-	row3 := lipgloss.JoinHorizontal(lipgloss.Top,
-		cell("[c]", "Reset Prefix"),
-		cell("[h]", "Health Check"),
-		cell("[l]", "View Logs"),
-		cell("[b]", backdropLabel),
-	)
+	type dockItem struct {
+		key   string
+		label string
+	}
 
-	row4 := lipgloss.JoinHorizontal(lipgloss.Top,
-		cell("[?]", "Help Manual"),
-		cell("[q]", "Quit rpt"),
-	)
+	cols := [][]dockItem{
+		{
+			{"[Enter]", "Launch Game"},
+			{"[g]", "Toggle Gamescope"},
+			{"[c]", "Reset Prefix"},
+			{"[?]", "Help Manual"},
+		},
+		{
+			{"[2]", "Proton Runner"},
+			{"[p]", "Toggle P-Cores"},
+			{"[h]", "Health Check"},
+			{"[q]", "Quit rpt"},
+		},
+		{
+			{"[3]", "Executable"},
+			{"[v]", "Toggle GPU Runner"},
+			{"[l]", "View Logs"},
+		},
+		{
+			{"[a]", "ProtonDB Tips"},
+			{"[o]", "DLL Overrides"},
+			{"[b]", backdropLabel},
+		},
+	}
 
-	dockContent := style.SectionTitle.Render("⌨️  Controls & Hotkeys (Aligned Grid):") + "\n" +
-		row1 + "\n" + row2 + "\n" + row3 + "\n" + row4
+	var colStrs []string
+	for _, col := range cols {
+		maxKeyW := 0
+		for _, it := range col {
+			kw := lipgloss.Width(style.KeyBadge.Render(it.key))
+			if kw > maxKeyW {
+				maxKeyW = kw
+			}
+		}
+
+		var lines []string
+		for _, it := range col {
+			rKey := style.KeyBadge.Render(it.key)
+			kw := lipgloss.Width(rKey)
+			pad := maxKeyW - kw
+			if pad < 0 {
+				pad = 0
+			}
+			line := rKey + strings.Repeat(" ", pad) + " " + style.KeyDesc.Render(it.label)
+			lines = append(lines, lipgloss.NewStyle().Width(colW).Render(line))
+		}
+		for len(lines) < 4 {
+			lines = append(lines, lipgloss.NewStyle().Width(colW).Render(""))
+		}
+		colStrs = append(colStrs, strings.Join(lines, "\n"))
+	}
+
+	grid := lipgloss.JoinHorizontal(lipgloss.Top, colStrs...)
+	dockContent := style.SectionTitle.Render("⌨️  Controls & Hotkeys (Aligned Grid):") + "\n" + grid
 
 	return style.GetPanelStyle(opaque).Width(width).Render(dockContent)
 }
+
