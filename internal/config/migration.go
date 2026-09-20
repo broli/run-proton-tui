@@ -48,6 +48,8 @@ func ParseLegacyFishConfig(filePath string) (*GameConfig, error) {
 			cfg.UseXalia = (val == "1" || strings.ToLower(val) == "true")
 		case "logging_enabled":
 			cfg.EnableLogging = (val == "1" || strings.ToLower(val) == "true")
+		case "opaque_backdrop":
+			cfg.OpaqueBackdrop = (val == "1" || strings.ToLower(val) == "true")
 		case "gamescope_width":
 			if n, err := strconv.Atoi(val); err == nil {
 				cfg.GamescopeWidth = n

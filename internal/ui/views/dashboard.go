@@ -29,6 +29,7 @@ type DashboardData struct {
 	StatusMessage   string
 	Width           int
 	Height          int
+	OpaqueBackdrop  bool
 }
 
 func lbl(name string) string {
@@ -54,15 +55,23 @@ func RenderDashboard(d DashboardData) string {
 
 	var sb strings.Builder
 
-	// 2. Full-Width Header Bar
+	panelStyle := style.GetPanelStyle(d.OpaqueBackdrop)
+	cmdBoxStyle := style.GetCommandBoxStyle(d.OpaqueBackdrop)
+	headerBarStyle := style.GetHeaderBarStyle(d.OpaqueBackdrop)
+
+	// 2. Full-Width Header Bar with Backdrop Toggle
+	backdropText := "[b] Backdrop: Solid"
+	if !d.OpaqueBackdrop {
+		backdropText = "[b] Backdrop: Transparent"
+	}
 	leftHeader := fmt.Sprintf("🎮 rpt v2.0.0 │ Game: %s", d.GameTitle)
-	rightHeader := "[?] Help & Manual  [q] Quit"
+	rightHeader := fmt.Sprintf("%s  •  [?] Help  •  [q] Quit", style.KeyStyle.Render(backdropText))
 	spaceCount := contentWidth - lipgloss.Width(leftHeader) - lipgloss.Width(rightHeader) - 2
 	if spaceCount < 2 {
 		spaceCount = 2
 	}
 	headerLine := leftHeader + strings.Repeat(" ", spaceCount) + rightHeader
-	sb.WriteString(style.HeaderBar.Width(contentWidth).Render(headerLine))
+	sb.WriteString(headerBarStyle.Width(contentWidth).Render(headerLine))
 	sb.WriteString("\n")
 
 	// Status Message Banner if present
@@ -192,8 +201,8 @@ func RenderDashboard(d DashboardData) string {
 	renderRow("Session Logs:", logStatus)
 
 	// Render panels with matched height
-	rawLeft := style.PanelStyle.Width(colWidth).Render(leftSb.String())
-	rawRight := style.PanelStyle.Width(rightColWidth).Render(rightSb.String())
+	rawLeft := panelStyle.Width(colWidth).Render(leftSb.String())
+	rawRight := panelStyle.Width(rightColWidth).Render(rightSb.String())
 
 	hLeft := lipgloss.Height(rawLeft)
 	hRight := lipgloss.Height(rawRight)
@@ -201,16 +210,15 @@ func RenderDashboard(d DashboardData) string {
 	if hRight > targetH {
 		targetH = hRight
 	}
-	// Subtract 2 for top and bottom border
 	panelInnerH := targetH - 2
 	if panelInnerH < 1 {
 		panelInnerH = 1
 	}
 
-	leftPanel := style.PanelStyle.Width(colWidth).Height(panelInnerH).Render(leftSb.String())
-	rightPanel := style.PanelStyle.Width(rightColWidth).Height(panelInnerH).Render(rightSb.String())
+	leftPanel := panelStyle.Width(colWidth).Height(panelInnerH).Render(leftSb.String())
+	rightPanel := panelStyle.Width(rightColWidth).Height(panelInnerH).Render(rightSb.String())
 
-	// Join both panels side-by-side with matched height
+	// Join both panels side-by-side
 	panelsRow := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
 	sb.WriteString(panelsRow)
 	sb.WriteString("\n")
@@ -219,11 +227,11 @@ func RenderDashboard(d DashboardData) string {
 	cmdPreview := buildPreviewCommand(d)
 	cmdHeader := style.SectionTitle.Render("🚀 Execution Pipeline Preview:") + "\n"
 	cmdContent := lipgloss.NewStyle().Width(contentWidth - 4).Render(cmdPreview)
-	sb.WriteString(style.CommandBoxStyle.Width(contentWidth).Render(cmdHeader + cmdContent))
+	sb.WriteString(cmdBoxStyle.Width(contentWidth).Render(cmdHeader + cmdContent))
 	sb.WriteString("\n")
 
-	// 6. Action Menu & Hotkeys Dock (Full Width, Balanced Rows)
-	sb.WriteString(renderMenuDock(contentWidth))
+	// 6. Action Menu & Hotkeys Dock (True 4-Column Grid Indentation)
+	sb.WriteString(renderMenuDock(contentWidth, d.OpaqueBackdrop))
 
 	return sb.String()
 }
@@ -245,28 +253,49 @@ func buildPreviewCommand(d DashboardData) string {
 	return inner
 }
 
-func pill(key, label string) string {
-	return style.KeyBadge.Render(key) + " " + style.KeyDesc.Render(label) + "  "
-}
+func renderMenuDock(width int, opaque bool) string {
+	colW := (width - 4) / 4
+	if colW < 18 {
+		colW = 18
+	}
 
-func renderMenuDock(width int) string {
-	row1 := pill("[Enter]", "Launch Game") +
-		pill("[2]", "Proton Runner") +
-		pill("[3]", "Executable") +
-		pill("[a]", "ProtonDB Tips")
+	cell := func(key, label string) string {
+		content := style.KeyBadge.Render(key) + " " + style.KeyDesc.Render(label)
+		return lipgloss.NewStyle().Width(colW).Render(content)
+	}
 
-	row2 := pill("[g]", "Gamescope") +
-		pill("[p]", "P-Cores") +
-		pill("[v]", "GPU Runner") +
-		pill("[o]", "DLL Overrides")
+	row1 := lipgloss.JoinHorizontal(lipgloss.Top,
+		cell("[Enter]", "Launch Game"),
+		cell("[2]", "Proton Runner"),
+		cell("[3]", "Executable"),
+		cell("[a]", "ProtonDB Tips"),
+	)
+	row2 := lipgloss.JoinHorizontal(lipgloss.Top,
+		cell("[g]", "Toggle Gamescope"),
+		cell("[p]", "Toggle P-Cores"),
+		cell("[v]", "Toggle GPU Runner"),
+		cell("[o]", "DLL Overrides"),
+	)
 
-	row3 := pill("[c]", "Reset Prefix") +
-		pill("[h]", "Health Check") +
-		pill("[l]", "Logs") +
-		pill("[?]", "Help Manual") +
-		pill("[q]", "Quit")
+	backdropLabel := "Backdrop: Solid"
+	if !opaque {
+		backdropLabel = "Backdrop: Transp"
+	}
 
-	dockContent := style.SectionTitle.Render("⌨️  Controls & Hotkeys:") + "\n" + row1 + "\n" + row2 + "\n" + row3
+	row3 := lipgloss.JoinHorizontal(lipgloss.Top,
+		cell("[c]", "Reset Prefix"),
+		cell("[h]", "Health Check"),
+		cell("[l]", "View Logs"),
+		cell("[b]", backdropLabel),
+	)
 
-	return style.PanelStyle.Width(width).Render(dockContent)
+	row4 := lipgloss.JoinHorizontal(lipgloss.Top,
+		cell("[?]", "Help Manual"),
+		cell("[q]", "Quit rpt"),
+	)
+
+	dockContent := style.SectionTitle.Render("⌨️  Controls & Hotkeys (Aligned Grid):") + "\n" +
+		row1 + "\n" + row2 + "\n" + row3 + "\n" + row4
+
+	return style.GetPanelStyle(opaque).Width(width).Render(dockContent)
 }

@@ -65,6 +65,7 @@ func renderHelpContent() string {
 	sb.WriteString("  [c]         : Clean / Reset Wine Prefix (with automatic savegame backup!)\n")
 	sb.WriteString("  [h]         : Pre-flight Permissions & Environment Health Check\n")
 	sb.WriteString("  [l]         : View Recent Session Logs & Crash Dumps\n")
+	sb.WriteString("  [b]         : Toggle Opaque vs Transparent Terminal Backdrop\n")
 	sb.WriteString("  [?] / [F1]  : Toggle this In-Depth Help Manual\n")
 	sb.WriteString("  [q] / [Esc] : Exit rpt\n\n")
 

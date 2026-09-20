@@ -11,19 +11,11 @@ var (
 	ColorDanger    = lipgloss.Color("#f7768e") // Red
 	ColorMuted     = lipgloss.Color("#565f89") // Gray
 	ColorHighlight = lipgloss.Color("#7dcfff") // Cyan
-	ColorBgDark    = lipgloss.Color("#1a1b26") // Dark Background
+	ColorBgDark    = lipgloss.Color("#16161e") // Deep Opaque Background for maximum contrast
 	ColorText      = lipgloss.Color("#c0caf5") // Light Text
 	ColorBorder    = lipgloss.Color("#3b4261") // Subtle Border
 
-	// Typography & Layout Styles
-	HeaderBar = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorHighlight).
-			Background(ColorBgDark).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorPrimary).
-			Padding(0, 1)
-
+	// Typography Styles
 	TitleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(ColorPrimary)
@@ -39,16 +31,6 @@ var (
 	SubheaderStyle = lipgloss.NewStyle().
 			Foreground(ColorMuted).
 			Italic(true)
-
-	PanelStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorBorder).
-			Padding(0, 1)
-
-	ActivePanelStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorPrimary).
-			Padding(0, 1)
 
 	LabelStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -101,12 +83,44 @@ var (
 			Foreground(ColorText)
 
 	KeyPill = lipgloss.NewStyle().
-		MarginRight(2)
-
-	// Command Box
-	CommandBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorBorder).
-			Foreground(ColorHighlight).
-			Padding(0, 1)
+			MarginRight(2)
 )
+
+// GetPanelStyle returns the panel border style, optionally filling with a solid dark background.
+func GetPanelStyle(opaque bool) lipgloss.Style {
+	s := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorBorder).
+		Padding(0, 1)
+	if opaque {
+		s = s.Background(ColorBgDark)
+	}
+	return s
+}
+
+// GetCommandBoxStyle returns the command box style with or without solid dark background.
+func GetCommandBoxStyle(opaque bool) lipgloss.Style {
+	s := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorBorder).
+		Foreground(ColorHighlight).
+		Padding(0, 1)
+	if opaque {
+		s = s.Background(ColorBgDark)
+	}
+	return s
+}
+
+// GetHeaderBarStyle returns the header bar style with or without solid dark background.
+func GetHeaderBarStyle(opaque bool) lipgloss.Style {
+	s := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(ColorHighlight).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorPrimary).
+		Padding(0, 1)
+	if opaque {
+		s = s.Background(ColorBgDark)
+	}
+	return s
+}

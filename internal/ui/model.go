@@ -320,6 +320,11 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.State = StateHelp
 		return m, nil
 
+	case "b":
+		m.Config.OpaqueBackdrop = !m.Config.OpaqueBackdrop
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		return m, nil
+
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	}
@@ -374,6 +379,7 @@ func (m *Model) View() string {
 			StatusMessage:   m.StatusMessage,
 			Width:           m.Width,
 			Height:          m.Height,
+			OpaqueBackdrop:  m.Config.OpaqueBackdrop,
 		})
 	}
 	return ""

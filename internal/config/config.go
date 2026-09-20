@@ -16,6 +16,7 @@ type GameConfig struct {
 	ManagePower      bool     `toml:"manage_power"`
 	UseXalia         bool     `toml:"use_xalia"`
 	EnableLogging    bool     `toml:"enable_logging"`
+	OpaqueBackdrop   bool     `toml:"opaque_backdrop"`
 	ExtraArgs        []string `toml:"extra_args"`
 }
 
@@ -36,6 +37,7 @@ func NewDefaultConfig() *GameConfig {
 		ManagePower:      true,
 		UseXalia:         false,
 		EnableLogging:    false,
+		OpaqueBackdrop:   true,
 		ExtraArgs:        make([]string, 0),
 	}
 }
