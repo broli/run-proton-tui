@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/broli/run-proton-tui/internal/runner"
 	"github.com/broli/run-proton-tui/internal/ui/views"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/term"
 )
 
 // ViewState represents the currently active sub-screen in the TUI.
@@ -81,6 +83,12 @@ func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 	pfxDir := filepath.Join(gameDir, "proton-prefix")
 	activeOverrides, _ := proton.ReadRegistryOverrides(pfxDir)
 
+	termWidth, termHeight, err := term.GetSize(os.Stdout.Fd())
+	if err != nil || termWidth < 80 {
+		termWidth = 110
+		termHeight = 32
+	}
+
 	m := &Model{
 		State:           StateDashboard,
 		GameDir:         gameDir,
@@ -93,8 +101,8 @@ func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 		ActiveOverrides: activeOverrides,
 		GPUInfo:         gpuInfo,
 		CPUTopo:         cpuTopo,
-		Width:           100,
-		Height:          30,
+		Width:           termWidth,
+		Height:          termHeight,
 		ShouldLaunch:    false,
 	}
 
@@ -364,6 +372,8 @@ func (m *Model) View() string {
 			ActiveOverrides: m.ActiveOverrides,
 			ProtonName:      pName,
 			StatusMessage:   m.StatusMessage,
+			Width:           m.Width,
+			Height:          m.Height,
 		})
 	}
 	return ""

@@ -20,7 +20,7 @@ lint:
 
 install: build
 	@mkdir -p $(PREFIX)
-	cp $(BUILD_DIR)/$(BINARY_NAME) $(PREFIX)/$(BINARY_NAME)
+	install -m 755 $(BUILD_DIR)/$(BINARY_NAME) $(PREFIX)/$(BINARY_NAME)
 	ln -sf $(PREFIX)/$(BINARY_NAME) $(PREFIX)/rptui
 	ln -sf $(PREFIX)/$(BINARY_NAME) $(PREFIX)/run-proton
 	@echo "[✓] Installed $(PREFIX)/$(BINARY_NAME) and symlinks (rptui, run-proton)"

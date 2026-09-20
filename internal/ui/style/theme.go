@@ -13,15 +13,24 @@ var (
 	ColorHighlight = lipgloss.Color("#7dcfff") // Cyan
 	ColorBgDark    = lipgloss.Color("#1a1b26") // Dark Background
 	ColorText      = lipgloss.Color("#c0caf5") // Light Text
+	ColorBorder    = lipgloss.Color("#3b4261") // Subtle Border
 
 	// Typography & Layout Styles
-	TitleStyle = lipgloss.NewStyle().
+	HeaderBar = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(ColorPrimary).
+			Foreground(ColorHighlight).
+			Background(ColorBgDark).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(ColorPrimary).
-			Padding(0, 1).
-			MarginBottom(1)
+			Padding(0, 1)
+
+	TitleStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ColorPrimary)
+
+	SectionTitle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ColorSecondary)
 
 	HeaderStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -31,19 +40,24 @@ var (
 			Foreground(ColorMuted).
 			Italic(true)
 
-	CardStyle = lipgloss.NewStyle().
+	PanelStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorMuted).
-			Padding(0, 1).
-			MarginBottom(1)
+			BorderForeground(ColorBorder).
+			Padding(0, 1)
 
-	ActiveCardStyle = lipgloss.NewStyle().
+	ActivePanelStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(ColorPrimary).
-			Padding(0, 1).
-			MarginBottom(1)
+			Padding(0, 1)
 
-	// Status Badges
+	LabelStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ColorMuted)
+
+	ValueStyle = lipgloss.NewStyle().
+			Foreground(ColorText)
+
+	// Status Badges & Pills
 	BadgeSuccess = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#1a1b26")).
@@ -77,14 +91,22 @@ var (
 			Bold(true).
 			Foreground(ColorHighlight)
 
-	KeyDescStyle = lipgloss.NewStyle().
+	KeyBadge = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#1a1b26")).
+			Background(ColorHighlight).
+			Padding(0, 1)
+
+	KeyDesc = lipgloss.NewStyle().
 			Foreground(ColorText)
+
+	KeyPill = lipgloss.NewStyle().
+		MarginRight(2)
 
 	// Command Box
 	CommandBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(ColorMuted).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(ColorBorder).
 			Foreground(ColorHighlight).
-			Padding(0, 1).
-			MarginTop(1)
+			Padding(0, 1)
 )
