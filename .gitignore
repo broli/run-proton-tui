@@ -1,0 +1,29 @@
+# Binaries
+bin/
+rpt
+rptui
+run-proton
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test and coverage artifacts
+*.out
+*.test
+coverage.txt
+
+# Local logs and runtime files
+.logs/
+*.log
+.proton-config*
+proton-prefix/
+.gamescope_runner.sh
+
+# IDE and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
