@@ -2,6 +2,8 @@ package views
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
@@ -111,9 +113,13 @@ func RenderDashboard(d DashboardData) string {
 	}
 
 	// Wine Prefix Status
-	pfxInfo := "Active"
+	pfxInfo := "Not Initialized (Created on launch)"
 	if d.PrefixSize != "" {
 		pfxInfo = fmt.Sprintf("Active (%s)", d.PrefixSize)
+	} else if _, err := os.Stat(filepath.Join(d.GameDir, "proton-prefix", "pfx", "drive_c")); err == nil {
+		pfxInfo = "Active"
+	} else if _, err := os.Stat(filepath.Join(d.GameDir, "proton-prefix")); err == nil {
+		pfxInfo = "Ready"
 	}
 	leftSb.WriteString(fmt.Sprintf("%s %s\n\n", lbl("Wine Prefix:"), fmt.Sprintf("./proton-prefix/ (%s)", pfxInfo)))
 

@@ -48,17 +48,29 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 	prefixDir := filepath.Join(gameDir, "proton-prefix")
 	logsDir, _ := diagnostics.EnsureLogsDir(gameDir)
 
-	// 1. Power Profile Management
+	// 1. Ensure prefix and pfx subdirectories exist before Proton starts
+	// Proton's filelock requires the parent directory (STEAM_COMPAT_DATA_PATH) to exist
+	// in order to acquire pfx.lock and initialize wineboot without crashing.
+	pfxSubDir := filepath.Join(prefixDir, "pfx")
+	if err := os.MkdirAll(pfxSubDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create proton prefix directory: %w", err)
+	}
+
+	// 2. Pre-flight health and permissions check (+x on target and *Shipping.exe)
+	diagnostics.RunPreflightCheck(gameDir, cfg.TargetExe, prefixDir)
+
+	// 3. Pre-clean abandoned locks and flush any lingering wineserver holding this prefix
+	_ = prefix.Flush(prefixDir, cfg.ProtonPath)
+	_, _ = prefix.CleanStaleLocks()
+
+	// 4. Power Profile Management
 	powerMgr := hardware.NewPowerManager()
 	if cfg.ManagePower {
 		_ = powerMgr.SetPerformance()
 		defer powerMgr.Restore()
 	}
 
-	// 2. Pre-clean abandoned locks
-	_, _ = prefix.CleanStaleLocks()
-
-	// 3. Build Proton Environment
+	// 5. Build Proton Environment
 	envOpts := proton.EnvOptions{
 		PrefixDir:     prefixDir,
 		GameDir:       gameDir,

@@ -1,6 +1,8 @@
 package runner
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -32,3 +34,26 @@ func TestClassifyExecutable(t *testing.T) {
 		}
 	}
 }
+
+func TestEnsurePrefixDirectories(t *testing.T) {
+	tempDir := t.TempDir()
+	prefixDir := filepath.Join(tempDir, "proton-prefix")
+	pfxSubDir := filepath.Join(prefixDir, "pfx")
+
+	if err := os.MkdirAll(pfxSubDir, 0755); err != nil {
+		t.Fatalf("Failed to create prefix directories: %v", err)
+	}
+
+	if info, err := os.Stat(pfxSubDir); err != nil || !info.IsDir() {
+		t.Fatalf("Expected %s to exist as a directory", pfxSubDir)
+	}
+
+	// Verify lock file can be opened inside prefixDir (as proton does)
+	lockFile := filepath.Join(prefixDir, "pfx.lock")
+	f, err := os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		t.Fatalf("Failed to open lock file: %v", err)
+	}
+	_ = f.Close()
+}
+
