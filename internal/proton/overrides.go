@@ -55,18 +55,47 @@ func GetStandardDLLPresets() []DLLPreset {
 	}
 }
 
-// ReadRegistryOverrides reads active DLL overrides directly from user.reg.
+// IsWineDefaultDLL returns true if a DLL is an internal Wine/Proton system default
+// (such as Visual C++ runtimes, UCRT, Windows API sets, or driver stubs).
+func IsWineDefaultDLL(dll string) bool {
+	lower := strings.ToLower(strings.TrimSpace(dll))
+	if strings.HasPrefix(lower, "msvc") ||
+		strings.HasPrefix(lower, "vcomp") ||
+		strings.HasPrefix(lower, "vcrunt") ||
+		strings.HasPrefix(lower, "vccor") ||
+		strings.HasPrefix(lower, "concrt") ||
+		strings.HasPrefix(lower, "atl") ||
+		strings.HasPrefix(lower, "api-ms-win") ||
+		lower == "ucrtbase" ||
+		lower == "nvcuda" ||
+		lower == "atiadlxx" ||
+		lower == "lsteamclient" {
+		return true
+	}
+	return false
+}
+
+// ReadRegistryOverrides reads user/game DLL overrides from user.reg, automatically
+// filtering out Wine's internal system runtime defaults.
 func ReadRegistryOverrides(prefixDir string) (map[string]string, error) {
+	userOverrides, _, err := ReadRegistryOverridesSeparated(prefixDir)
+	return userOverrides, err
+}
+
+// ReadRegistryOverridesSeparated reads active DLL overrides from user.reg and separates
+// user/game overrides from Wine's internal system defaults.
+func ReadRegistryOverridesSeparated(prefixDir string) (userOverrides, systemDefaults map[string]string, err error) {
 	pfx := prefix.GetCanonicalPfx(prefixDir)
 	userReg := filepath.Join(pfx, "user.reg")
 
 	f, err := os.Open(userReg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer f.Close()
 
-	overrides := make(map[string]string)
+	userOverrides = make(map[string]string)
+	systemDefaults = make(map[string]string)
 	inOverridesSection := false
 
 	scanner := bufio.NewScanner(f)
@@ -90,13 +119,18 @@ func ReadRegistryOverrides(prefixDir string) (map[string]string, error) {
 			if len(parts) == 2 {
 				key := strings.Trim(parts[0], "\"")
 				val := strings.Trim(parts[1], "\"")
-				overrides[key] = val
+				if IsWineDefaultDLL(key) {
+					systemDefaults[key] = val
+				} else {
+					userOverrides[key] = val
+				}
 			}
 		}
 	}
 
-	return overrides, nil
+	return userOverrides, systemDefaults, nil
 }
+
 
 func resolveWineBin(protonPath string) (string, error) {
 	if protonPath != "" {

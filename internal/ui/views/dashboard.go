@@ -188,16 +188,21 @@ func RenderDashboard(d DashboardData) string {
 	}
 	renderRow("Xalia Bridge:", xaliaStatus)
 
-	// DLL Overrides
-	overrideStr := style.SubheaderStyle.Render("None (Default)")
+	// DLL Overrides (Compact Yes / No indicator with summary)
+	overrideStr := style.BadgeMuted.Render("No (None Active)")
 	if len(d.ActiveOverrides) > 0 {
 		var oList []string
-		for k, v := range d.ActiveOverrides {
-			oList = append(oList, fmt.Sprintf("%s=%s", k, v))
+		for k := range d.ActiveOverrides {
+			oList = append(oList, k)
 		}
-		overrideStr = style.ValueStyle.Render(strings.Join(oList, ", "))
+		summary := strings.Join(oList, ", ")
+		if len(summary) > 22 {
+			summary = summary[:19] + "..."
+		}
+		overrideStr = style.BadgeSuccess.Render(fmt.Sprintf("Yes (%d active: %s)", len(d.ActiveOverrides), summary))
 	}
 	renderRow("DLL Overrides:", overrideStr)
+
 
 	// Logging
 	logStatus := style.SubheaderStyle.Render("Disabled")

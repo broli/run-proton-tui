@@ -12,6 +12,8 @@ func TestOverridesViewPresetsAndCustom(t *testing.T) {
 	activeReg := map[string]string{
 		"dwmapi": "native,builtin",
 		"custom1": "native",
+		"msvcp140": "native,builtin", // Wine system default
+		"vcomp120": "native,builtin", // Wine system default
 	}
 	savedCfg := map[string]string{
 		"custom2": "builtin,native",
@@ -19,9 +21,14 @@ func TestOverridesViewPresetsAndCustom(t *testing.T) {
 
 	ov := NewOverridesView(tempDir, "", activeReg, savedCfg)
 
-	// Verify presets and custom items exist
-	if len(ov.Items) < 7 { // 5 presets + 2 custom
-		t.Fatalf("Expected at least 7 items, got %d", len(ov.Items))
+	// Verify user items: 5 presets + 2 custom (custom1, custom2). System defaults filtered!
+	if len(ov.UserItems) != 7 {
+		t.Fatalf("Expected 7 UserItems, got %d", len(ov.UserItems))
+	}
+
+	// Verify system items separated: msvcp140, vcomp120
+	if len(ov.SystemItems) != 2 {
+		t.Fatalf("Expected 2 SystemItems, got %d", len(ov.SystemItems))
 	}
 
 	active := ov.GetActiveOverrides()
@@ -33,6 +40,10 @@ func TestOverridesViewPresetsAndCustom(t *testing.T) {
 	}
 	if active["custom2"] != "builtin,native" {
 		t.Errorf("Expected custom2 to be active with builtin,native, got %s", active["custom2"])
+	}
+	// Verify system defaults are NOT in GetActiveOverrides()
+	if _, ok := active["msvcp140"]; ok {
+		t.Errorf("System default msvcp140 should not be returned in GetActiveOverrides()")
 	}
 
 	// Test adding a new custom DLL
@@ -63,6 +74,10 @@ func TestOverridesViewPresetsAndCustom(t *testing.T) {
 	if !strings.Contains(viewStr, "CUSTOM") {
 		t.Errorf("Expected view to display CUSTOM tag, got:\n%s", viewStr)
 	}
+	// Verify pagination indicator is present
+	if !strings.Contains(viewStr, "Page ") {
+		t.Errorf("Expected view to display pagination indicator, got:\n%s", viewStr)
+	}
 
 	// Test mode cycling on the newly added item (cursor is on it)
 	prevMode := ov.Modes["xinput1_3"]
@@ -73,9 +88,19 @@ func TestOverridesViewPresetsAndCustom(t *testing.T) {
 	}
 
 	// Test delete custom override with 'd'
-	itemsBeforeDelete := len(ov.Items)
+	itemsBeforeDelete := len(ov.UserItems)
 	ov, _ = ov.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
-	if len(ov.Items) != itemsBeforeDelete-1 {
-		t.Errorf("Expected items count to decrease by 1 after deletion, got %d (was %d)", len(ov.Items), itemsBeforeDelete)
+	if len(ov.UserItems) != itemsBeforeDelete-1 {
+		t.Errorf("Expected items count to decrease by 1 after deletion, got %d (was %d)", len(ov.UserItems), itemsBeforeDelete)
+	}
+
+	// Test switching to system defaults tab with 's'
+	ov, _ = ov.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if !ov.ShowSystem {
+		t.Errorf("Expected ShowSystem to be true after pressing 's'")
+	}
+	sysViewStr := ov.View()
+	if !strings.Contains(sysViewStr, "Wine System Defaults") {
+		t.Errorf("Expected system view to display Wine System Defaults, got:\n%s", sysViewStr)
 	}
 }
