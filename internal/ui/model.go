@@ -82,6 +82,14 @@ func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 	// Read active overrides
 	pfxDir := filepath.Join(gameDir, "proton-prefix")
 	activeOverrides, _ := proton.ReadRegistryOverrides(pfxDir)
+	if activeOverrides == nil {
+		activeOverrides = make(map[string]string)
+	}
+	for k, v := range cfg.DLLOverrides {
+		if _, ok := activeOverrides[k]; !ok {
+			activeOverrides[k] = v
+		}
+	}
 
 	termWidth, termHeight, err := term.GetSize(os.Stdout.Fd())
 	if err != nil || termWidth < 80 {
@@ -195,6 +203,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if done {
 				pfxDir := filepath.Join(m.GameDir, "proton-prefix")
 				m.ActiveOverrides, _ = proton.ReadRegistryOverrides(pfxDir)
+				m.Config.DLLOverrides = m.OverridesView.GetActiveOverrides()
+				// Ensure active overrides reflect what was set
+				for k, v := range m.Config.DLLOverrides {
+					m.ActiveOverrides[k] = v
+				}
+				_ = config.SaveConfig(m.GameDir, m.Config)
 				m.State = StateDashboard
 			}
 			return m, nil
@@ -257,7 +271,7 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "o":
 		pfxDir := filepath.Join(m.GameDir, "proton-prefix")
-		m.OverridesView = views.NewOverridesView(pfxDir, m.Config.ProtonPath, m.ActiveOverrides)
+		m.OverridesView = views.NewOverridesView(pfxDir, m.Config.ProtonPath, m.ActiveOverrides, m.Config.DLLOverrides)
 		m.State = StateOverrides
 		return m, nil
 

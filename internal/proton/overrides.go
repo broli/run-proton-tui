@@ -98,21 +98,30 @@ func ReadRegistryOverrides(prefixDir string) (map[string]string, error) {
 	return overrides, nil
 }
 
+func resolveWineBin(protonPath string) (string, error) {
+	if protonPath != "" {
+		pDir := filepath.Dir(protonPath)
+		wineBin := filepath.Join(pDir, "files/bin/wine")
+		if _, err := os.Stat(wineBin); err == nil {
+			return wineBin, nil
+		}
+		wineBin = filepath.Join(pDir, "dist/bin/wine")
+		if _, err := os.Stat(wineBin); err == nil {
+			return wineBin, nil
+		}
+	}
+	if sysWine, err := exec.LookPath("wine"); err == nil {
+		return sysWine, nil
+	}
+	return "", fmt.Errorf("wine binary not found to execute reg command")
+}
+
 // SetRegistryOverride writes a DLL override into the Wine prefix registry using 'wine reg add'.
 func SetRegistryOverride(prefixDir string, protonPath string, dllName string, mode string) error {
 	pfx := prefix.GetCanonicalPfx(prefixDir)
-	pDir := filepath.Dir(protonPath)
-
-	wineBin := filepath.Join(pDir, "files/bin/wine")
-	if _, err := os.Stat(wineBin); err != nil {
-		wineBin = filepath.Join(pDir, "dist/bin/wine")
-		if _, err := os.Stat(wineBin); err != nil {
-			if sysWine, err := exec.LookPath("wine"); err == nil {
-				wineBin = sysWine
-			} else {
-				return fmt.Errorf("wine binary not found to execute reg command")
-			}
-		}
+	wineBin, err := resolveWineBin(protonPath)
+	if err != nil {
+		return err
 	}
 
 	regKey := `HKCU\Software\Wine\DllOverrides`
@@ -122,21 +131,27 @@ func SetRegistryOverride(prefixDir string, protonPath string, dllName string, mo
 	return cmd.Run()
 }
 
+// DeleteRegistryOverride deletes a specific DLL override under HKCU\Software\Wine\DllOverrides.
+func DeleteRegistryOverride(prefixDir string, protonPath string, dllName string) error {
+	pfx := prefix.GetCanonicalPfx(prefixDir)
+	wineBin, err := resolveWineBin(protonPath)
+	if err != nil {
+		return err
+	}
+
+	regKey := `HKCU\Software\Wine\DllOverrides`
+	cmd := exec.Command(wineBin, "reg", "delete", regKey, "/v", dllName, "/f")
+	cmd.Env = append(os.Environ(), "WINEPREFIX="+pfx, "WINEDEBUG=-all")
+
+	return cmd.Run()
+}
+
 // ClearRegistryOverrides deletes all DLL overrides under HKCU\Software\Wine\DllOverrides.
 func ClearRegistryOverrides(prefixDir string, protonPath string) error {
 	pfx := prefix.GetCanonicalPfx(prefixDir)
-	pDir := filepath.Dir(protonPath)
-
-	wineBin := filepath.Join(pDir, "files/bin/wine")
-	if _, err := os.Stat(wineBin); err != nil {
-		wineBin = filepath.Join(pDir, "dist/bin/wine")
-		if _, err := os.Stat(wineBin); err != nil {
-			if sysWine, err := exec.LookPath("wine"); err == nil {
-				wineBin = sysWine
-			} else {
-				return fmt.Errorf("wine binary not found to execute reg command")
-			}
-		}
+	wineBin, err := resolveWineBin(protonPath)
+	if err != nil {
+		return err
 	}
 
 	regKey := `HKCU\Software\Wine\DllOverrides`
@@ -145,3 +160,4 @@ func ClearRegistryOverrides(prefixDir string, protonPath string) error {
 
 	return cmd.Run()
 }
+

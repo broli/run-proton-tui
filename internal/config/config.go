@@ -16,8 +16,9 @@ type GameConfig struct {
 	ManagePower      bool     `toml:"manage_power"`
 	UseXalia         bool     `toml:"use_xalia"`
 	EnableLogging    bool     `toml:"enable_logging"`
-	OpaqueBackdrop   bool     `toml:"opaque_backdrop"`
-	ExtraArgs        []string `toml:"extra_args"`
+	OpaqueBackdrop   bool              `toml:"opaque_backdrop"`
+	DLLOverrides     map[string]string `toml:"dll_overrides,omitempty"`
+	ExtraArgs        []string          `toml:"extra_args"`
 }
 
 // NewDefaultConfig returns a sane default configuration.
@@ -38,6 +39,7 @@ func NewDefaultConfig() *GameConfig {
 		UseXalia:         false,
 		EnableLogging:    false,
 		OpaqueBackdrop:   true,
+		DLLOverrides:     make(map[string]string),
 		ExtraArgs:        make([]string, 0),
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/broli/run-proton-tui/internal/config"
@@ -71,15 +72,26 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 	}
 
 	// 5. Build Proton Environment
+	extraOverrides := ""
+	if len(cfg.DLLOverrides) > 0 {
+		var parts []string
+		for dll, mode := range cfg.DLLOverrides {
+			parts = append(parts, fmt.Sprintf("%s=%s", dll, mode))
+		}
+		extraOverrides = strings.Join(parts, ";")
+	}
+
 	envOpts := proton.EnvOptions{
-		PrefixDir:     prefixDir,
-		GameDir:       gameDir,
-		AppID:         cfg.AppID,
-		UseXalia:      cfg.UseXalia,
-		EnableLogging: cfg.EnableLogging,
+		PrefixDir:      prefixDir,
+		GameDir:        gameDir,
+		AppID:          cfg.AppID,
+		UseXalia:       cfg.UseXalia,
+		EnableLogging:  cfg.EnableLogging,
+		ExtraOverrides: extraOverrides,
 	}
 	envMap := proton.BuildEnvironment(envOpts)
 	envSlice := proton.EnvSlice(envMap)
+
 
 	// 4. Resolve Executable and Directory
 	fullExePath := filepath.Join(gameDir, cfg.TargetExe)

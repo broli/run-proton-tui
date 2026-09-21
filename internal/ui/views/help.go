@@ -59,7 +59,7 @@ func renderHelpContent() string {
 	sb.WriteString("  [g]         : Toggle Gamescope Sandboxing (1080p fixed canvas)\n")
 	sb.WriteString("  [p]         : Toggle CPU P-Core Pinning (taskset to threads 0-11)\n")
 	sb.WriteString("  [v]         : Toggle GPU Runner (prime-run NVIDIA RTX 4060 vs Intel iGPU)\n")
-	sb.WriteString("  [o]         : Configure Wine Registry DLL Overrides (UE4SS, ReShade, etc.)\n")
+	sb.WriteString("  [o]         : Configure DLL Overrides (presets, add custom DLLs [a], and cycle modes [m])\n")
 	sb.WriteString("  [a]         : Fetch and Apply ProtonDB Community Recommendations\n")
 	sb.WriteString("  [x]         : Toggle Proton Xalia Accessibility Bridge\n")
 	sb.WriteString("  [c]         : Clean / Reset Wine Prefix (with automatic savegame backup!)\n")
