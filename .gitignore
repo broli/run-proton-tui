@@ -1,8 +1,8 @@
 # Binaries
 bin/
-rpt
-rptui
-run-proton
+/rpt
+/rptui
+/run-proton
 *.exe
 *.dll
 *.so

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/broli/run-proton-tui/internal/config"
@@ -24,6 +25,7 @@ type SessionResult struct {
 	Duration      time.Duration
 	LogFile       string
 	CrashDetected bool
+	AbortedByUser bool
 	ErrorOutput   string
 }
 
@@ -208,6 +210,17 @@ exit $EXIT_CODE
 	cmd.Dir = gameDir
 	cmd.Env = envSlice
 
+	// Place child processes into their own process group so signals can be propagated
+	// cleanly to gamescope, proton, and wineserver without leaking dangling wine processes.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process != nil && cmd.Process.Pid > 0 {
+			return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		}
+		return nil
+	}
+	cmd.WaitDelay = 3 * time.Second
+
 	// Pipe output
 	if logFile != nil {
 		if opts.StdoutPipe != nil {
@@ -231,7 +244,10 @@ exit $EXIT_CODE
 		LogFile:  sessionLogPath,
 	}
 
-	if err != nil {
+	if ctx.Err() != nil {
+		result.AbortedByUser = true
+		result.ExitCode = 130
+	} else if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
 		} else {
@@ -240,7 +256,7 @@ exit $EXIT_CODE
 	}
 
 	// Crash Detection: exited with error or died within 15 seconds
-	if result.ExitCode != 0 || (duration < 15*time.Second && result.ExitCode != 0) {
+	if !result.AbortedByUser && (result.ExitCode != 0 || (duration < 15*time.Second && result.ExitCode != 0)) {
 		result.CrashDetected = true
 	}
 
