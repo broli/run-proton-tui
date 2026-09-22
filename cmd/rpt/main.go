@@ -37,6 +37,8 @@ func main() {
 	flagLog := flag.Bool("log", false, "Enable verbose Proton & DXVK logging to .logs/")
 	flagLogShort := flag.Bool("v", false, "Alias for --log")
 	flagDiagnostics := flag.Bool("diagnostics", false, "Run pre-flight health & permissions check and exit")
+	flagDiag := flag.Bool("diag", false, "Alias for --diagnostics")
+	flagDiagShort := flag.Bool("d", false, "Alias for --diagnostics")
 	flagVersion := flag.Bool("version", false, "Show version information")
 
 	// Toggles
@@ -169,7 +171,7 @@ func main() {
 	pfxDir := filepath.Join(gameDir, "proton-prefix")
 
 	// Diagnostics flag
-	if *flagDiagnostics {
+	if *flagDiagnostics || *flagDiag || *flagDiagShort {
 		report := diagnostics.RunPreflightCheck(gameDir, cfg.TargetExe, pfxDir)
 		fmt.Printf("=== Health Report for %s ===\n", filepath.Base(gameDir))
 		fmt.Printf("Target Exe: %s (Exists: %v, Auto-Fixed +x: %v)\n", cfg.TargetExe, report.TargetExeExists, report.TargetExeFixed)
