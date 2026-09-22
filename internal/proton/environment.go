@@ -17,6 +17,8 @@ type EnvOptions struct {
 	UseXalia       bool
 	EnableLogging  bool
 	ExtraOverrides string // Additional DLL overrides string
+	UmuID          string // UMU game ID (e.g. umu-endfield, umu-genshin)
+	CustomEnv      map[string]string // Custom environment variables
 }
 
 // BuildEnvironment generates the complete environment variable map for Proton execution.
@@ -39,13 +41,18 @@ func BuildEnvironment(opts EnvOptions) map[string]string {
 		appID = "0"
 	}
 
+	umuID := opts.UmuID
+	if umuID == "" {
+		umuID = "umu-default"
+	}
+
 	// 1. Core Steam / Proton compatibility variables
 	env["STEAM_COMPAT_DATA_PATH"] = opts.PrefixDir
 	env["STEAM_COMPAT_CLIENT_INSTALL_PATH"] = filepath.Join(home, ".local/share/Steam")
 	env["STEAM_COMPAT_APP_ID"] = appID
 	// CRITICAL FIX: Proton's internal runner requires SteamGameId to create steam-$SteamGameId.log
 	env["SteamGameId"] = appID
-	env["UMU_ID"] = "umu-default"
+	env["UMU_ID"] = umuID
 	env["UMU_USE_STEAM"] = "0" // Prevents delegating to steam.exe wrapper which exits prematurely
 
 	// 2. Suppress Steam Vulkan implicit layers for non-Steam titles
@@ -116,6 +123,15 @@ func BuildEnvironment(opts EnvOptions) map[string]string {
 		env["GST_DEBUG"] = "0"
 		delete(env, "PROTON_LOG")
 		delete(env, "PROTON_LOG_DIR")
+	}
+
+	// 10. Merge Custom Environment Variables
+	for k, v := range opts.CustomEnv {
+		if v == "" {
+			delete(env, k)
+		} else {
+			env[k] = v
+		}
 	}
 
 	return env

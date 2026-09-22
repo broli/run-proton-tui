@@ -13,9 +13,12 @@ import (
 	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/diagnostics"
 	"github.com/broli/run-proton-tui/internal/prefix"
+	"github.com/broli/run-proton-tui/internal/proton"
+	"github.com/broli/run-proton-tui/internal/quirks"
 	"github.com/broli/run-proton-tui/internal/runner"
 	"github.com/broli/run-proton-tui/internal/ui"
 	"github.com/broli/run-proton-tui/internal/ui/style"
+	"github.com/broli/run-proton-tui/internal/ui/views"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-isatty"
@@ -81,6 +84,57 @@ func main() {
 		if strings.HasSuffix(strings.ToLower(candidate), ".exe") {
 			cfg.TargetExe = candidate
 			args = args[1:]
+		}
+	}
+
+	// Auto-resolve target executable if not specified
+	if cfg.TargetExe == "" {
+		exes := views.DiscoverExecutables(gameDir)
+		if len(exes) > 0 {
+			cfg.TargetExe = exes[0].RelativePath
+		}
+	}
+
+	// Auto-resolve proton runner if not specified
+	if cfg.ProtonPath == "" {
+		runners, _ := proton.DiscoverRunners()
+		if len(runners) > 0 {
+			cfg.ProtonPath = runners[0].Path
+		}
+	}
+
+	// Auto-detect quirks preset if not yet configured
+	if cfg.PresetName == "" && cfg.TargetExe != "" {
+		if p := quirks.DetectQuirks(gameDir, cfg.TargetExe, cfg.AppID, cfg.ProtonPath); p != nil {
+			cfg.PresetName = p.Name
+			if p.UmuID != "" && cfg.UmuID == "" {
+				cfg.UmuID = p.UmuID
+			}
+			if p.DisplayFile != "" && cfg.DisplayFile == "" {
+				cfg.DisplayFile = p.DisplayFile
+			}
+			if len(p.ExtraArgs) > 0 && len(cfg.ExtraArgs) == 0 {
+				cfg.ExtraArgs = p.ExtraArgs
+			}
+			if len(p.WaitProcesses) > 0 && len(cfg.WaitProcesses) == 0 {
+				cfg.WaitProcesses = p.WaitProcesses
+			}
+			for k, v := range p.EnvVars {
+				if cfg.EnvVars == nil {
+					cfg.EnvVars = make(map[string]string)
+				}
+				if _, ok := cfg.EnvVars[k]; !ok {
+					cfg.EnvVars[k] = v
+				}
+			}
+			for k, v := range p.Profiles {
+				if cfg.Profiles == nil {
+					cfg.Profiles = make(map[string]*config.ExecutableProfile)
+				}
+				if _, ok := cfg.Profiles[k]; !ok {
+					cfg.Profiles[k] = v
+				}
+			}
 		}
 	}
 

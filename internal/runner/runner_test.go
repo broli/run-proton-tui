@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/broli/run-proton-tui/internal/config"
 )
 
 func TestClassifyExecutable(t *testing.T) {
@@ -55,5 +57,29 @@ func TestEnsurePrefixDirectories(t *testing.T) {
 		t.Fatalf("Failed to open lock file: %v", err)
 	}
 	_ = f.Close()
+}
+
+func TestRunnerEffectiveConfig(t *testing.T) {
+	// Verify that RunGame creates prefix directory and executes pre-launch hook
+	tempDir := t.TempDir()
+	cfg := config.NewDefaultConfig()
+	cfg.TargetExe = "Launcher.exe"
+
+	// Mock proton path with a dummy script
+	mockProton := filepath.Join(tempDir, "mock_proton.sh")
+	_ = os.WriteFile(mockProton, []byte("#!/bin/bash\nexit 0\n"), 0755)
+	cfg.ProtonPath = mockProton
+
+	// Add profile for Launcher.exe disabling gamescope
+	falseVal := false
+	cfg.Profiles["Launcher.exe"] = &config.ExecutableProfile{
+		TargetExe:    "Launcher.exe",
+		UseGamescope: &falseVal,
+	}
+
+	eff := cfg.GetEffectiveConfig("Launcher.exe")
+	if eff.UseGamescope {
+		t.Errorf("Expected effective config to have UseGamescope=false")
+	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/runner"
@@ -21,9 +22,11 @@ type ExeItem struct {
 
 // ExePickerView handles interactive executable selection.
 type ExePickerView struct {
-	Items    []ExeItem
-	Cursor   int
-	Selected string
+	AllItems       []ExeItem
+	FilteredItems  []ExeItem
+	Cursor         int
+	Selected       string
+	HideInstallers bool
 }
 
 // DiscoverExecutables scans the game directory (up to 4 levels) for .exe files.
@@ -57,22 +60,78 @@ func DiscoverExecutables(gameDir string) []ExeItem {
 		return nil
 	})
 
+	// Sort executables intelligently:
+	// 1. 3D games come before 2D utilities
+	// 2. Binaries in game/ or games/ directory come earlier
+	// 3. Binaries matching directory name come earlier
+	// 4. Larger file size comes earlier
+	dirBase := strings.ToLower(filepath.Base(gameDir))
+	sort.SliceStable(items, func(i, j int) bool {
+		iIs3D := items[i].Classification.Type == runner.ExeType3DGame
+		jIs3D := items[j].Classification.Type == runner.ExeType3DGame
+		if iIs3D != jIs3D {
+			return iIs3D
+		}
+
+		iRel := strings.ToLower(items[i].RelativePath)
+		jRel := strings.ToLower(items[j].RelativePath)
+		iInGameDir := strings.HasPrefix(iRel, "games/") || strings.HasPrefix(iRel, "game/")
+		jInGameDir := strings.HasPrefix(jRel, "games/") || strings.HasPrefix(jRel, "game/")
+		if iInGameDir != jInGameDir {
+			return iInGameDir
+		}
+
+		iBase := strings.ToLower(filepath.Base(items[i].RelativePath))
+		jBase := strings.ToLower(filepath.Base(items[j].RelativePath))
+		iMatch := strings.Contains(iBase, dirBase)
+		jMatch := strings.Contains(jBase, dirBase)
+		if iMatch != jMatch {
+			return iMatch
+		}
+
+		return items[i].Size > items[j].Size
+	})
+
 	return items
 }
 
 // NewExePickerView initializes the picker.
 func NewExePickerView(items []ExeItem, currentExe string) *ExePickerView {
-	cursor := 0
-	for i, it := range items {
-		if it.RelativePath == currentExe {
-			cursor = i
+	picker := &ExePickerView{
+		AllItems:       items,
+		HideInstallers: false,
+		Selected:       currentExe,
+	}
+	picker.recomputeFiltered()
+	return picker
+}
+
+func (p *ExePickerView) recomputeFiltered() {
+	if !p.HideInstallers {
+		p.FilteredItems = p.AllItems
+	} else {
+		var filtered []ExeItem
+		for _, it := range p.AllItems {
+			base := strings.ToLower(filepath.Base(it.RelativePath))
+			isSetup := strings.Contains(base, "setup") ||
+				strings.Contains(base, "unins") ||
+				strings.Contains(base, "installer") ||
+				strings.Contains(base, "patch") ||
+				strings.Contains(base, "crashreport")
+
+			if !isSetup || it.RelativePath == p.Selected {
+				filtered = append(filtered, it)
+			}
+		}
+		p.FilteredItems = filtered
+	}
+
+	p.Cursor = 0
+	for i, it := range p.FilteredItems {
+		if it.RelativePath == p.Selected {
+			p.Cursor = i
 			break
 		}
-	}
-	return &ExePickerView{
-		Items:    items,
-		Cursor:   cursor,
-		Selected: currentExe,
 	}
 }
 
@@ -86,12 +145,16 @@ func (p *ExePickerView) Update(msg tea.Msg) (*ExePickerView, bool, bool) {
 				p.Cursor--
 			}
 		case "down", "j":
-			if p.Cursor < len(p.Items)-1 {
+			if p.Cursor < len(p.FilteredItems)-1 {
 				p.Cursor++
 			}
+		case "i", "I":
+			p.HideInstallers = !p.HideInstallers
+			p.recomputeFiltered()
+			return p, false, false
 		case "enter":
-			if len(p.Items) > 0 {
-				p.Selected = p.Items[p.Cursor].RelativePath
+			if len(p.FilteredItems) > 0 {
+				p.Selected = p.FilteredItems[p.Cursor].RelativePath
 				return p, true, false // selected, don't cancel
 			}
 		case "esc", "q":
@@ -104,15 +167,15 @@ func (p *ExePickerView) Update(msg tea.Msg) (*ExePickerView, bool, bool) {
 // View renders the executable list.
 func (p *ExePickerView) View() string {
 	var sb strings.Builder
-	sb.WriteString(style.TitleStyle.Render("🎯 Select Game Executable (Press [Enter] to Select, [Esc] to Cancel)"))
+	sb.WriteString(style.TitleStyle.Render("🎯 Select Game Executable (Press [Enter] to Select, [i] Filter Setups, [Esc] to Cancel)"))
 	sb.WriteString("\n\n")
 
-	if len(p.Items) == 0 {
-		sb.WriteString(style.BadgeWarning.Render("No .exe binaries found in this directory."))
+	if len(p.FilteredItems) == 0 {
+		sb.WriteString(style.BadgeWarning.Render("No matching .exe binaries found in this directory."))
 		return sb.String()
 	}
 
-	for i, item := range p.Items {
+	for i, item := range p.FilteredItems {
 		cursor := "  "
 		lineStyle := lipgloss.NewStyle().Foreground(style.ColorText)
 		if i == p.Cursor {
@@ -122,12 +185,19 @@ func (p *ExePickerView) View() string {
 
 		tag := style.BadgeHighlight.Render("3D Game")
 		if item.Classification.Type == runner.ExeType2DUtility {
-			tag = style.BadgeWarning.Render("2D Utility")
+			tag = style.BadgeWarning.Render("2D Utility / Setup")
 		}
 
 		sizeStr := fmt.Sprintf("%.1f MB", float64(item.Size)/(1024*1024))
 		sb.WriteString(fmt.Sprintf("%s %s (%s) %s\n", cursor, lineStyle.Render(item.RelativePath), sizeStr, tag))
 	}
+
+	sb.WriteString("\n")
+	filterStatus := "Show All (Installers Visible)"
+	if p.HideInstallers {
+		filterStatus = "Filtered (Installers Hidden)"
+	}
+	sb.WriteString(lipgloss.NewStyle().Foreground(style.ColorMuted).Render(fmt.Sprintf("[i] %s", filterStatus)))
 
 	return sb.String()
 }

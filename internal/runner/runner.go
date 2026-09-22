@@ -15,6 +15,7 @@ import (
 	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/diagnostics"
 	"github.com/broli/run-proton-tui/internal/hardware"
+	"github.com/broli/run-proton-tui/internal/hooks"
 	"github.com/broli/run-proton-tui/internal/prefix"
 	"github.com/broli/run-proton-tui/internal/proton"
 )
@@ -39,41 +40,62 @@ type LaunchOptions struct {
 }
 
 // RunGame coordinates the complete execution pipeline:
-// 1. Manages power profile
-// 2. Builds Proton environment
-// 3. Generates isolated runner script with gamescope-clip-bridge and child process tracking
-// 4. Executes with or without Gamescope sandbox
-// 5. Cleans up locks and flushes prefix upon exit
-// 6. Restores power profile
+// 1. Resolves effective profile configuration (2D installer vs 3D game)
+// 2. Executes Pre-Launch lifecycle hooks (symlinks, /dev/shm JIT, photo persistence)
+// 3. Manages power profile
+// 4. Builds Proton environment (with UMU ID and custom environment variables)
+// 5. Generates isolated runner script with dynamic process supervision and display export
+// 6. Executes with or without Gamescope sandbox
+// 7. Cleans up locks, flushes prefix, and executes Post-Exit lifecycle hooks
+// 8. Restores power profile
 func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
-	cfg := opts.Config
+	// 1. Effective Config (incorporates per-binary profiles e.g. Setup.exe vs Game.exe)
+	cfg := opts.Config.GetEffectiveConfig(opts.Config.TargetExe)
 	gameDir := opts.GameDir
 	prefixDir := filepath.Join(gameDir, "proton-prefix")
 	logsDir, _ := diagnostics.EnsureLogsDir(gameDir)
 
-	// 1. Ensure prefix and pfx subdirectories exist before Proton starts
-	// Proton's filelock requires the parent directory (STEAM_COMPAT_DATA_PATH) to exist
-	// in order to acquire pfx.lock and initialize wineboot without crashing.
+	timestamp := time.Now().Format("2006-01-02_15-04-05")
+	sessionLogPath := filepath.Join(logsDir, fmt.Sprintf("game_%s.log", timestamp))
+	logFile, _ := os.Create(sessionLogPath)
+	defer func() {
+		if logFile != nil {
+			_ = logFile.Close()
+		}
+	}()
+
+	// 2. Ensure prefix and pfx subdirectories exist before Proton starts
 	pfxSubDir := filepath.Join(prefixDir, "pfx")
 	if err := os.MkdirAll(pfxSubDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create proton prefix directory: %w", err)
 	}
 
-	// 2. Pre-flight health and permissions check (+x on target and *Shipping.exe)
+	// 3. Pre-flight health and permissions check (+x on target and *Shipping.exe)
 	diagnostics.RunPreflightCheck(gameDir, cfg.TargetExe, prefixDir)
 
-	// 3. Pre-clean abandoned locks and flush any lingering wineserver holding this prefix
+	// 4. Pre-clean abandoned locks and flush any lingering wineserver holding this prefix
 	_ = prefix.Flush(prefixDir, cfg.ProtonPath)
 	_, _ = prefix.CleanStaleLocks()
 
-	// 4. Power Profile Management
+	// 5. Pre-Launch Lifecycle Hook Execution
+	hookOpts := hooks.HookOptions{
+		GameDir:        gameDir,
+		PrefixDir:      prefixDir,
+		TargetExe:      cfg.TargetExe,
+		ProtonPath:     cfg.ProtonPath,
+		ConfigHookPath: cfg.PreLaunchHook,
+		LogWriter:      logFile,
+	}
+	_, _ = hooks.ExecuteHook(ctx, hooks.PreLaunch, hookOpts)
+
+	// 6. Power Profile Management
 	powerMgr := hardware.NewPowerManager()
 	if cfg.ManagePower {
 		_ = powerMgr.SetPerformance()
 		defer powerMgr.Restore()
 	}
 
-	// 5. Build Proton Environment
+	// 7. Build Proton Environment (incorporates UMU ID and custom environment variables)
 	extraOverrides := ""
 	if len(cfg.DLLOverrides) > 0 {
 		var parts []string
@@ -90,17 +112,18 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 		UseXalia:       cfg.UseXalia,
 		EnableLogging:  cfg.EnableLogging,
 		ExtraOverrides: extraOverrides,
+		UmuID:          cfg.UmuID,
+		CustomEnv:      cfg.EnvVars,
 	}
 	envMap := proton.BuildEnvironment(envOpts)
 	envSlice := proton.EnvSlice(envMap)
 
-
-	// 4. Resolve Executable and Directory
+	// 8. Resolve Executable and Directory
 	fullExePath := filepath.Join(gameDir, cfg.TargetExe)
 	exeDir := filepath.Dir(fullExePath)
 	exeName := filepath.Base(fullExePath)
 
-	// 5. Command Prefix (CPU pinning + prime-run)
+	// 9. Command Prefix (CPU pinning + prime-run)
 	cmdPrefix := ""
 	if cfg.UsePrimeRun {
 		if _, err := exec.LookPath("prime-run"); err == nil {
@@ -111,7 +134,7 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 		cmdPrefix = fmt.Sprintf("taskset -c %s %s", cfg.PCoresMask, cmdPrefix)
 	}
 
-	// 6. Generate Transient Wrapper Script
+	// 10. Generate Transient Wrapper Script
 	wrapperScript := filepath.Join(gameDir, ".rpt_runner.sh")
 	uid := os.Getuid()
 
@@ -129,32 +152,37 @@ fi
 `, bridgeBin, bridgeBin)
 	}
 
+	// Configure dynamic process supervision for updaters / child installers
+	waitSnippet := ""
+	if len(cfg.WaitProcesses) > 0 {
+		waitSnippet = "\n# Supervise configured background/child processes\nsleep 0.8\n"
+		for _, proc := range cfg.WaitProcesses {
+			waitSnippet += fmt.Sprintf("while pgrep -u %d -f '%s' >/dev/null 2>&1; do sleep 1; done\n", uid, proc)
+		}
+	}
+
+	displayExport := `echo "$DISPLAY" > /tmp/gamescope-rpt-display`
+	displayCleanup := `rm -f /tmp/gamescope-rpt-display 2>/dev/null`
+	if cfg.DisplayFile != "" {
+		displayExport += fmt.Sprintf("\necho \"$DISPLAY\" > %s", cfg.DisplayFile)
+		displayCleanup += fmt.Sprintf("\nrm -f %s 2>/dev/null", cfg.DisplayFile)
+	}
+
 	wrapperContent := fmt.Sprintf(`#!/bin/bash
 cd "%s"
-echo "$DISPLAY" > /tmp/gamescope-rpt-display
+%s
 %s
 
 %s"%s" waitforexitandrun ./"%s" "$@"
 EXIT_CODE=$?
-
-# Wait for patchers / updaters if spawned
-sleep 0.8
-while pgrep -u %d -f '(Updater|7zg|Patch)\.exe' >/dev/null 2>&1; do
-    sleep 1
-done
-
-# Wait for relaunched game if updater restarted it
-while pgrep -u %d -f '(Games|Launcher)\.exe' >/dev/null 2>&1; do
-    sleep 1
-done
-
+%s
 if [ -n "$CLIP_BRIDGE_PID" ]; then
     kill "$CLIP_BRIDGE_PID" 2>/dev/null
 fi
-rm -f /tmp/gamescope-rpt-display 2>/dev/null
+%s
 
 exit $EXIT_CODE
-`, exeDir, bridgeSnippet, cmdPrefix, cfg.ProtonPath, exeName, uid, uid)
+`, exeDir, displayExport, bridgeSnippet, cmdPrefix, cfg.ProtonPath, exeName, waitSnippet, displayCleanup)
 
 	if err := os.WriteFile(wrapperScript, []byte(wrapperContent), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create runner wrapper: %w", err)
@@ -163,20 +191,14 @@ exit $EXIT_CODE
 		_ = os.Remove(wrapperScript)
 		_ = prefix.Flush(prefixDir, cfg.ProtonPath)
 		_, _ = prefix.CleanStaleLocks()
+
+		// Post-Exit Lifecycle Hook Execution
+		hookOpts.ConfigHookPath = cfg.PostExitHook
+		_, _ = hooks.ExecuteHook(context.Background(), hooks.PostExit, hookOpts)
 	}()
 
-	// 7. Prepare Process Command (with or without Gamescope)
+	// 11. Prepare Process Command (with or without Gamescope)
 	var cmd *exec.Cmd
-	timestamp := time.Now().Format("2006-01-02_15-04-05")
-	sessionLogPath := filepath.Join(logsDir, fmt.Sprintf("game_%s.log", timestamp))
-
-	logFile, _ := os.Create(sessionLogPath)
-	defer func() {
-		if logFile != nil {
-			_ = logFile.Close()
-		}
-	}()
-
 	combinedArgs := append([]string{wrapperScript}, opts.ExtraArgs...)
 
 	hasGamescope := false

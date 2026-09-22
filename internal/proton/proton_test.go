@@ -36,6 +36,23 @@ func TestBuildEnvironment(t *testing.T) {
 	if !strings.Contains(env["WINEDLLOVERRIDES"], "lsteamclient=d") {
 		t.Errorf("Expected lsteamclient=d in WINEDLLOVERRIDES, got %s", env["WINEDLLOVERRIDES"])
 	}
+
+	// Test with UmuID and CustomEnv
+	customOpts := EnvOptions{
+		PrefixDir: "/tmp/test-prefix",
+		GameDir:   "/tmp/test-game",
+		UmuID:     "umu-endfield",
+		CustomEnv: map[string]string{
+			"WINE_CANONICAL_HOLE": "skip_volatile_check",
+		},
+	}
+	customEnv := BuildEnvironment(customOpts)
+	if customEnv["UMU_ID"] != "umu-endfield" {
+		t.Errorf("Expected UMU_ID=umu-endfield, got %s", customEnv["UMU_ID"])
+	}
+	if customEnv["WINE_CANONICAL_HOLE"] != "skip_volatile_check" {
+		t.Errorf("Expected WINE_CANONICAL_HOLE=skip_volatile_check, got %s", customEnv["WINE_CANONICAL_HOLE"])
+	}
 }
 
 func TestDiscoverRunners(t *testing.T) {

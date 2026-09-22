@@ -31,9 +31,23 @@ func ClassifyExecutable(exePath string) ClassificationResult {
 	is2D := strings.Contains(base, "launcher") ||
 		strings.Contains(base, "update") ||
 		strings.Contains(base, "setup") ||
+		strings.Contains(base, "patch") ||
+		strings.Contains(base, "installer") ||
 		strings.Contains(base, "unins") ||
+		strings.Contains(base, "repair") ||
+		strings.Contains(base, "redist") ||
+		strings.Contains(base, "dxsetup") ||
+		strings.Contains(base, "vcredist") ||
 		strings.Contains(base, "crashreport") ||
+		strings.Contains(base, "crashhandler") ||
 		strings.Contains(base, "config") ||
+		strings.Contains(base, "service") ||
+		strings.Contains(base, "helper") ||
+		strings.Contains(base, "anticheat") ||
+		strings.Contains(base, "ace-") ||
+		strings.Contains(base, "cef") ||
+		strings.Contains(base, "webengine") ||
+		strings.Contains(base, "platformprocess") ||
 		base == "games.exe"
 
 	if is2D {

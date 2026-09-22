@@ -13,6 +13,7 @@ import (
 	"github.com/broli/run-proton-tui/internal/integrations"
 	"github.com/broli/run-proton-tui/internal/prefix"
 	"github.com/broli/run-proton-tui/internal/proton"
+	"github.com/broli/run-proton-tui/internal/quirks"
 	"github.com/broli/run-proton-tui/internal/runner"
 	"github.com/broli/run-proton-tui/internal/ui/views"
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,6 +31,7 @@ const (
 	StateOverrides
 	StateDiagnostics
 	StateLogs
+	StatePresetPicker
 )
 
 // Model is the root Elm Architecture model for rpt.
@@ -51,12 +53,14 @@ type Model struct {
 	ShouldLaunch    bool
 
 	// Sub-views
-	HelpView        *views.HelpView
-	ExePickerView   *views.ExePickerView
+	HelpView         *views.HelpView
+	ExePickerView    *views.ExePickerView
 	ProtonPickerView *views.ProtonPickerView
-	OverridesView   *views.OverridesView
-	DiagnosticsView *views.DiagnosticsView
-	LogsView        *views.LogsView
+	OverridesView    *views.OverridesView
+	DiagnosticsView  *views.DiagnosticsView
+	LogsView         *views.LogsView
+	PresetPickerView *views.PresetPickerView
+	DetectedPreset   *quirks.Preset
 }
 
 type protonDBMsg *integrations.ProtonDBReport
@@ -77,6 +81,41 @@ func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 	// If proton_path is empty but runners exist, pick the first
 	if cfg.ProtonPath == "" && len(runners) > 0 {
 		cfg.ProtonPath = runners[0].Path
+	}
+
+	// Auto-detect known non-standard quirks preset on initial run if not already set
+	if cfg.PresetName == "" {
+		if p := quirks.DetectQuirks(gameDir, cfg.TargetExe, cfg.AppID, cfg.ProtonPath); p != nil {
+			cfg.PresetName = p.Name
+			if p.UmuID != "" && cfg.UmuID == "" {
+				cfg.UmuID = p.UmuID
+			}
+			if p.DisplayFile != "" && cfg.DisplayFile == "" {
+				cfg.DisplayFile = p.DisplayFile
+			}
+			if len(p.ExtraArgs) > 0 && len(cfg.ExtraArgs) == 0 {
+				cfg.ExtraArgs = p.ExtraArgs
+			}
+			if len(p.WaitProcesses) > 0 && len(cfg.WaitProcesses) == 0 {
+				cfg.WaitProcesses = p.WaitProcesses
+			}
+			for k, v := range p.EnvVars {
+				if cfg.EnvVars == nil {
+					cfg.EnvVars = make(map[string]string)
+				}
+				if _, ok := cfg.EnvVars[k]; !ok {
+					cfg.EnvVars[k] = v
+				}
+			}
+			for k, v := range p.Profiles {
+				if cfg.Profiles == nil {
+					cfg.Profiles = make(map[string]*config.ExecutableProfile)
+				}
+				if _, ok := cfg.Profiles[k]; !ok {
+					cfg.Profiles[k] = v
+				}
+			}
+		}
 	}
 
 	// Read active overrides
@@ -173,15 +212,64 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ExePickerView, selected, cancel = m.ExePickerView.Update(msg)
 			if selected {
 				m.Config.TargetExe = m.ExePickerView.Selected
-				// Auto-apply classification recommendations
-				class := runner.ClassifyExecutable(m.Config.TargetExe)
-				m.Config.UseGamescope = class.RecommendGamescope
-				m.Config.UsePrimeRun = class.RecommendPrimeRun
-				m.Config.UsePCores = class.RecommendPCores
+				// Auto-apply per-executable profile or classification recommendations
+				if _, ok := m.Config.Profiles[m.Config.TargetExe]; ok {
+					eff := m.Config.GetEffectiveConfig(m.Config.TargetExe)
+					m.Config.UseGamescope = eff.UseGamescope
+					m.Config.UsePrimeRun = eff.UsePrimeRun
+					m.Config.UsePCores = eff.UsePCores
+					m.StatusMessage = fmt.Sprintf("Switched to %s profile!", m.Config.TargetExe)
+				} else {
+					class := runner.ClassifyExecutable(m.Config.TargetExe)
+					m.Config.UseGamescope = class.RecommendGamescope
+					m.Config.UsePrimeRun = class.RecommendPrimeRun
+					m.Config.UsePCores = class.RecommendPCores
+				}
 				_ = config.SaveConfig(m.GameDir, m.Config)
 				m.State = StateDashboard
 			} else if cancel {
 				m.State = StateDashboard
+			}
+			return m, nil
+
+		case StatePresetPicker:
+			if m.PresetPickerView != nil {
+				applied, cancel := m.PresetPickerView.Update(msg)
+				if applied {
+					preset := m.PresetPickerView.Preset
+					if preset != nil {
+						m.Config.PresetName = preset.Name
+						if preset.UmuID != "" {
+							m.Config.UmuID = preset.UmuID
+						}
+						if preset.DisplayFile != "" {
+							m.Config.DisplayFile = preset.DisplayFile
+						}
+						if len(preset.ExtraArgs) > 0 {
+							m.Config.ExtraArgs = preset.ExtraArgs
+						}
+						if len(preset.WaitProcesses) > 0 {
+							m.Config.WaitProcesses = preset.WaitProcesses
+						}
+						if m.Config.EnvVars == nil {
+							m.Config.EnvVars = make(map[string]string)
+						}
+						for k, v := range preset.EnvVars {
+							m.Config.EnvVars[k] = v
+						}
+						if m.Config.Profiles == nil {
+							m.Config.Profiles = make(map[string]*config.ExecutableProfile)
+						}
+						for k, v := range preset.Profiles {
+							m.Config.Profiles[k] = v
+						}
+						_ = config.SaveConfig(m.GameDir, m.Config)
+						m.StatusMessage = fmt.Sprintf("Applied %s preset!", preset.Name)
+					}
+					m.State = StateDashboard
+				} else if cancel {
+					m.State = StateDashboard
+				}
 			}
 			return m, nil
 
@@ -334,6 +422,13 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.State = StateHelp
 		return m, nil
 
+	case "d", "D":
+		p := quirks.DetectQuirks(m.GameDir, m.Config.TargetExe, m.Config.AppID, m.Config.ProtonPath)
+		m.DetectedPreset = p
+		m.PresetPickerView = views.NewPresetPickerView(p, m.GameTitle, m.Config, m.Width, m.Height)
+		m.State = StatePresetPicker
+		return m, nil
+
 	case "b":
 		m.Config.OpaqueBackdrop = !m.Config.OpaqueBackdrop
 		_ = config.SaveConfig(m.GameDir, m.Config)
@@ -372,6 +467,10 @@ func (m *Model) View() string {
 	case StateLogs:
 		if m.LogsView != nil {
 			return m.LogsView.View()
+		}
+	case StatePresetPicker:
+		if m.PresetPickerView != nil {
+			return m.PresetPickerView.View()
 		}
 	case StateDashboard:
 		pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))

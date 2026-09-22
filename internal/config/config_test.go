@@ -44,3 +44,43 @@ app_id=4567
 		t.Errorf("Expected %s to be created during migration", ConfigFileName)
 	}
 }
+
+func TestEffectiveConfigProfiles(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.TargetExe = "Game.exe"
+	cfg.UseGamescope = true
+	cfg.UsePrimeRun = true
+
+	// Add profile for Setup.exe (2D utility / repack unpacker)
+	falseVal := false
+	cfg.Profiles["Setup.exe"] = &ExecutableProfile{
+		TargetExe:    "Setup.exe",
+		UseGamescope: &falseVal,
+		UsePrimeRun:  &falseVal,
+		ExtraArgs:    []string{"/SILENT"},
+		EnvVars: map[string]string{
+			"WINEDLLOVERRIDES": "mscoree=d",
+		},
+	}
+
+	// For default Game.exe
+	gameEff := cfg.GetEffectiveConfig("Game.exe")
+	if !gameEff.UseGamescope || !gameEff.UsePrimeRun {
+		t.Errorf("Game.exe should preserve base settings")
+	}
+
+	// For Setup.exe
+	setupEff := cfg.GetEffectiveConfig("Setup.exe")
+	if setupEff.UseGamescope {
+		t.Errorf("Setup.exe should have UseGamescope=false")
+	}
+	if setupEff.UsePrimeRun {
+		t.Errorf("Setup.exe should have UsePrimeRun=false")
+	}
+	if len(setupEff.ExtraArgs) != 1 || setupEff.ExtraArgs[0] != "/SILENT" {
+		t.Errorf("Setup.exe should have extra args")
+	}
+	if setupEff.EnvVars["WINEDLLOVERRIDES"] != "mscoree=d" {
+		t.Errorf("Setup.exe should have custom env var")
+	}
+}

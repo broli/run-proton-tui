@@ -129,14 +129,23 @@ func RenderDashboard(d DashboardData) string {
 			lbl("Steam Emulator:"),
 			style.ValueStyle.Render(d.Emulator.Type),
 			style.KeyStyle.Render(d.Emulator.AppID)))
-		leftSb.WriteString(fmt.Sprintf("%s %s\n",
+		leftSb.WriteString(fmt.Sprintf("%s %s\n\n",
 			lbl("DLC Status:"),
 			style.BadgeSuccess.Render(d.Emulator.DLCStatus)))
 	} else {
-		leftSb.WriteString(fmt.Sprintf("%s %s\n",
+		leftSb.WriteString(fmt.Sprintf("%s %s\n\n",
 			lbl("Steam Emulator:"),
 			style.SubheaderStyle.Render("No custom emulator detected (AppID: 0)")))
 	}
+
+	// Quirks Preset Status (UMU & Custom Quirks)
+	presetStatus := style.SubheaderStyle.Render("Standard Defaults")
+	if d.Config.PresetName != "" {
+		presetStatus = style.BadgeSuccess.Render(fmt.Sprintf("⚡ %s", d.Config.PresetName))
+	} else if d.Config.UmuID != "" && d.Config.UmuID != "umu-default" {
+		presetStatus = style.BadgeHighlight.Render(fmt.Sprintf("⚡ UMU: %s", d.Config.UmuID))
+	}
+	leftSb.WriteString(fmt.Sprintf("%s %s\n", lbl("Quirks Preset:"), presetStatus))
 
 	// 4. Right Panel: Hardware & Execution Stack
 	var rightSb strings.Builder
@@ -297,6 +306,7 @@ func renderMenuDock(width int, opaque bool) string {
 			{"[3]", "Executable"},
 			{"[v]", "Toggle GPU Runner"},
 			{"[l]", "View Logs"},
+			{"[d]", "Detect Presets"},
 		},
 		{
 			{"[a]", "ProtonDB Tips"},

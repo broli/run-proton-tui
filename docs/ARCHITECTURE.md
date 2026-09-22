@@ -49,3 +49,34 @@ Wine creates IPC server sockets in `/tmp/.wine-<UID>/` using the device and inod
 `rpt` manages this lifecycle via `internal/prefix`:
 1. **Flock Testing**: Tests `/tmp/.wine-<UID>/server-*/lock` files with non-blocking `flock`. If lock acquisition succeeds, the wineserver process is dead and the directory is safely purged.
 2. **Process Pruning**: Inspects `/proc/$pid/environ` for `WINEPREFIX=` before terminating processes, ensuring games running under Steam or Heroic are never touched.
+
+---
+
+## 4. Extensibility Architecture: UMU, Quirks & Cascading Lifecycle Hooks
+
+For "non-standard" games (like *Arknights: Endfield*, HoYoverse games, or repacks with separate installers) that require out-of-the-way runtime hacks, `rpt` implements a **Three-Tier Extensibility Model**:
+
+### Tier 1: Offline UMU & Quirks Detection
+- **Local UMU Database**: Parses `umu-database.csv` (1,192 games) bundled inside installed Proton-GE / DW-Proton (`protonfixes/umu-database.csv`).
+- **Curated Quirks Registry**: Recognizes titles like Endfield to inject `UMU_ID` (activating upstream IL2CPP `/dev/shm` JIT RAM redirection), `WINE_CANONICAL_HOLE="skip_volatile_check"` (anti-cheat memory hole), and `-vulkan` flags.
+- **Explicit Review Modal (`[d]`)**: Presents detected quirks for inspection with a clean diff before applying to `.proton-config.toml`.
+
+### Tier 2: Per-Executable Profiles in Shared Prefix
+- A single game directory frequently contains setup utilities (`Setup.exe`), web launchers (`Launcher.exe`), and the 3D binary (`Game.exe`).
+- The `profiles` map in `.proton-config.toml` allows each binary to override Gamescope, PrimeRun, P-Cores, and ExtraArgs independently while sharing the identical Wine prefix (`proton-prefix`).
+- When switching executables via `[3]`, `rpt` applies the matching profile automatically. In the picker, `[i]` toggles hiding setup/installer binaries.
+
+### Tier 3: Cascading Lifecycle Hooks
+Custom shell scripts executed before launch and after exit:
+1. Explicit path in `.proton-config.toml` (`pre_launch_hook`, `post_exit_hook`).
+2. Local directory: `$PWD/.rpt/hooks/{pre_launch,post_exit}.sh`.
+3. User global directory: `$HOME/.config/rpt/hooks/{pre_launch,post_exit}.sh` (or `~/.rpt/hooks/`).
+
+Scripts receive standardized environment variables:
+- `$RPT_GAME_DIR`: Root directory of the game.
+- `$RPT_PREFIX_DIR`: Absolute path to `proton-prefix`.
+- `$RPT_TARGET_EXE`: Target Windows binary.
+- `$RPT_PROTON_PATH`: Path to the Proton runner.
+- `$RPT_GAMESCOPE_DISPLAY`: Active gamescope display number (e.g. `:1`).
+- `$RPT_HOOK_TYPE`: `pre_launch` or `post_exit`.
+
