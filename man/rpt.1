@@ -1,0 +1,223 @@
+.TH RPT 1 "September 2026" "rpt 0.5.0-alpha" "User Commands"
+.SH NAME
+rpt \- run-proton-tui: Modular Linux Game Launcher Helper and Proton Runner TUI
+.SH SYNOPSIS
+.B rpt
+[\fIOPTIONS\fR] [\fIoptional-target.exe\fR] [\fB\-\-\fR \fIextra-game-arguments...\fR]
+.SH DESCRIPTION
+.B rpt
+is a generic, high-performance Linux gaming utility and interactive terminal user interface (TUI) designed to launch Windows games and utilities under Valve's Proton, GE-Proton, or DW-Proton without requiring Steam to be running.
+.PP
+It solves complex Linux runtime challenges on hybrid hardware (such as Intel/AMD iGPUs paired with NVIDIA dGPUs) and Wayland compositors (KDE Plasma, GNOME, Hyprland). Key capabilities include decoupled Gamescope sandboxing to prevent compositor crashes, automatic CPU Performance-core pinning, universal 2D utility vs. 3D game isolation, pre-flight conflict detection, save/screenshot preservation, and a machine-readable schema interface for AI coding assistants.
+.SH RECOMMENDED WORKFLOW
+The recommended way to use
+.B rpt
+is to change directory into your game's root folder and simply invoke:
+.PP
+.RS
+.B cd ~/Games/MyGame && rpt
+.RE
+.PP
+.B rpt
+automatically scans the directory, classifies executables (separating 3D game engines from 2D setup tools or web launchers), loads or creates an isolated prefix (\fI./proton-prefix/\fR), checks hardware displays, and presents an interactive TUI dashboard. You do not need to manually specify the \fI.exe\fR path unless targeting a specific setup utility.
+.SH OPTIONS
+.TP
+.BR \-\-now ", " \-\-no\-tui ", " \-y
+Launch the game immediately using saved or auto-detected configuration settings without opening the interactive TUI.
+.TP
+.BR \-c ", " \-\-clean
+Clean and reset the Wine prefix (\fI./proton-prefix/\fR) before launching. Automatically preserves existing game saves, player documents, and screenshots into a safe destination (default: \fI~/Games/Backups/\fR or custom \fIbackup_dir\fR).
+.TP
+.BR \-v ", " \-\-log
+Enable verbose logging. Captures Proton Python runner logs, DXVK info, DXVK-NVAPI, and VKD3D output into \fI.logs/session.log\fR.
+.TP
+.BR \-d ", " \-\-diag ", " \-\-diagnostics
+Run non-destructive pre-flight health diagnostics (verifying target file presence, execute permissions, prefix containment, and conflict detection) and print the report to stdout.
+.TP
+.BR \-\-dump\-spec ", " \-\-helpdump
+Print a comprehensive, machine-readable JSON specification of \fBrpt\fR's configuration schema, detected hardware capabilities, installed Proton runners, hook lifecycle, and best practices. Used by AI assistants and automation tools.
+.TP
+.BR \-\-gamescope " [\fItrue\fR|\fIfalse\fR]"
+Force Gamescope micro-compositor sandboxing on or off.
+.TP
+.BR \-\-pcores " [\fItrue\fR|\fIfalse\fR]"
+Force Intel Performance-core pinning on or off via \fBtaskset\fR.
+.TP
+.BR \-\-xalia " [\fItrue\fR|\fIfalse\fR]"
+Force Proton Xalia UI accessibility bridge on or off.
+.TP
+.BR \-h ", " \-\-help
+Display a concise command-line help manual and exit.
+.TP
+.BR \-\-version
+Print version information and exit.
+.SH TUI KEYBOARD CONTROLS
+When running in interactive TUI mode:
+.TP
+.BR Enter " or " 1
+Launch game with current settings.
+.TP
+.BR 2
+Open \fBProton & Game Setup\fR sub-menu (Runner, Executable, Quirks, ProtonDB).
+.TP
+.BR 3
+Open \fBPerformance & Sandbox\fR sub-menu (Gamescope, P-Cores, GPU offload, Monitor selection).
+.TP
+.BR 4
+Open \fBPrefix & Overrides\fR sub-menu (DLL overrides, Prefix preservation/reset, Health check).
+.TP
+.BR 5
+Open \fBLogs & Diagnostics\fR sub-menu (Session logging, Log viewer, Pre-flight checks).
+.TP
+.BR 6
+Open \fBSettings & Help\fR sub-menu (Backdrop styling, Documentation, Quit).
+.TP
+.BR g
+Toggle Gamescope on/off on the fly.
+.TP
+.BR p
+Toggle CPU P-Core thread pinning on/off on the fly.
+.TP
+.BR v
+Toggle NVIDIA GPU offloading (\fBprime-run\fR) on/off on the fly.
+.TP
+.BR m
+Cycle through connected hardware display outputs on the fly.
+.TP
+.BR d
+Inspect active or detected quirks preset and UMU compatibility recipes.
+.TP
+.BR a
+View live ProtonDB community tier report and ratings card.
+.TP
+.BR L
+Toggle verbose session logging on/off.
+.TP
+.BR c
+Trigger safe prefix clean with automatic save preservation.
+.TP
+.BR ? " or " F1
+Open interactive manual.
+.TP
+.BR q " or " Esc
+Return from sub-menu, or exit \fBrpt\fR.
+.SH CONFIGURATION FILE (.proton-config.toml)
+Each game directory maintains its own declarative configuration in \fI.proton-config.toml\fR.
+.PP
+.B Example Configuration:
+.PP
+.nf
+target_exe = "Game.exe"
+proton_path = "/home/user/.local/share/Steam/compatibilitytools.d/GE-Proton11-6/proton"
+use_gamescope = true
+gamescope_output = "HDMI-A-1" # Or "auto" for external preferred
+gamescope_width = 1920
+gamescope_height = 1080
+gamescope_refresh = 75
+use_prime_run = true
+use_pcores = true
+extra_args = ["-vulkan"]
+
+# Process supervision: wait for patchers before prefix teardown
+wait_processes = ["Updater.exe", "7zg.exe", "Patch.exe"]
+
+# User preservation directory (for prefix resets)
+backup_dir = "~/winegames/saves"
+
+# Custom environment variables
+[env]
+WINE_CANONICAL_HOLE = "skip_volatile_check"
+VKD3D_CONFIG = "no_upload_hvv"
+
+# DLL Overrides
+[dll_overrides]
+dxgi = "n,b"
+
+# Declarative filesystem directives
+[filesystem]
+ensure_dirs = ["{PREFIX}/pfx/drive_c/users/steamuser/AppData/LocalLow"]
+symlinks = [
+  { source = "~/Pictures/MyGame", target = "{PREFIX}/pfx/drive_c/users/steamuser/Pictures/MyGame" }
+]
+
+# Per-executable profile overrides (e.g. 2D launcher sharing prefix with 3D game)
+[profiles."Launcher.exe"]
+target_exe = "Launcher.exe"
+use_gamescope = false
+use_prime_run = false
+use_pcores = false
+extra_args = []
+.fi
+.SH LIFECYCLE HOOKS
+For advanced interventions (mounting ISOs, running companion clipboard daemons, or executing custom anti-cheat patches), \fBrpt\fR provides standardized shell lifecycle hooks:
+.IP \(bu 2
+\fBpre_launch.sh\fR: Executed immediately before Proton initializes.
+.IP \(bu 2
+\fBpost_exit.sh\fR: Executed after the game and supervised child processes terminate.
+.PP
+.B Search Order:
+.PP
+\fBrpt\fR searches for lifecycle scripts in the following order:
+.IP 1. 4
+Explicitly configured path in \fI.proton-config.toml\fR (\fIpre_launch_hook\fR, \fIpost_exit_hook\fR).
+.IP 2. 4
+Local unpacked game directory: \fI./hooks/<type>.sh\fR.
+.IP 3. 4
+Local unpacked game directory: \fI./.rpt/hooks/<type>.sh\fR.
+.IP 4. 4
+Local unpacked game directory root: \fI./<type>.sh\fR.
+.IP 5. 4
+Custom directories declared in \fIhook_dirs\fR.
+.IP 6. 4
+User global directory: \fI~/.config/rpt/hooks/<type>.sh\fR.
+.IP 7. 4
+User legacy directory: \fI~/.rpt/hooks/<type>.sh\fR.
+.PP
+.B Exported Environment Variables:
+.PP
+All hook scripts receive standard environment variables:
+.TP
+.B RPT_GAME_DIR
+Absolute path to the game directory.
+.TP
+.B RPT_PREFIX_DIR
+Absolute path to the game's Wine prefix (\fI./proton-prefix/\fR).
+.TP
+.B RPT_TARGET_EXE
+Relative path to the target Windows executable.
+.TP
+.B RPT_PROTON_PATH
+Absolute path to the active Proton runner.
+.TP
+.B RPT_GAMESCOPE_DISPLAY
+Active nested Gamescope display number (e.g., \fI:1\fR) or empty if running natively.
+.TP
+.B RPT_HOOK_TYPE
+Either \fBpre_launch\fR or \fBpost_exit\fR.
+.SH HARDWARE & WAYLAND REALITIES
+.TP
+.B Decoupled Gamescope Architecture:
+On hybrid graphics laptops (e.g. Intel Iris Xe + NVIDIA RTX), running \fBprime-run gamescope\fR forces Gamescope to initialize as an NVIDIA Vulkan client, causing KWin Wayland to run out of execution buffer memory (\fBexecbuf ENOMEM\fR) and crash the entire desktop. \fBrpt\fR enforces running Gamescope on the host iGPU, while placing \fBprime-run\fR strictly inside the sandbox on the game binary.
+.TP
+.B 2D Utility vs. 3D Game Isolation:
+2D utilities and launchers built on Qt 5/6 WebEngine, Chromium (CEF), or Electron crash with glibc \fBdouble free or corruption\fR when probing NVAPI without a true 3D surface. \fBrpt\fR strips NVAPI, DLSS, and Steam Deck environment variables for all 2D utilities.
+.TP
+.B World-Readable DRM Sysfs Detection:
+\fBrpt\fR queries \fI/sys/class/drm/card*-*/status\fR directly. These sysfs nodes are world-readable (\fB0444\fR) in Linux, requiring zero root, sudo, polkit, or external tools (\fBkscreendoctor\fR, \fBxrandr\fR) to enumerate plugged-in monitors.
+.SH FILES
+.TP
+.I ./.proton-config.toml
+Per-game configuration manifest.
+.TP
+.I ./proton-prefix/
+Isolated Wine prefix directory created for the game.
+.TP
+.I ./.logs/session.log
+Execution logs captured during verbose logging runs.
+.TP
+.I ~/.config/rpt/hooks/
+User global directory for pre-launch and post-exit hooks.
+.SH AUTHORS
+Written and maintained by Carlos (\fBbroli\fR) and the Antigravity pair-programming agent.
+.SH COPYRIGHT
+Licensed under the MIT License.
