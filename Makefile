@@ -37,3 +37,20 @@ install: build install-man
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+publish-wiki:
+	@echo "Publishing documentation from docs/wiki to GitHub Wiki..."
+	@rm -rf /tmp/rpt-wiki
+	@git clone https://github.com/broli/run-proton-tui.wiki.git /tmp/rpt-wiki || { \
+		echo ""; \
+		echo "[-] Could not clone GitHub Wiki repository."; \
+		echo "    Note: GitHub only creates the wiki repository AFTER you create the first page via the web UI."; \
+		echo "    1. Visit https://github.com/broli/run-proton-tui/wiki"; \
+		echo "    2. Click 'Create the first page' and click 'Save Page'"; \
+		echo "    3. Run 'make publish-wiki' again."; \
+		exit 1; \
+	}
+	@cp -f docs/wiki/*.md /tmp/rpt-wiki/
+	@cd /tmp/rpt-wiki && git add . && git commit -m "docs(wiki): update wiki documentation" && git push origin
+	@rm -rf /tmp/rpt-wiki
+	@echo "[✓] Successfully published docs/wiki to GitHub Wiki!"
