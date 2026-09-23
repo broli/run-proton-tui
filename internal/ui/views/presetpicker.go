@@ -91,10 +91,22 @@ func (v *PresetPickerView) View() string {
 	}
 
 	p := v.Preset
+	isActive := v.CurrentConfig != nil && (v.CurrentConfig.PresetName == p.Name || (p.UmuID != "" && v.CurrentConfig.UmuID == p.UmuID))
+
+	activeBadge := ""
+	if isActive {
+		activeBadge = " " + lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#11111b")).
+			Background(style.ColorSuccess).
+			Padding(0, 1).
+			Render("ACTIVE")
+	}
+
 	matchTitle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(style.ColorSuccess).
-		Render("🎯 Matched Title: " + p.Name)
+		Render("🎯 Matched Title: " + p.Name) + activeBadge
 
 	matchSource := lipgloss.NewStyle().
 		Foreground(style.ColorSecondary).
@@ -112,7 +124,7 @@ func (v *PresetPickerView) View() string {
 		b.WriteString(notesBox + "\n\n")
 	}
 
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render("Proposed Configuration Changes:") + "\n")
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render("Quirks & Runtime Configuration:") + "\n")
 
 	if p.UmuID != "" {
 		b.WriteString(fmt.Sprintf("  • %s: %s\n",
@@ -162,9 +174,13 @@ func (v *PresetPickerView) View() string {
 	}
 
 	b.WriteString("\n" + divider + "\n")
+	enterLabel := "[Enter] Apply Presets & Save"
+	if isActive {
+		enterLabel = "[Enter] Re-apply Presets & Save"
+	}
 	dock := fmt.Sprintf("%s    %s",
-		lipgloss.NewStyle().Bold(true).Foreground(style.ColorSuccess).Render("[Enter] Apply Presets & Save"),
-		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc] Cancel / Keep Current"),
+		lipgloss.NewStyle().Bold(true).Foreground(style.ColorSuccess).Render(enterLabel),
+		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc] Return to Dashboard"),
 	)
 	b.WriteString(dock)
 

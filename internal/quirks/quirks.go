@@ -226,3 +226,30 @@ func findUMUDatabasePaths(protonPath string) []string {
 
 	return paths
 }
+
+// GetActiveOrDetectedPreset returns the currently configured quirks preset if present,
+// or performs auto-detection across curated rules and the UMU database.
+func GetActiveOrDetectedPreset(gameDir, exePath, appID, protonPath string, cfg *config.GameConfig) *Preset {
+	if cfg != nil && cfg.PresetName != "" {
+		for _, cp := range CuratedPresets {
+			if strings.EqualFold(cp.Name, cfg.PresetName) || (cp.UmuID != "" && strings.EqualFold(cp.UmuID, cfg.UmuID)) {
+				p := cp
+				return &p
+			}
+		}
+		// Return synthetic preset representing the saved active config
+		return &Preset{
+			Name:          cfg.PresetName,
+			MatchedSource: "Saved Configuration (.proton-config.toml)",
+			SummaryNotes:  "Active quirks preset saved in game configuration.",
+			UmuID:         cfg.UmuID,
+			EnvVars:       cfg.EnvVars,
+			ExtraArgs:     cfg.ExtraArgs,
+			WaitProcesses: cfg.WaitProcesses,
+			DisplayFile:   cfg.DisplayFile,
+			Profiles:      cfg.Profiles,
+		}
+	}
+
+	return DetectQuirks(gameDir, exePath, appID, protonPath)
+}

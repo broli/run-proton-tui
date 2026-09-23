@@ -49,10 +49,10 @@ func FetchProtonDBReport(ctx context.Context, appID string) (*ProtonDBReport, er
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "run-proton-tui/2.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
 	client := &http.Client{
-		Timeout: 4 * time.Second,
+		Timeout: 7 * time.Second,
 	}
 
 	resp, err := client.Do(req)

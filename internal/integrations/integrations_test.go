@@ -53,3 +53,39 @@ func TestProtonDBLiveAPI(t *testing.T) {
 		t.Logf("ProtonDB Report for 1245620: Tier=%s, Badge=%s, Confidence=%s", report.Tier, report.GetTierBadge(), report.Confidence)
 	}
 }
+
+func TestCleanGameTitle(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"Just Cause [DODI Repack]", "Just Cause"},
+		{"Styx - Master of Shadows - [DODI Repack]", "Styx - Master of Shadows"},
+		{"Elden_Ring_(v1.12)_[FitGirl]", "Elden Ring"},
+		{"Cyberpunk 2077 (GOG)", "Cyberpunk 2077"},
+	}
+
+	for _, tt := range tests {
+		got := CleanGameTitle(tt.input)
+		if got != tt.want {
+			t.Errorf("CleanGameTitle(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestResolveSteamAppID(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	aid, name, err := ResolveSteamAppID(ctx, "Arknights: Endfield", "games/Arknights Endfield/Endfield.exe", "GRYPHLINK")
+	if err != nil {
+		t.Logf("Network query skipped or failed: %v", err)
+		return
+	}
+
+	if aid != "4732690" {
+		t.Errorf("Expected AppID '4732690', got %q (%s)", aid, name)
+	} else {
+		t.Logf("Resolved Endfield to AppID %s (%s)", aid, name)
+	}
+}

@@ -66,7 +66,7 @@ func RenderDashboard(d DashboardData) string {
 	if !d.OpaqueBackdrop {
 		backdropText = "[b] Backdrop: Transparent"
 	}
-	leftHeader := fmt.Sprintf("🎮 rpt v2.0.0 │ Game: %s", d.GameTitle)
+	leftHeader := fmt.Sprintf("🎮 rpt v0.5.0-alpha │ Game: %s", d.GameTitle)
 	rightHeader := fmt.Sprintf("%s  •  [?] Help  •  [q] Quit", style.KeyStyle.Render(backdropText))
 	spaceCount := contentWidth - lipgloss.Width(leftHeader) - lipgloss.Width(rightHeader) - 2
 	if spaceCount < 2 {
@@ -92,34 +92,42 @@ func RenderDashboard(d DashboardData) string {
 	}
 	leftSb.WriteString(fmt.Sprintf("%s %s %s\n", lbl("Executable:"), style.KeyStyle.Render(d.Config.TargetExe), exeTag))
 
-	// Rationale (wrapped cleanly to panel width)
-	rationaleStyle := style.SubheaderStyle.Width(colWidth - 20)
-	leftSb.WriteString(fmt.Sprintf("%s %s\n\n", lbl("Target Profile:"), rationaleStyle.Render(d.Classification.Rationale)))
+	profileDesc := style.BadgeHighlight.Render("3D Game Engine (Dedicated GPU + Gamescope)")
+	if d.Classification.Type == runner.ExeType2DUtility {
+		profileDesc = style.BadgeWarning.Render("2D Utility / Launcher (Host iGPU Mode)")
+	}
+	if _, ok := d.Config.Profiles[d.Config.TargetExe]; ok {
+		profileDesc = style.BadgeSuccess.Render("Custom Profile (.proton-config.toml)")
+	}
+	leftSb.WriteString(fmt.Sprintf("%s %s\n\n", lbl("Target Profile:"), profileDesc))
 
 	// Proton Version
 	leftSb.WriteString(fmt.Sprintf("%s %s\n", lbl("Proton Runner:"), style.KeyStyle.Render(d.ProtonName)))
 
 	// ProtonDB Rating
 	if d.ProtonDB != nil {
-		leftSb.WriteString(fmt.Sprintf("%s %s (%s, %d reports)\n\n",
+		leftSb.WriteString(fmt.Sprintf("%s %s (%s, %d reports) %s\n\n",
 			lbl("ProtonDB Tier:"),
 			d.ProtonDB.GetTierBadge(),
 			d.ProtonDB.Confidence,
-			d.ProtonDB.Total))
+			d.ProtonDB.Total,
+			style.KeyStyle.Render("([a] Info)")))
 	} else {
-		leftSb.WriteString(fmt.Sprintf("%s %s\n\n",
+		leftSb.WriteString(fmt.Sprintf("%s %s %s\n\n",
 			lbl("ProtonDB Tier:"),
-			style.SubheaderStyle.Render("Unknown (Press [a] to fetch community ratings)")))
+			style.SubheaderStyle.Render("Unknown"),
+			style.KeyStyle.Render("([a] Fetch & View)")))
 	}
 
 	// Wine Prefix Status
+	pfxDriveC := filepath.Join(d.GameDir, "proton-prefix", "pfx", "drive_c")
 	pfxInfo := "Not Initialized (Created on launch)"
-	if d.PrefixSize != "" {
-		pfxInfo = fmt.Sprintf("Active (%s)", d.PrefixSize)
-	} else if _, err := os.Stat(filepath.Join(d.GameDir, "proton-prefix", "pfx", "drive_c")); err == nil {
-		pfxInfo = "Active"
-	} else if _, err := os.Stat(filepath.Join(d.GameDir, "proton-prefix")); err == nil {
-		pfxInfo = "Ready"
+	if _, err := os.Stat(pfxDriveC); err == nil {
+		if d.PrefixSize != "" {
+			pfxInfo = fmt.Sprintf("Active (%s)", d.PrefixSize)
+		} else {
+			pfxInfo = "Active"
+		}
 	}
 	leftSb.WriteString(fmt.Sprintf("%s %s\n\n", lbl("Wine Prefix:"), fmt.Sprintf("./proton-prefix/ (%s)", pfxInfo)))
 
@@ -139,11 +147,11 @@ func RenderDashboard(d DashboardData) string {
 	}
 
 	// Quirks Preset Status (UMU & Custom Quirks)
-	presetStatus := style.SubheaderStyle.Render("Standard Defaults")
+	presetStatus := style.SubheaderStyle.Render("Standard Defaults ([d] Detect)")
 	if d.Config.PresetName != "" {
-		presetStatus = style.BadgeSuccess.Render(fmt.Sprintf("⚡ %s", d.Config.PresetName))
+		presetStatus = fmt.Sprintf("%s %s", style.BadgeSuccess.Render("⚡ "+d.Config.PresetName), style.KeyStyle.Render("([d] View)"))
 	} else if d.Config.UmuID != "" && d.Config.UmuID != "umu-default" {
-		presetStatus = style.BadgeHighlight.Render(fmt.Sprintf("⚡ UMU: %s", d.Config.UmuID))
+		presetStatus = fmt.Sprintf("%s %s", style.BadgeHighlight.Render("⚡ UMU: "+d.Config.UmuID), style.KeyStyle.Render("([d] View)"))
 	}
 	leftSb.WriteString(fmt.Sprintf("%s %s\n", lbl("Quirks Preset:"), presetStatus))
 
@@ -156,9 +164,13 @@ func RenderDashboard(d DashboardData) string {
 	}
 
 	// Gamescope
+	gsOutput := d.Config.GamescopeOutput
+	if gsOutput == "" || strings.EqualFold(gsOutput, "auto") {
+		gsOutput = "Auto (External)"
+	}
 	gsStatus := style.BadgeMuted.Render("Disabled (Native Window)")
 	if d.Config.UseGamescope {
-		gsStatus = style.BadgeSuccess.Render(fmt.Sprintf("ON (1080p @ %dHz -> %s)", d.Config.GamescopeRefresh, d.Config.GamescopeOutput))
+		gsStatus = fmt.Sprintf("%s %s", style.BadgeSuccess.Render(fmt.Sprintf("ON (1080p@%dHz -> %s)", d.Config.GamescopeRefresh, gsOutput)), style.KeyStyle.Render("([m] Cycle)"))
 	}
 	renderRow("Gamescope:", gsStatus)
 
@@ -214,9 +226,9 @@ func RenderDashboard(d DashboardData) string {
 
 
 	// Logging
-	logStatus := style.SubheaderStyle.Render("Disabled")
+	logStatus := fmt.Sprintf("%s %s", style.SubheaderStyle.Render("Disabled"), style.KeyStyle.Render("([L] Toggle)"))
 	if d.Config.EnableLogging {
-		logStatus = style.BadgeSuccess.Render("Active (writing to .logs/)")
+		logStatus = fmt.Sprintf("%s %s", style.BadgeSuccess.Render("Active (.logs/)"), style.KeyStyle.Render("([L] Toggle)"))
 	}
 	renderRow("Session Logs:", logStatus)
 
@@ -274,76 +286,47 @@ func buildPreviewCommand(d DashboardData) string {
 }
 
 func renderMenuDock(width int, opaque bool) string {
-	colW := (width - 4) / 4
-	if colW < 18 {
-		colW = 18
-	}
-
-	backdropLabel := "Backdrop: Solid"
-	if !opaque {
-		backdropLabel = "Backdrop: Transp"
+	colW := (width - 6) / 3
+	if colW < 24 {
+		colW = 24
 	}
 
 	type dockItem struct {
 		key   string
 		label string
+		sub   string
 	}
 
-	cols := [][]dockItem{
-		{
-			{"[Enter]", "Launch Game"},
-			{"[g]", "Toggle Gamescope"},
-			{"[c]", "Reset Prefix"},
-			{"[?]", "Help Manual"},
-		},
-		{
-			{"[2]", "Proton Runner"},
-			{"[p]", "Toggle P-Cores"},
-			{"[h]", "Health Check"},
-			{"[q]", "Quit rpt"},
-		},
-		{
-			{"[3]", "Executable"},
-			{"[v]", "Toggle GPU Runner"},
-			{"[l]", "View Logs"},
-			{"[d]", "Detect Presets"},
-		},
-		{
-			{"[a]", "ProtonDB Tips"},
-			{"[o]", "DLL Overrides"},
-			{"[b]", backdropLabel},
-		},
+	items := []dockItem{
+		{"[Enter/1]", "Launch Game", "Run with current settings"},
+		{"[2]", "Proton & Game Setup", "Runner, Exe, Quirks, ProtonDB"},
+		{"[3]", "Performance & Sandbox", "Gamescope, CPU Cores, GPU, Xalia"},
+		{"[4]", "Prefix & Overrides", "DLL Overrides, Reset, Health"},
+		{"[5]", "Logs & Diagnostics", "Toggle Logging, Log Viewer"},
+		{"[6]", "Settings & Help", "Backdrop, Manual, Quit"},
 	}
 
-	var colStrs []string
-	for _, col := range cols {
-		maxKeyW := 0
-		for _, it := range col {
-			kw := lipgloss.Width(style.KeyBadge.Render(it.key))
-			if kw > maxKeyW {
-				maxKeyW = kw
-			}
-		}
+	var row1, row2 []string
+	for i, it := range items {
+		rKey := style.KeyBadge.Render(it.key)
+		title := lipgloss.NewStyle().Bold(true).Foreground(style.ColorPrimary).Render(it.label)
+		sub := style.SubheaderStyle.Render(it.sub)
 
-		var lines []string
-		for _, it := range col {
-			rKey := style.KeyBadge.Render(it.key)
-			kw := lipgloss.Width(rKey)
-			pad := maxKeyW - kw
-			if pad < 0 {
-				pad = 0
-			}
-			line := rKey + strings.Repeat(" ", pad) + " " + style.KeyDesc.Render(it.label)
-			lines = append(lines, lipgloss.NewStyle().Width(colW).Render(line))
+		card := fmt.Sprintf("%s %s\n    %s", rKey, title, sub)
+		renderedCard := lipgloss.NewStyle().Width(colW).Render(card)
+
+		if i < 3 {
+			row1 = append(row1, renderedCard)
+		} else {
+			row2 = append(row2, renderedCard)
 		}
-		for len(lines) < 4 {
-			lines = append(lines, lipgloss.NewStyle().Width(colW).Render(""))
-		}
-		colStrs = append(colStrs, strings.Join(lines, "\n"))
 	}
 
-	grid := lipgloss.JoinHorizontal(lipgloss.Top, colStrs...)
-	dockContent := style.SectionTitle.Render("⌨️  Controls & Hotkeys (Aligned Grid):") + "\n" + grid
+	r1 := lipgloss.JoinHorizontal(lipgloss.Top, row1...)
+	r2 := lipgloss.JoinHorizontal(lipgloss.Top, row2...)
+	grid := r1 + "\n\n" + r2
+
+	dockContent := style.SectionTitle.Render("📂 Main Menu & Categories (Press key to open sub-menu):") + "\n\n" + grid
 
 	return style.GetPanelStyle(opaque).Width(width).Render(dockContent)
 }

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/broli/run-proton-tui/internal/config"
@@ -32,6 +34,8 @@ const (
 	StateDiagnostics
 	StateLogs
 	StatePresetPicker
+	StateProtonDB
+	StateSubMenu
 )
 
 // Model is the root Elm Architecture model for rpt.
@@ -48,6 +52,7 @@ type Model struct {
 	GPUInfo         *hardware.GPUInfo
 	CPUTopo         *hardware.CPUTopology
 	StatusMessage   string
+	PrefixCleaned   bool
 	Width           int
 	Height          int
 	ShouldLaunch    bool
@@ -60,10 +65,16 @@ type Model struct {
 	DiagnosticsView  *views.DiagnosticsView
 	LogsView         *views.LogsView
 	PresetPickerView *views.PresetPickerView
+	ProtonDBView     *views.ProtonDBView
+	SubMenuView      *views.SubMenuView
 	DetectedPreset   *quirks.Preset
 }
 
-type protonDBMsg *integrations.ProtonDBReport
+type protonDBResultMsg struct {
+	Report *integrations.ProtonDBReport
+	AppID  string
+	Err    error
+}
 
 // NewModel constructs the root application state.
 func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
@@ -156,25 +167,68 @@ func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 	return m, nil
 }
 
-// Init starts initial async background tasks (e.g. ProtonDB lookup).
-func (m *Model) Init() tea.Cmd {
-	appID := m.Config.AppID
-	if (appID == "" || appID == "0") && m.Emulator != nil && m.Emulator.AppID != "" && m.Emulator.AppID != "0" {
-		appID = m.Emulator.AppID
-		m.Config.AppID = appID
+func (m *Model) fetchProtonDB(customQuery string) tea.Cmd {
+	m.StatusMessage = "Querying ProtonDB & Steam..."
+	if m.ProtonDBView != nil {
+		m.ProtonDBView.Status = "Querying ProtonDB & Steam API..."
 	}
 
-	if appID != "" && appID != "0" {
-		return func() tea.Msg {
-			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-			defer cancel()
-			if rep, err := integrations.FetchProtonDBReport(ctx, appID); err == nil {
-				return protonDBMsg(rep)
+	appID := m.Config.AppID
+	presetName := m.Config.PresetName
+	targetExe := m.Config.TargetExe
+	gameTitle := m.GameTitle
+
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if customQuery != "" {
+			if _, err := strconv.Atoi(customQuery); err == nil {
+				appID = customQuery
+			} else {
+				aid, _, err := integrations.SearchSteamAppID(ctx, customQuery)
+				if err != nil {
+					return protonDBResultMsg{
+						Err: fmt.Errorf("Steam search for %q: %w", customQuery, err),
+					}
+				}
+				appID = aid
 			}
-			return nil
+		}
+
+		if appID == "" || appID == "0" {
+			aid, _, err := integrations.ResolveSteamAppID(ctx, presetName, targetExe, gameTitle)
+			if err != nil {
+				return protonDBResultMsg{
+					Err: fmt.Errorf("no Steam title matched: %w", err),
+				}
+			}
+			appID = aid
+		}
+
+		rep, err := integrations.FetchProtonDBReport(ctx, appID)
+		if err != nil {
+			return protonDBResultMsg{
+				AppID: appID,
+				Err:   fmt.Errorf("ProtonDB API (AppID %s): %w", appID, err),
+			}
+		}
+
+		return protonDBResultMsg{
+			Report: rep,
+			AppID:  appID,
+			Err:    nil,
 		}
 	}
-	return nil
+}
+
+// Init starts initial async background tasks (e.g. ProtonDB lookup).
+func (m *Model) Init() tea.Cmd {
+	if (m.Config.AppID == "" || m.Config.AppID == "0") && m.Emulator != nil && m.Emulator.AppID != "" && m.Emulator.AppID != "0" {
+		m.Config.AppID = m.Emulator.AppID
+	}
+
+	return m.fetchProtonDB("")
 }
 
 // Update processes incoming UI events and keybindings.
@@ -189,9 +243,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case protonDBMsg:
-		if msg != nil {
-			m.ProtonDB = (*integrations.ProtonDBReport)(msg)
+	case protonDBResultMsg:
+		if msg.Err != nil {
+			m.StatusMessage = fmt.Sprintf("ProtonDB: %v", msg.Err)
+			if m.ProtonDBView != nil {
+				m.ProtonDBView.Status = fmt.Sprintf("%v", msg.Err)
+			}
+		} else if msg.Report != nil {
+			m.ProtonDB = msg.Report
+			m.Config.AppID = msg.AppID
+			_ = config.SaveConfig(m.GameDir, m.Config)
+			m.StatusMessage = fmt.Sprintf("ProtonDB: %s (%d reports)", msg.Report.GetTierBadge(), msg.Report.Total)
+			if m.ProtonDBView != nil {
+				m.ProtonDBView.Report = m.ProtonDB
+				m.ProtonDBView.AppID = msg.AppID
+				m.ProtonDBView.Status = ""
+			}
 		}
 		return m, nil
 
@@ -317,11 +384,234 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
+		case StateProtonDB:
+			if m.ProtonDBView != nil {
+				customQuery, refresh, done, cmd := m.ProtonDBView.Update(msg)
+				if done {
+					m.State = StateDashboard
+					return m, nil
+				}
+				if customQuery != "" {
+					return m, m.fetchProtonDB(customQuery)
+				}
+				if refresh {
+					return m, m.fetchProtonDB("")
+				}
+				return m, cmd
+			}
+			return m, nil
+
+		case StateSubMenu:
+			if m.SubMenuView != nil {
+				act := m.SubMenuView.Update(msg)
+				return m.handleSubMenuAction(act)
+			}
+			return m, nil
+
 		case StateDashboard:
 			return m.handleDashboardKeys(msg)
 		}
 	}
 
+	return m, nil
+}
+
+func (m *Model) openSubMenu(menuType views.SubMenuType) (tea.Model, tea.Cmd) {
+	m.SubMenuView = views.NewSubMenuView(menuType, m.getSubMenuData())
+	m.State = StateSubMenu
+	return m, nil
+}
+
+func (m *Model) getSubMenuData() views.SubMenuData {
+	pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))
+	if pName == "." || pName == "" {
+		pName = filepath.Base(m.Config.ProtonPath)
+	}
+
+	pfxDriveC := filepath.Join(m.GameDir, "proton-prefix", "pfx", "drive_c")
+	_, err := os.Stat(pfxDriveC)
+	pfxActive := err == nil
+
+	return views.SubMenuData{
+		Config:          m.Config,
+		ProtonName:      pName,
+		ProtonDB:        m.ProtonDB,
+		HasPrimeRun:     m.GPUInfo != nil && m.GPUInfo.HasPrimeRun,
+		HasGamescope:    true,
+		ActiveOverrides: m.ActiveOverrides,
+		OpaqueBackdrop:  m.Config.OpaqueBackdrop,
+		StatusMessage:   m.StatusMessage,
+		PrefixActive:    pfxActive,
+		PrefixCleaned:   m.PrefixCleaned,
+		Width:           m.Width,
+		Height:          m.Height,
+	}
+}
+
+func (m *Model) updateSubMenuData() {
+	if m.SubMenuView != nil {
+		m.SubMenuView.Data = m.getSubMenuData()
+	}
+}
+
+func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd) {
+	switch act {
+	case views.ActionClose:
+		m.State = StateDashboard
+		return m, nil
+
+	case views.ActionOpenProtonPicker:
+		m.ProtonPickerView = views.NewProtonPickerView(m.Runners, m.Config.ProtonPath)
+		m.State = StateProtonPicker
+		return m, nil
+
+	case views.ActionOpenExePicker:
+		m.ExePickerView = views.NewExePickerView(m.Exes, m.Config.TargetExe)
+		m.State = StateExePicker
+		return m, nil
+
+	case views.ActionOpenQuirks:
+		p := quirks.GetActiveOrDetectedPreset(m.GameDir, m.Config.TargetExe, m.Config.AppID, m.Config.ProtonPath, m.Config)
+		m.DetectedPreset = p
+		m.PresetPickerView = views.NewPresetPickerView(p, m.GameTitle, m.Config, m.Width, m.Height)
+		m.State = StatePresetPicker
+		return m, nil
+
+	case views.ActionOpenProtonDB:
+		m.ProtonDBView = views.NewProtonDBView(m.ProtonDB, m.GameTitle, m.Config.AppID, m.Width, m.Height)
+		m.State = StateProtonDB
+		if m.ProtonDB == nil {
+			return m, m.fetchProtonDB("")
+		}
+		return m, nil
+
+	case views.ActionToggleGamescope:
+		m.Config.UseGamescope = !m.Config.UseGamescope
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		if m.Config.UseGamescope {
+			m.StatusMessage = fmt.Sprintf("Gamescope ENABLED (%dx%d @ %dHz -> %s)", m.Config.GamescopeWidth, m.Config.GamescopeHeight, m.Config.GamescopeRefresh, m.Config.GamescopeOutput)
+		} else {
+			m.StatusMessage = "Gamescope DISABLED (Native Window)"
+		}
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionTogglePCores:
+		m.Config.UsePCores = !m.Config.UsePCores
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		if m.Config.UsePCores {
+			m.StatusMessage = fmt.Sprintf("CPU P-Core Pinning ENABLED (Threads %s)", m.Config.PCoresMask)
+		} else {
+			m.StatusMessage = "CPU P-Core Pinning DISABLED (All Threads)"
+		}
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionTogglePrimeRun:
+		m.Config.UsePrimeRun = !m.Config.UsePrimeRun
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		if m.Config.UsePrimeRun {
+			m.StatusMessage = "GPU Runner: prime-run (NVIDIA RTX Dedicated)"
+		} else {
+			m.StatusMessage = "GPU Runner: Host iGPU (Power Saving)"
+		}
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionToggleXalia:
+		m.Config.UseXalia = !m.Config.UseXalia
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		if m.Config.UseXalia {
+			m.StatusMessage = "Proton Xalia UI Bridge ENABLED"
+		} else {
+			m.StatusMessage = "Proton Xalia UI Bridge DISABLED"
+		}
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionCycleDisplayOutput:
+		outputs := hardware.GetConnectedDisplayOutputs()
+		options := append([]string{"auto"}, outputs...)
+		curIdx := 0
+		for i, o := range options {
+			if strings.EqualFold(o, m.Config.GamescopeOutput) {
+				curIdx = i
+				break
+			}
+		}
+		nextIdx := (curIdx + 1) % len(options)
+		m.Config.GamescopeOutput = options[nextIdx]
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.StatusMessage = fmt.Sprintf("Display output set to: %s", m.Config.GamescopeOutput)
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionOpenOverrides:
+		pfxDir := filepath.Join(m.GameDir, "proton-prefix")
+		m.OverridesView = views.NewOverridesView(pfxDir, m.Config.ProtonPath, m.ActiveOverrides, m.Config.DLLOverrides)
+		m.State = StateOverrides
+		return m, nil
+
+	case views.ActionCleanPrefix:
+		pfxDir := filepath.Join(m.GameDir, "proton-prefix")
+		res, err := prefix.SafeCleanPrefixCustom(pfxDir, m.Config.ProtonPath, m.GameDir, m.Config.TargetExe, m.GameTitle, m.Config.BackupDir, m.Config.Filesystem.ExtraBackupPaths)
+		if err != nil {
+			m.StatusMessage = fmt.Sprintf("Clean failed: %v", err)
+			m.PrefixCleaned = false
+		} else if res.BackupDir != "" {
+			m.StatusMessage = fmt.Sprintf("Prefix cleaned! Saved data preserved to: %s", res.BackupDir)
+			m.PrefixCleaned = true
+		} else {
+			m.StatusMessage = "Prefix cleaned and reset successfully."
+			m.PrefixCleaned = true
+		}
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionOpenDiagnostics:
+		pfxDir := filepath.Join(m.GameDir, "proton-prefix")
+		report := diagnostics.RunPreflightCheck(m.GameDir, m.Config.TargetExe, pfxDir)
+		m.DiagnosticsView = views.NewDiagnosticsView(report)
+		m.State = StateDiagnostics
+		return m, nil
+
+	case views.ActionToggleLogging:
+		m.Config.EnableLogging = !m.Config.EnableLogging
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		if m.Config.EnableLogging {
+			m.StatusMessage = "Session logging ENABLED (writes to .logs/ on launch)"
+		} else {
+			m.StatusMessage = "Session logging DISABLED"
+		}
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionOpenLogs:
+		pfxDir := filepath.Join(m.GameDir, "proton-prefix")
+		logs := diagnostics.FindRecentLogs(m.GameDir, pfxDir)
+		m.LogsView = views.NewLogsView(logs, m.Width, m.Height)
+		m.State = StateLogs
+		return m, nil
+
+	case views.ActionToggleBackdrop:
+		m.Config.OpaqueBackdrop = !m.Config.OpaqueBackdrop
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		if m.Config.OpaqueBackdrop {
+			m.StatusMessage = "Backdrop: Solid Dark"
+		} else {
+			m.StatusMessage = "Backdrop: Transparent"
+		}
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionOpenHelp:
+		m.HelpView = views.NewHelpView(m.Width, m.Height)
+		m.State = StateHelp
+		return m, nil
+
+	case views.ActionQuit:
+		return m, tea.Quit
+	}
 	return m, nil
 }
 
@@ -333,15 +623,21 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "2":
-		m.ProtonPickerView = views.NewProtonPickerView(m.Runners, m.Config.ProtonPath)
-		m.State = StateProtonPicker
-		return m, nil
+		return m.openSubMenu(views.MenuProton)
 
 	case "3":
-		m.ExePickerView = views.NewExePickerView(m.Exes, m.Config.TargetExe)
-		m.State = StateExePicker
-		return m, nil
+		return m.openSubMenu(views.MenuPerformance)
 
+	case "4":
+		return m.openSubMenu(views.MenuPrefix)
+
+	case "5":
+		return m.openSubMenu(views.MenuLogs)
+
+	case "6":
+		return m.openSubMenu(views.MenuSettings)
+
+	// Direct hotkeys for fast power-user access
 	case "g":
 		m.Config.UseGamescope = !m.Config.UseGamescope
 		_ = config.SaveConfig(m.GameDir, m.Config)
@@ -357,6 +653,11 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		_ = config.SaveConfig(m.GameDir, m.Config)
 		return m, nil
 
+	case "x":
+		m.Config.UseXalia = !m.Config.UseXalia
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		return m, nil
+
 	case "o":
 		pfxDir := filepath.Join(m.GameDir, "proton-prefix")
 		m.OverridesView = views.NewOverridesView(pfxDir, m.Config.ProtonPath, m.ActiveOverrides, m.Config.DLLOverrides)
@@ -364,43 +665,42 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "a":
-		// Query ProtonDB on-demand
-		if m.Config.AppID != "" && m.Config.AppID != "0" {
-			m.StatusMessage = "Querying ProtonDB API..."
-			return m, func() tea.Msg {
-				ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-				defer cancel()
-				if rep, err := integrations.FetchProtonDBReport(ctx, m.Config.AppID); err == nil {
-					return protonDBMsg(rep)
-				}
-				return nil
-			}
+		m.ProtonDBView = views.NewProtonDBView(m.ProtonDB, m.GameTitle, m.Config.AppID, m.Width, m.Height)
+		m.State = StateProtonDB
+		if m.ProtonDB != nil {
+			return m, nil
 		}
-		// If AppID is 0, try Steam store search
-		m.StatusMessage = "Searching Steam for AppID..."
-		return m, func() tea.Msg {
-			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-			defer cancel()
-			if aid, _, err := integrations.SearchSteamAppID(ctx, m.GameTitle); err == nil {
-				m.Config.AppID = aid
-				_ = config.SaveConfig(m.GameDir, m.Config)
-				if rep, err := integrations.FetchProtonDBReport(ctx, aid); err == nil {
-					return protonDBMsg(rep)
-				}
-			}
-			return nil
-		}
+		return m, m.fetchProtonDB("")
 
 	case "c":
 		pfxDir := filepath.Join(m.GameDir, "proton-prefix")
-		res, err := prefix.SafeCleanPrefix(pfxDir, m.Config.ProtonPath, m.GameDir, m.Config.TargetExe, m.GameTitle)
+		res, err := prefix.SafeCleanPrefixCustom(pfxDir, m.Config.ProtonPath, m.GameDir, m.Config.TargetExe, m.GameTitle, m.Config.BackupDir, m.Config.Filesystem.ExtraBackupPaths)
 		if err != nil {
 			m.StatusMessage = fmt.Sprintf("Clean failed: %v", err)
+			m.PrefixCleaned = false
 		} else if res.BackupDir != "" {
-			m.StatusMessage = fmt.Sprintf("Prefix cleaned! Saves backed up to: %s", res.BackupDir)
+			m.StatusMessage = fmt.Sprintf("Prefix cleaned! Saved data preserved to: %s", res.BackupDir)
+			m.PrefixCleaned = true
 		} else {
 			m.StatusMessage = "Prefix cleaned and reset successfully."
+			m.PrefixCleaned = true
 		}
+		return m, nil
+
+	case "m", "M":
+		outputs := hardware.GetConnectedDisplayOutputs()
+		options := append([]string{"auto"}, outputs...)
+		curIdx := 0
+		for i, o := range options {
+			if strings.EqualFold(o, m.Config.GamescopeOutput) {
+				curIdx = i
+				break
+			}
+		}
+		nextIdx := (curIdx + 1) % len(options)
+		m.Config.GamescopeOutput = options[nextIdx]
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.StatusMessage = fmt.Sprintf("Display output set to: %s", m.Config.GamescopeOutput)
 		return m, nil
 
 	case "h":
@@ -423,10 +723,20 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "d", "D":
-		p := quirks.DetectQuirks(m.GameDir, m.Config.TargetExe, m.Config.AppID, m.Config.ProtonPath)
+		p := quirks.GetActiveOrDetectedPreset(m.GameDir, m.Config.TargetExe, m.Config.AppID, m.Config.ProtonPath, m.Config)
 		m.DetectedPreset = p
 		m.PresetPickerView = views.NewPresetPickerView(p, m.GameTitle, m.Config, m.Width, m.Height)
 		m.State = StatePresetPicker
+		return m, nil
+
+	case "L":
+		m.Config.EnableLogging = !m.Config.EnableLogging
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		if m.Config.EnableLogging {
+			m.StatusMessage = "Session logging ENABLED (writes to .logs/ on launch)"
+		} else {
+			m.StatusMessage = "Session logging DISABLED"
+		}
 		return m, nil
 
 	case "b":
@@ -471,6 +781,14 @@ func (m *Model) View() string {
 	case StatePresetPicker:
 		if m.PresetPickerView != nil {
 			return m.PresetPickerView.View()
+		}
+	case StateProtonDB:
+		if m.ProtonDBView != nil {
+			return m.ProtonDBView.View()
+		}
+	case StateSubMenu:
+		if m.SubMenuView != nil {
+			return m.SubMenuView.View()
 		}
 	case StateDashboard:
 		pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))
