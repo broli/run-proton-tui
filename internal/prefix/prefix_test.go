@@ -38,3 +38,33 @@ func TestGetPrefixSocketName(t *testing.T) {
 		t.Errorf("Expected socket name starting with 'server-', got %q", name)
 	}
 }
+
+func TestPreserveSavesWithPicturesAndCustomDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	prefixDir := filepath.Join(tmpDir, "proton-prefix")
+	usersDir := filepath.Join(prefixDir, "pfx", "drive_c", "users", "steamuser")
+	picDir := filepath.Join(usersDir, "Pictures", "MyGame")
+	_ = os.MkdirAll(picDir, 0755)
+
+	testPhoto := filepath.Join(picDir, "screenshot.png")
+	_ = os.WriteFile(testPhoto, []byte("fake_png_data"), 0644)
+
+	customBackupDir := filepath.Join(tmpDir, "custom_preservation")
+	dest, err := PreserveSaves(PreserveOptions{
+		PrefixDir: prefixDir,
+		GameName:  "TestGame",
+		DestDir:   customBackupDir,
+	})
+	if err != nil {
+		t.Fatalf("PreserveSaves failed: %v", err)
+	}
+
+	if dest == "" {
+		t.Fatalf("Expected non-empty destination path")
+	}
+
+	preservedPhoto := filepath.Join(dest, "steamuser", "Pictures", "MyGame", "screenshot.png")
+	if _, err := os.Stat(preservedPhoto); err != nil {
+		t.Errorf("Expected screenshot.png to be preserved in Pictures/, but stat failed: %v", err)
+	}
+}

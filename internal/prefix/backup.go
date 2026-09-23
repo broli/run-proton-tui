@@ -8,14 +8,22 @@ import (
 	"time"
 )
 
-// BackupSaves searches the Wine prefix for standard Windows save game locations
-// (AppData/Local, AppData/Roaming, Saved Games, Documents) and archives them
-// to ~/Games/Backups/<gameName>/<timestamp>/ before any prefix recreation.
-func BackupSaves(prefixDir string, gameName string) (string, error) {
-	pfx := GetCanonicalPfx(prefixDir)
+// PreserveOptions defines parameters for preserving player data during prefix operations.
+type PreserveOptions struct {
+	PrefixDir  string
+	GameName   string
+	DestDir    string   // Optional custom target directory (supports ~)
+	ExtraPaths []string // Optional extra relative paths to preserve
+}
+
+// PreserveSaves searches the Wine prefix for standard Windows save game and screenshot locations
+// (Saved Games, Documents, AppData/Local, AppData/Roaming, Pictures) plus any extra paths,
+// archiving them to a safe destination before prefix recreation/reset.
+func PreserveSaves(opts PreserveOptions) (string, error) {
+	pfx := GetCanonicalPfx(opts.PrefixDir)
 	usersDir := filepath.Join(pfx, "drive_c", "users")
 	if _, err := os.Stat(usersDir); err != nil {
-		return "", nil // No prefix users directory, nothing to back up
+		return "", nil // No prefix users directory, nothing to preserve
 	}
 
 	home, err := os.UserHomeDir()
@@ -29,9 +37,17 @@ func BackupSaves(prefixDir string, gameName string) (string, error) {
 			return r
 		}
 		return '_'
-	}, gameName)
+	}, opts.GameName)
 
-	destDir := filepath.Join(home, "Games", "Backups", safeGameName, timestamp)
+	destDir := opts.DestDir
+	if destDir == "" {
+		destDir = filepath.Join(home, "Games", "Backups", safeGameName, timestamp)
+	} else {
+		if strings.HasPrefix(destDir, "~/") {
+			destDir = filepath.Join(home, destDir[2:])
+		}
+		destDir = filepath.Join(destDir, safeGameName, timestamp)
+	}
 
 	var backedUpFiles int
 	savePaths := []string{
@@ -39,7 +55,9 @@ func BackupSaves(prefixDir string, gameName string) (string, error) {
 		"Documents",
 		"AppData/Local",
 		"AppData/Roaming",
+		"Pictures", // In-game camera photos and screenshots
 	}
+	savePaths = append(savePaths, opts.ExtraPaths...)
 
 	userEntries, err := os.ReadDir(usersDir)
 	if err != nil {
@@ -69,6 +87,14 @@ func BackupSaves(prefixDir string, gameName string) (string, error) {
 	// If no files were copied, remove the empty directory
 	_ = os.RemoveAll(destDir)
 	return "", nil
+}
+
+// BackupSaves is a backward-compatible wrapper around PreserveSaves.
+func BackupSaves(prefixDir string, gameName string) (string, error) {
+	return PreserveSaves(PreserveOptions{
+		PrefixDir: prefixDir,
+		GameName:  gameName,
+	})
 }
 
 func copyDir(src, dst string) (int, error) {

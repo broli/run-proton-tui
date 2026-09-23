@@ -25,36 +25,58 @@ func CheckPrefixContainment(prefixDir string, testPath string) bool {
 	if err != nil {
 		absPrefix = prefixDir
 	}
-	realPrefix, err := filepath.EvalSymlinks(absPrefix)
-	if err == nil {
-		absPrefix = realPrefix
+	absPrefix = filepath.Clean(absPrefix)
+	if realPrefix, err := filepath.EvalSymlinks(absPrefix); err == nil {
+		absPrefix = filepath.Clean(realPrefix)
 	}
 
 	absPath, err := filepath.Abs(testPath)
 	if err != nil {
 		absPath = testPath
 	}
-	realPath, err := filepath.EvalSymlinks(absPath)
-	if err == nil {
-		absPath = realPath
+	absPath = filepath.Clean(absPath)
+	if realPath, err := filepath.EvalSymlinks(absPath); err == nil {
+		absPath = filepath.Clean(realPath)
 	}
 
-	// Direct substring or relative path check
-	rel, err := filepath.Rel(absPrefix, absPath)
-	if err == nil && !strings.HasPrefix(rel, "..") && rel != "." {
+	// Exact match: testPath IS the prefix directory
+	if absPath == absPrefix {
 		return true
 	}
 
-	return strings.Contains(absPath, "/proton-prefix/") || strings.Contains(absPath, "/pfx/drive_c/")
+	// Relative path check: testPath is a descendant of prefixDir
+	rel, err := filepath.Rel(absPrefix, absPath)
+	if err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
+		return true
+	}
+
+	// Direct prefix boundary check
+	prefixWithSep := absPrefix + string(filepath.Separator)
+	if strings.HasPrefix(absPath, prefixWithSep) {
+		return true
+	}
+
+	// Secondary check: if testPath explicitly points into canonical pfx/drive_c of prefixDir
+	canonicalPfx := filepath.Join(absPrefix, "pfx", "drive_c")
+	if absPath == canonicalPfx || strings.HasPrefix(absPath, canonicalPfx+string(filepath.Separator)) {
+		return true
+	}
+
+	return false
 }
 
 // SafeCleanPrefix wipes and regenerates a Wine prefix while enforcing strict safety rules:
 // 1. Blocks operation if targetExe or gameDir is inside the prefix.
-// 2. Automatically preserves user save games to ~/Games/Backups/.
+// 2. Automatically preserves user save games and screenshots to destDir or ~/Games/Backups/.
 // 3. Gracefully flushes wineserver and socket locks before removing files.
 func SafeCleanPrefix(prefixDir string, protonPath string, gameDir string, targetExe string, gameName string) (*CleanResult, error) {
+	return SafeCleanPrefixCustom(prefixDir, protonPath, gameDir, targetExe, gameName, "", nil)
+}
+
+// SafeCleanPrefixCustom performs SafeCleanPrefix with customizable destination and extra paths to preserve.
+func SafeCleanPrefixCustom(prefixDir string, protonPath string, gameDir string, targetExe string, gameName string, destDir string, extraPaths []string) (*CleanResult, error) {
 	// Guardrail check 1: Target executable inside prefix
-	if CheckPrefixContainment(prefixDir, filepath.Join(gameDir, targetExe)) {
+	if targetExe != "" && CheckPrefixContainment(prefixDir, filepath.Join(gameDir, targetExe)) {
 		return nil, errors.New("SAFETY GUARDRAIL TRIGGERED: Target executable is located INSIDE the Wine prefix! Cleaning the prefix would permanently delete your installed game files. Please relocate the game to an external directory (e.g. ~/Games/Title/) and re-run")
 	}
 
@@ -67,8 +89,14 @@ func SafeCleanPrefix(prefixDir string, protonPath string, gameDir string, target
 		Success: false,
 	}
 
-	// 1. Back up save files
-	if backupPath, err := BackupSaves(prefixDir, gameName); err == nil && backupPath != "" {
+	// 1. Preserve save files and screenshots
+	preserveOpts := PreserveOptions{
+		PrefixDir:  prefixDir,
+		GameName:   gameName,
+		DestDir:    destDir,
+		ExtraPaths: extraPaths,
+	}
+	if backupPath, err := PreserveSaves(preserveOpts); err == nil && backupPath != "" {
 		result.BackupDir = backupPath
 	}
 
@@ -81,11 +109,6 @@ func SafeCleanPrefix(prefixDir string, protonPath string, gameDir string, target
 	// 4. Safe wipe
 	if err := os.RemoveAll(prefixDir); err != nil {
 		return result, fmt.Errorf("failed to remove prefix directory: %w", err)
-	}
-
-	// 5. Recreate base directory
-	if err := os.MkdirAll(prefixDir, 0755); err != nil {
-		return result, fmt.Errorf("failed to recreate prefix directory: %w", err)
 	}
 
 	result.Success = true
