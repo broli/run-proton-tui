@@ -3,148 +3,129 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go)](https://go.dev)
 [![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?logo=linux&logoColor=black)](https://kernel.org)
+[![Wiki](https://img.shields.io/badge/Docs-GitHub%20Wiki-blueviolet)](https://github.com/broli/run-proton-tui/wiki)
 
-**`rpt`** is a modular, fast, and hardware-aware Linux game launcher helper designed to run standalone Windows games, installers, and repacks under Valve's **Proton** and **Wine** with a rich Terminal User Interface (TUI).
+**`rpt` makes running Windows games on Linux as simple as entering the game folder and typing `rpt`.**
 
-Built in **Go** using the [Charmbracelet](https://charm.sh/) ecosystem (`bubbletea`, `lipgloss`, `bubbles`), `rpt` compiles to a single, self-contained, high-performance static binary with zero runtime dependencies. It runs seamlessly on Arch, CachyOS, Ubuntu, Fedora, Debian, and SteamOS/Bazzite.
+No wrestling with complicated Wine prefixes, no memorizing dozens of launch flags, and no fear of accidentally deleting your save files. Just a clean, responsive terminal dashboard that gets your games running smoothly in seconds.
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="rpt Main Overview Dashboard" width="95%" />
+  <img src="docs/screenshots/dashboard.png" alt="rpt Main Overview Dashboard" width="90%" />
 </p>
 
 ---
 
-## ✨ Key Highlights & Features
+## ⚡ The 10-Second Quickstart
 
-### 1. Progressive Fallback & Smart UX
-* **Instant Launch**: Run `rpt --now` or double-click to launch immediately with saved or hardware-tuned defaults.
-* **Intelligent Binary Discovery**: Recursively scans game directories, distinguishes heavy 3D game engines from 2D setup utilities/launchers, and applies per-executable profiles.
-* **Crash Interception**: If a game crashes or exits with an error, `rpt` captures the crash logs and opens the **Deep Diagnostics TUI** highlighting root causes and recommended remedies.
+You don't need to configure anything or select executables manually. Just open your terminal in any game folder:
 
-### 2. Game Quirks & Automated Presets
-* **Curated & UMU Recipes**: Automatically detects known quirks (e.g. Arknights Endfield, Elden Ring, Unreal Engine 4/5 titles) and applies recommended environment flags, display exports, and process waitlists.
-* **Steam Emulator Detection**: Native status detection for Goldberg, CODEX, Rune, Fairlight (FLT), and ALI213, with automatic DLC discovery (`DLC.txt`) and `lsteamclient=d` safety shims.
+```bash
+cd ~/Games/MyGame
+rpt
+```
 
-<p align="center">
-  <img src="docs/screenshots/quirks_presets.png" alt="Quirks & Compatibility Presets" width="85%" />
-</p>
+1. `rpt` automatically discovers your game.
+2. It detects your best graphics card and tunes your CPU for maximum performance.
+3. **Press `[Enter]` to play!**
 
-### 3. Hardware Topology & Anti-Stutter Tuning
-* **CPU P-Core Pinning**: Automatically detects hybrid architectures (e.g. Intel 12th/13th/14th Gen via `/sys/devices/cpu_core/cpus`) and pins games to Performance cores (`taskset -c 0-11`), eliminating micro-stutters caused by thread migration to Gracemont E-cores.
-* **Gamescope Sandboxing (Decoupled)**: Runs Gamescope on the host iGPU compositor to prevent KDE Plasma / KWin Wayland memory exhaustion (`ENOMEM`), invoking `prime-run` **inside** the sandbox strictly for the 3D game.
-* **On-the-Fly Display Output Selection**: Queries connected displays directly via unprivileged DRM sysfs (`/sys/class/drm/card*-*/status`) and routes output cleanly with `[m]` or via the sub-menu.
-* **Kernel Fast Sync**: Dynamically detects `/dev/ntsync` (Linux 6.13+ / CachyOS) and configures `PROTON_USE_NTSYNC=1`, with graceful fallback to Fsync/Esync.
+Prefer to skip the menu and launch straight into the game?
+```bash
+rpt --now
+```
 
-<p align="center">
-  <img src="docs/screenshots/performance_sandbox.png" alt="Performance & Sandboxing Controls" width="85%" />
-</p>
+---
 
-### 4. Safety Guardrails & Save Game Preservation
-* **Prefix Isolation Handrail**: Detects if game files or executables are accidentally placed inside the prefix (`drive_c/`) and blocks prefix wipes to protect game data.
-* **Automated Save & Screenshot Preservation**: Backs up user saves from `AppData`, `Saved Games`, `Documents`, and `Pictures` to `~/Games/Backups/<Game>/` before any prefix reset.
-* **Declarative Filesystem Directives**: Supports custom symlinks (e.g. in-game photo camera folders) and prerequisite directories directly via `.proton-config.toml`.
+## 🌟 Why Gamers Love `rpt`
+
+### 1. 🔍 It Just Finds Your Game
+Never worry about hunting down nested executable paths like `games/Arknights Endfield/Endfield.exe`. `rpt` recursively scans your game folder, finds all executables, and automatically knows the difference between the **main 3D game** and **setup utilities or launchers**. It even switches to lightweight settings for installers so they don't lag or crash!
+
+### 2. 🛡️ Never Lose Your Saves or Screenshots
+When troubleshooting Wine games, standard online advice often tells you to "delete the prefix" — which accidentally wipes out your hard-earned save data and in-game camera photos!
+* `rpt` keeps each game safely self-contained in its own `./proton-prefix/` folder.
+* Whenever you clean or reset a prefix, `rpt` **automatically backs up your saves, documents, and photo gallery** to `~/Games/Backups/` first.
 
 <p align="center">
   <img src="docs/screenshots/wine_prefix_management.png" alt="Wine Prefix Management & Safety" width="85%" />
 </p>
 
-### 5. Interactive DLL Overrides Engine
-* **TUI Overrides Manager**: Easily inspect and cycle Wine DLL override modes (`native`, `builtin`, `native,builtin`, `disabled`).
-* **1-Click Popular Mod Presets**: Instant support for UE4SS, ReShade, BepInEx, SpecialK, and DDraw.
-* **Custom DLL Input**: Add arbitrary DLL overrides with live prefix validation.
+### 3. 🚀 Smooth, Stutter-Free Performance Out of the Box
+Modern gaming on Linux has great tools like Gamescope and hybrid CPU tuning, but setting them up manually can be intimidating. `rpt` handles it all automatically:
+* **Picks Your Best GPU**: Runs games on your dedicated graphics card (NVIDIA RTX / AMD Radeon) while keeping your desktop responsive.
+* **Eliminates Micro-Stutter**: On newer Intel CPUs (12th–14th Gen), games are automatically pinned to your fast Performance cores so background efficiency cores don't cause framerate dips.
+* **Multi-Monitor Friendly**: Easily cycle which monitor your game appears on with a single keypress (`[m]`).
 
 <p align="center">
-  <img src="docs/screenshots/dll_overrides.png" alt="Interactive DLL Overrides" width="85%" />
+  <img src="docs/screenshots/performance_sandbox.png" alt="Performance & Sandboxing Controls" width="85%" />
 </p>
 
-### 6. Live ProtonDB Community Ratings & Steam Search
-* **Asynchronous ProtonDB REST Client**: Real-time compatibility badges (⭐ Platinum, 🥇 Gold, etc.) with 1-click community recommendation viewing.
-* **Fuzzy Title Resolution**: Strips repack delimiters (e.g. `[DODI Repack]`, `(GOG)`, `[FitGirl]`) to search the Steam Store API for the official game AppID automatically.
+### 4. 🎯 Automated Game Fixes & Community Ratings
+Wondering if a game runs well on Linux? You don't even need to open your web browser:
+* **Live ProtonDB Ratings**: See real-time community tier badges (⭐ Platinum, 🥇 Gold, etc.) right on your screen.
+* **Instant Game Recipes**: Automatically detects popular titles and applies tested community fixes (anti-cheat memory shims, audio workarounds, and video codecs) without you having to touch a config file.
+
+<p align="center">
+  <img src="docs/screenshots/quirks_presets.png" alt="Quirks & Compatibility Presets" width="85%" />
+</p>
 
 <p align="center">
   <img src="docs/screenshots/protondb_report.png" alt="Live ProtonDB Community Report" width="85%" />
 </p>
 
----
+### 5. 🧩 1-Click Modding (DLL Overrides)
+Want to install mods like **ReShade**, **Unreal Engine Scripting (UE4SS)**, or **BepInEx**?
+Forget opening `winecfg` and messing with the Windows registry. Just press `[o]` or choose **Prefix & Overrides** to enable popular mod loaders with a single click.
 
-## ⌨️ Hotkeys & Keybindings
+<p align="center">
+  <img src="docs/screenshots/dll_overrides.png" alt="Interactive DLL Overrides" width="85%" />
+</p>
 
-| Key | Action |
-|---|---|
-| `[Enter]` or `[1]` | **Launch Game** with active configuration |
-| `[2]` | **Select Proton Runner** (GE-Proton, CachyOS, Valve Experimental) |
-| `[3]` | **Select Executable** (.exe picker with 2D Utility vs 3D Game tags) |
-| `[g]` | **Toggle Gamescope** (1080p fixed canvas $\to$ primary monitor) |
-| `[p]` | **Toggle CPU P-Core Pinning** (`taskset` to threads `0-11`) |
-| `[v]` | **Toggle GPU Runner** (`prime-run` NVIDIA RTX vs Host iGPU) |
-| `[o]` | **Configure DLL Overrides** (UE4SS, ReShade, BepInEx, etc.) |
-| `[a]` | **Fetch ProtonDB Recommendations** |
-| `[c]` | **Clean / Reset Wine Prefix** (with save game backup!) |
-| `[h]` | **Pre-flight Permissions & Diagnostics** (auto-fixes `+x` bits) |
-| `[l]` | **View Recent Session Logs & Crash Dumps** |
-| `[?]` or `[F1]` | **Open Verbose Help & Manual** |
-| `[q]` or `[Esc]` | **Quit** |
+### 6. 🩺 Friendly Crash Doctor
+If a game fails to start or crashes within a few seconds, `rpt` doesn't just vanish. It captures the crash logs and opens the **Diagnostics Screen**, explaining in plain English what went wrong (e.g. missing executable permissions, conflicting processes, or DirectX errors) and how to resolve it.
 
 ---
 
-## 🚀 Installation & Setup
+## ⌨️ Simple Controls & Hotkeys
 
-### Prerequisites
-* Linux (Arch, CachyOS, Ubuntu, Fedora, Debian, SteamOS/Bazzite)
-* Go 1.27+ (only required to compile from source)
+All main functions are organized into clean numbered categories, with convenient 1-key shortcuts:
 
-### Building from Source
+| Key | Category / Action | What It Does |
+|:---:|---|---|
+| **`[Enter]`** | **Launch Game** | Run game with active configuration |
+| **`[2]`** | **Proton & Game Setup** | Choose a Proton runner, switch executables, or view ProtonDB ratings |
+| **`[3]`** | **Performance & Sandbox** | Toggle Gamescope, switch GPUs, or cycle display monitors (`[m]`) |
+| **`[4]`** | **Prefix & Overrides** | Manage 1-click DLL mod overrides or safely reset the prefix |
+| **`[5]`** | **Logs & Diagnostics** | View recent session/crash logs and run pre-flight health checks |
+| **`[6]`** | **Settings & Help** | Switch backdrop transparency, open manual, or quit |
+| **`[?]`** | **In-Depth Guide** | Open the complete built-in manual anytime |
+| **`[q]`** | **Quit** | Exit `rpt` |
+
+---
+
+## 📥 Installation
+
+Compiling `rpt` takes less than 5 seconds because it is written in pure Go with zero runtime dependencies:
+
 ```bash
 git clone https://github.com/broli/run-proton-tui.git
 cd run-proton-tui
-make
 make install
 ```
-This builds and installs `rpt` into `~/bin/rpt` along with `rptui` and `run-proton` symlinks.
+
+This installs `rpt` to your `~/bin/` folder, sets up shell completions for your terminal, and installs the manual page (`man rpt`).
 
 ---
 
-## 📖 Recommended Workflow & CLI Usage
+## 📚 Deep Dive & Documentation
 
-> **💡 Best Practice**: Always `cd` into your game's root directory and run `rpt` without arguments:
-> ```bash
-> cd ~/Games/ArknightsEndfield
-> rpt
-> ```
-> `rpt` automatically discovers binaries (subfolders included), distinguishes 3D game engines from 2D utilities, loads quirks presets, and manages isolated `./proton-prefix/` sandboxes. You do **not** need to manually pass the `.exe` unless you want to target a specific installer or setup tool.
+Looking for technical architecture, config schemas, or developer guides? Check out our dedicated documentation:
 
-```bash
-# 1. Recommended: Open interactive TUI in the game root directory
-cd ~/Games/EldenRing
-rpt
-
-# 2. Launch immediately with saved or auto-detected settings (skip TUI)
-rpt --now
-
-# 3. Target a specific tool/unpacker directly
-rpt Setup.exe
-
-# 4. Safe prefix clean followed by instant launch
-rpt --clean --now
-
-# 5. Run pre-flight health diagnostics check
-rpt --diagnostics
-```
-
----
-
-## 🛡️ Best Practice Directory Layout
-
-```
-~/Games/GameTitle/               <-- Game installation root (where all game files live)
-├── Game.exe                     <-- Main 3D binary
-├── steam_appid.txt              <-- AppID for ProtonDB & save emulation
-├── .proton-config.toml          <-- Per-game settings generated by rpt
-├── .logs/                       <-- Timestamped session logs
-└── proton-prefix/               <-- Isolated Wine sandbox (safe to delete/reset)
-    └── pfx/
-        └── drive_c/users/...    <-- Save games (auto-backed up on clean)
-```
+* [📖 **GitHub Wiki Home**](https://github.com/broli/run-proton-tui/wiki)
+* [⚙️ **Configuration Reference (`.proton-config.toml`)**](https://github.com/broli/run-proton-tui/wiki/Configuration-Reference)
+* [🖥️ **Hardware Topology & Wayland Architecture**](https://github.com/broli/run-proton-tui/wiki/Hardware-and-Wayland-Architecture)
+* [🔄 **Lifecycle Shell Hooks & File Directives**](https://github.com/broli/run-proton-tui/wiki/Lifecycle-Hooks-and-Preservation)
+* [🤖 **AI Agent Integration & `--dump-spec`**](https://github.com/broli/run-proton-tui/wiki/AI-Agent-Integration)
+* [🎮 **Example Game Guide (Arknights: Endfield)**](https://github.com/broli/run-proton-tui/wiki/Example-Config-Arknights-Endfield)
 
 ---
 
