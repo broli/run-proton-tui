@@ -1,6 +1,6 @@
 # Welcome to the rpt (run-proton-tui) Wiki
 
-**`rpt`** is a generic, high-performance Linux gaming launcher helper and interactive Terminal User Interface (TUI) designed to run non-Steam and standalone Windows games under Valve's Proton, GE-Proton, or DW-Proton.
+**`rpt`** is a generic, high-performance Linux gaming launcher helper and interactive Terminal User Interface (TUI) designed to run non-Steam and standalone Windows games, setup installers, launchers, and background patchers under Valve's Proton, GE-Proton, or DW-Proton.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/broli/run-proton-tui/main/docs/screenshots/dashboard.png" alt="rpt Main Overview Dashboard" width="95%" />

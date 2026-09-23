@@ -7,7 +7,7 @@
 
 **`rpt` makes running Windows games on Linux as simple as entering the game folder and typing `rpt`.**
 
-No wrestling with complicated Wine prefixes, no memorizing dozens of launch flags, and no fear of accidentally deleting your save files. Just a clean, responsive terminal dashboard that gets your games running smoothly in seconds.
+Whether you are jumping into the main 3D game, running a setup installer (`Setup.exe`), updating through an official launcher (`Launcher.exe`), or applying a game patch, `rpt` handles the entire lifecycle automatically. No wrestling with complicated Wine prefixes, no memorizing dozens of launch flags, and no fear of accidentally deleting your save files. Just a clean, responsive terminal dashboard that gets your games running smoothly in seconds.
 
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="rpt Main Overview Dashboard" width="90%" />
@@ -37,8 +37,8 @@ rpt --now
 
 ## 🌟 Why Gamers Love `rpt`
 
-### 1. 🔍 It Just Finds Your Game
-Never worry about hunting down nested executable paths like `games/Arknights Endfield/Endfield.exe`. `rpt` recursively scans your game folder, finds all executables, and automatically knows the difference between the **main 3D game** and **setup utilities or launchers**. It even switches to lightweight settings for installers so they don't lag or crash!
+### 1. 🔍 Seamless Support for Games, Launchers, Installers & Patchers
+Never worry about hunting down nested executable paths like `games/Arknights Endfield/Endfield.exe`. `rpt` recursively scans your game directory and intelligently distinguishes the **main 3D game** from **setup installers, game launchers, unpackers, and background patchers**. It automatically switches to lightweight settings for 2D utilities so they don't lag or crash, and supervises background updaters until they finish!
 
 ### 2. 🛡️ Never Lose Your Saves or Screenshots
 When troubleshooting Wine games, standard online advice often tells you to "delete the prefix" — which accidentally wipes out your hard-earned save data and in-game camera photos!

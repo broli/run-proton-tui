@@ -51,6 +51,11 @@ publish-wiki:
 		exit 1; \
 	}
 	@cp -f docs/wiki/*.md /tmp/rpt-wiki/
-	@cd /tmp/rpt-wiki && git add . && git commit -m "docs(wiki): update wiki documentation" && git push origin
+	@cd /tmp/rpt-wiki && git add . && \
+		if git diff-index --quiet HEAD --; then \
+			echo "[✓] GitHub Wiki is already up-to-date with docs/wiki!"; \
+		else \
+			git commit -m "docs(wiki): update wiki documentation" && git push origin && \
+			echo "[✓] Successfully published docs/wiki to GitHub Wiki!"; \
+		fi
 	@rm -rf /tmp/rpt-wiki
-	@echo "[✓] Successfully published docs/wiki to GitHub Wiki!"
