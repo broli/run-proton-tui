@@ -14,46 +14,56 @@ Built in **Go** using the [Charmbracelet](https://charm.sh/) ecosystem (`bubblet
 
 ---
 
-## 📸 Interface & Gallery
-
-| Overview Dashboard | Performance & Sandboxing |
-|:---:|:---:|
-| <img src="docs/screenshots/dashboard.png" width="100%" /> | <img src="docs/screenshots/performance_sandbox.png" width="100%" /> |
-
-| Quirks & Compatibility Presets | Live ProtonDB Community Ratings |
-|:---:|:---:|
-| <img src="docs/screenshots/quirks_presets.png" width="100%" /> | <img src="docs/screenshots/protondb_report.png" width="100%" /> |
-
-| Wine Prefix Management | Interactive DLL Overrides |
-|:---:|:---:|
-| <img src="docs/screenshots/wine_prefix_management.png" width="100%" /> | <img src="docs/screenshots/dll_overrides.png" width="100%" /> |
-
----
-
 ## ✨ Key Highlights & Features
 
-1. **Progressive Fallback & Smart UX**:
-   - **Instant Launch**: Run `rpt --now` or double-click to launch immediately with saved or hardware-tuned defaults.
-   - **Crash Interception**: If a game crashes or exits with an error within 15 seconds, `rpt` captures the crash logs and opens the **Deep Diagnostics TUI** highlighting the failure cause and recommended remedies.
-2. **First-Class Steam Emulator Support**:
-   - Built-in detection and status reporting for **Goldberg Steam Emulator**, **CODEX**, **Rune**, **Fairlight (FLT)**, and **ALI213**.
-   - Automatic discovery of `steam_appid.txt`, `configs.app.ini`, `steam_emu.ini`, and DLC definitions (`DLC.txt`).
-   - Forces `WINEDLLOVERRIDES="lsteamclient=d"` by default to prevent Wine from delegating to native Linux Steam (eliminating store popups and crash loops).
-3. **Hardware Topology & Anti-Stutter Tuning**:
-   - **CPU P-Core Pinning**: Automatically detects hybrid architectures (e.g. Intel 12th/13th/14th Gen via `/sys/devices/cpu_core/cpus`) and pins games to Performance cores (`taskset -c 0-11`), eliminating stutter caused by thread migration to Gracemont E-cores.
-   - **Gamescope Sandboxing (Decoupled)**: Runs Gamescope on the host iGPU compositor to prevent KDE Plasma / KWin Wayland memory exhaustion (`ENOMEM`), invoking `prime-run` **inside** the sandbox strictly for the 3D game.
-   - **Kernel Fast Sync**: Dynamically detects `/dev/ntsync` (CachyOS / Linux 6.13+) and configures `PROTON_USE_NTSYNC=1`, with graceful fallback to Fsync/Esync.
-   - **Power Profile Integration**: Temporarily boosts system power profile to `performance` via `powerprofilesctl` and automatically restores the original profile on exit.
-4. **Safety Guardrails & Save Game Preservation**:
-   - **Prefix Isolation Handrail**: Detects if game files or executables are accidentally placed inside the prefix (`drive_c/`) and blocks prefix wipes to protect game files.
-   - **Automated Save Backups**: Backs up user saves from `AppData` and `Saved Games` to `~/Games/Backups/<Game>/` before any prefix reset.
-   - **Socket & Lock Cleanup**: Cleans abandoned Wine socket directories in `/tmp/.wine-<UID>/` using non-blocking flock.
-5. **Community Ratings & AI Diagnostics**:
-   - Asynchronous **ProtonDB REST API** client displaying real-time compatibility badges (⭐ Platinum, 🥇 Gold, etc.) with 1-click community recommendation application.
-   - Fallback Steam Store search API to automatically detect AppIDs from folder names.
-   - Optional Gemini AI integration for instant crash log diagnosis.
-6. **Verbose In-Depth Manual (`?` / `Shift + /`)**:
-   - Comprehensive scrollable manual and troubleshooting encyclopedia built right into the TUI.
+### 1. Progressive Fallback & Smart UX
+* **Instant Launch**: Run `rpt --now` or double-click to launch immediately with saved or hardware-tuned defaults.
+* **Intelligent Binary Discovery**: Recursively scans game directories, distinguishes heavy 3D game engines from 2D setup utilities/launchers, and applies per-executable profiles.
+* **Crash Interception**: If a game crashes or exits with an error, `rpt` captures the crash logs and opens the **Deep Diagnostics TUI** highlighting root causes and recommended remedies.
+
+### 2. Game Quirks & Automated Presets
+* **Curated & UMU Recipes**: Automatically detects known quirks (e.g. Arknights Endfield, Elden Ring, Unreal Engine 4/5 titles) and applies recommended environment flags, display exports, and process waitlists.
+* **Steam Emulator Detection**: Native status detection for Goldberg, CODEX, Rune, Fairlight (FLT), and ALI213, with automatic DLC discovery (`DLC.txt`) and `lsteamclient=d` safety shims.
+
+<p align="center">
+  <img src="docs/screenshots/quirks_presets.png" alt="Quirks & Compatibility Presets" width="85%" />
+</p>
+
+### 3. Hardware Topology & Anti-Stutter Tuning
+* **CPU P-Core Pinning**: Automatically detects hybrid architectures (e.g. Intel 12th/13th/14th Gen via `/sys/devices/cpu_core/cpus`) and pins games to Performance cores (`taskset -c 0-11`), eliminating micro-stutters caused by thread migration to Gracemont E-cores.
+* **Gamescope Sandboxing (Decoupled)**: Runs Gamescope on the host iGPU compositor to prevent KDE Plasma / KWin Wayland memory exhaustion (`ENOMEM`), invoking `prime-run` **inside** the sandbox strictly for the 3D game.
+* **On-the-Fly Display Output Selection**: Queries connected displays directly via unprivileged DRM sysfs (`/sys/class/drm/card*-*/status`) and routes output cleanly with `[m]` or via the sub-menu.
+* **Kernel Fast Sync**: Dynamically detects `/dev/ntsync` (Linux 6.13+ / CachyOS) and configures `PROTON_USE_NTSYNC=1`, with graceful fallback to Fsync/Esync.
+
+<p align="center">
+  <img src="docs/screenshots/performance_sandbox.png" alt="Performance & Sandboxing Controls" width="85%" />
+</p>
+
+### 4. Safety Guardrails & Save Game Preservation
+* **Prefix Isolation Handrail**: Detects if game files or executables are accidentally placed inside the prefix (`drive_c/`) and blocks prefix wipes to protect game data.
+* **Automated Save & Screenshot Preservation**: Backs up user saves from `AppData`, `Saved Games`, `Documents`, and `Pictures` to `~/Games/Backups/<Game>/` before any prefix reset.
+* **Declarative Filesystem Directives**: Supports custom symlinks (e.g. in-game photo camera folders) and prerequisite directories directly via `.proton-config.toml`.
+
+<p align="center">
+  <img src="docs/screenshots/wine_prefix_management.png" alt="Wine Prefix Management & Safety" width="85%" />
+</p>
+
+### 5. Interactive DLL Overrides Engine
+* **TUI Overrides Manager**: Easily inspect and cycle Wine DLL override modes (`native`, `builtin`, `native,builtin`, `disabled`).
+* **1-Click Popular Mod Presets**: Instant support for UE4SS, ReShade, BepInEx, SpecialK, and DDraw.
+* **Custom DLL Input**: Add arbitrary DLL overrides with live prefix validation.
+
+<p align="center">
+  <img src="docs/screenshots/dll_overrides.png" alt="Interactive DLL Overrides" width="85%" />
+</p>
+
+### 6. Live ProtonDB Community Ratings & Steam Search
+* **Asynchronous ProtonDB REST Client**: Real-time compatibility badges (⭐ Platinum, 🥇 Gold, etc.) with 1-click community recommendation viewing.
+* **Fuzzy Title Resolution**: Strips repack delimiters (e.g. `[DODI Repack]`, `(GOG)`, `[FitGirl]`) to search the Steam Store API for the official game AppID automatically.
+
+<p align="center">
+  <img src="docs/screenshots/protondb_report.png" alt="Live ProtonDB Community Report" width="85%" />
+</p>
 
 ---
 
