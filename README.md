@@ -8,6 +8,26 @@
 
 Built in **Go** using the [Charmbracelet](https://charm.sh/) ecosystem (`bubbletea`, `lipgloss`, `bubbles`), `rpt` compiles to a single, self-contained, high-performance static binary with zero runtime dependencies. It runs seamlessly on Arch, CachyOS, Ubuntu, Fedora, Debian, and SteamOS/Bazzite.
 
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="rpt Main Overview Dashboard" width="95%" />
+</p>
+
+---
+
+## 📸 Interface & Gallery
+
+| Overview Dashboard | Performance & Sandboxing |
+|:---:|:---:|
+| <img src="docs/screenshots/dashboard.png" width="100%" /> | <img src="docs/screenshots/performance_sandbox.png" width="100%" /> |
+
+| Quirks & Compatibility Presets | Live ProtonDB Community Ratings |
+|:---:|:---:|
+| <img src="docs/screenshots/quirks_presets.png" width="100%" /> | <img src="docs/screenshots/protondb_report.png" width="100%" /> |
+
+| Wine Prefix Management | Interactive DLL Overrides |
+|:---:|:---:|
+| <img src="docs/screenshots/wine_prefix_management.png" width="100%" /> | <img src="docs/screenshots/dll_overrides.png" width="100%" /> |
+
 ---
 
 ## ✨ Key Highlights & Features
@@ -74,23 +94,30 @@ This builds and installs `rpt` into `~/bin/rpt` along with `rptui` and `run-prot
 
 ---
 
-## 📖 CLI Usage
+## 📖 Recommended Workflow & CLI Usage
+
+> **💡 Best Practice**: Always `cd` into your game's root directory and run `rpt` without arguments:
+> ```bash
+> cd ~/Games/ArknightsEndfield
+> rpt
+> ```
+> `rpt` automatically discovers binaries (subfolders included), distinguishes 3D game engines from 2D utilities, loads quirks presets, and manages isolated `./proton-prefix/` sandboxes. You do **not** need to manually pass the `.exe` unless you want to target a specific installer or setup tool.
 
 ```bash
-# Open interactive TUI in the game directory
+# 1. Recommended: Open interactive TUI in the game root directory
 cd ~/Games/EldenRing
 rpt
 
-# Launch immediately with saved or auto-detected settings (skip TUI)
+# 2. Launch immediately with saved or auto-detected settings (skip TUI)
 rpt --now
 
-# Specify target executable directly
-rpt Game.exe
+# 3. Target a specific tool/unpacker directly
+rpt Setup.exe
 
-# Safe prefix clean followed by instant launch
+# 4. Safe prefix clean followed by instant launch
 rpt --clean --now
 
-# Run pre-flight health diagnostics check
+# 5. Run pre-flight health diagnostics check
 rpt --diagnostics
 ```
 

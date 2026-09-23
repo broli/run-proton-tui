@@ -1,0 +1,59 @@
+# .proton-config.toml for Arknights: Endfield
+# Place this file in the game root directory (e.g. ~/Games/ArknightsEndfield/.proton-config.toml)
+
+target_exe = "Endfield.exe"
+proton_path = "/home/testuser/.local/share/Steam/compatibilitytools.d/GE-Proton11-6/proton"
+app_id = "0"
+preset_name = "Arknights: Endfield"
+umu_id = "umu-endfield"
+use_gamescope = true
+gamescope_output = "auto"
+gamescope_width = 1920
+gamescope_height = 1080
+gamescope_refresh = 75
+use_prime_run = true
+use_pcores = true
+pcores_mask = "0-11"
+manage_power = true
+use_xalia = false
+enable_logging = false
+opaque_backdrop = true
+extra_args = ["-vulkan"]
+display_file = "/tmp/gamescope-endfield-display"
+wait_processes = ["Updater.exe", "7zg.exe", "Patch.exe", "Games.exe", "ACE-Service64.exe"]
+
+[env_vars]
+WINE_CANONICAL_HOLE = "skip_volatile_check"
+PROTON_USE_XALIA = "0"
+PROTON_ENABLE_NVAPI = "1"
+DXVK_ENABLE_NVAPI = "1"
+VKD3D_CONFIG = "no_upload_hvv"
+UMU_USE_STEAM = "0"
+
+[filesystem]
+ensure_dirs = [
+  "{PREFIX}/pfx/drive_c/users/steamuser/AppData/LocalLow",
+  "{PREFIX}/pfx/drive_c/users/steamuser/Pictures"
+]
+
+[[filesystem.symlinks]]
+source = "~/Pictures/ENDFIELD"
+target = "{PREFIX}/pfx/drive_c/users/steamuser/Pictures/ENDFIELD"
+
+[profiles."PlatformProcess.exe"]
+target_exe = "PlatformProcess.exe"
+use_gamescope = false
+use_prime_run = false
+use_pcores = false
+
+[profiles."Launcher.exe"]
+target_exe = "Launcher.exe"
+use_gamescope = false
+use_prime_run = false
+use_pcores = false
+
+[profiles."Games.exe"]
+target_exe = "Games.exe"
+use_gamescope = false
+use_prime_run = false
+use_pcores = false
