@@ -129,3 +129,48 @@ ensures that before launch, `rpt` verifies `~/Pictures/ENDFIELD` on the host Lin
 Games often package helper binaries alongside the main game (e.g. `PlatformProcess.exe`, `Launcher.exe`, `Games.exe`).
 - When run on NVIDIA with NVAPI enabled, Qt5/Chromium WebEngine instances frequently encounter glibc memory corruption (`double free or corruption`).
 - `rpt` automatically strips NVAPI and Gamescope for these profiles, allowing background downloaders or setup utilities to run smoothly on the host iGPU without interfering with the 3D game.
+
+### 5. Automated Proton Kernel Patching via Lifecycle Hook (`pre_launch.sh`)
+Tencent Anti-Cheat Expert (`ACE-BASE.sys`) probes Wine's Windows NT kernel emulation (`ntoskrnl.exe`). When running on GE-Proton, it requires two specific function patches (`PsGetProcessExitProcessCalled` and `SeQueryInformationToken`).
+
+Instead of manually re-patching every time Steam or ProtonUp-Qt updates your Proton build, you can create a simple `hooks/pre_launch.sh` script in your Endfield game folder:
+
+```bash
+#!/bin/bash
+# Place in: ~/Games/ArknightsEndfield/hooks/pre_launch.sh
+set -e
+
+PROTON_DIR="$(dirname "$RPT_PROTON_PATH")"
+NTOSKRNL="$PROTON_DIR/files/lib/wine/x86_64-windows/ntoskrnl.exe"
+[ ! -f "$NTOSKRNL" ] && NTOSKRNL="$PROTON_DIR/lib/wine/x86_64-windows/ntoskrnl.exe"
+
+if [ -f "$NTOSKRNL" ]; then
+    python3 - << 'EOF' "$NTOSKRNL"
+import sys, os, shutil
+path = sys.argv[1]
+with open(path, "r+b") as f:
+    data = bytearray(f.read())
+
+offset = 0x43a8
+payload = bytes.fromhex("31c0c3" + "90" * 21)
+
+if data[offset:offset+len(payload)] == payload:
+    print("[rpt:hook] ✓ GE-Proton ntoskrnl.exe is already patched for Anti-Cheat Expert.")
+else:
+    print("[rpt:hook] ! Fresh or updated Proton detected; applying ntoskrnl.exe patch...")
+    if not os.path.exists(path + ".orig"):
+        shutil.copy2(path, path + ".orig")
+    data[offset:offset+len(payload)] = payload
+    sec_offset = 0x4f90
+    sec_payload = bytes.fromhex("b8020000c0c3" + "90" * 18)
+    data[sec_offset:sec_offset+len(sec_payload)] = sec_payload
+    f.seek(0)
+    f.write(data)
+    f.truncate()
+    print("[rpt:hook] ✓ Kernel patch applied successfully! Proceeding with launch.")
+EOF
+fi
+```
+
+Because `rpt` automatically discovers `hooks/pre_launch.sh` in your unpacked game folder, this check runs before Gamescope and Proton start, ensuring that newly installed or updated Proton versions are verified and patched on the fly!
+

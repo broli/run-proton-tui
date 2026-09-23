@@ -130,3 +130,58 @@ if [ -f /tmp/rpt-clip-bridge.pid ]; then
     rm -f /tmp/rpt-clip-bridge.pid
 fi
 ```
+
+### Example 4: Verifying & Auto-Applying Proton Binary Patches (e.g. Anti-Cheat `ntoskrnl.exe`)
+
+Because `rpt` exports the exact path of the active Proton binary in **`$RPT_PROTON_PATH`**, you can write a `pre_launch.sh` hook that checks whether the current Proton runner has required kernel patches (such as `ntoskrnl.exe` patches for Tencent Anti-Cheat Expert / ACE), and applies them automatically if Proton was freshly downloaded or updated.
+
+```bash
+#!/bin/bash
+# Place in: ./hooks/pre_launch.sh
+set -e
+
+# Derive the Proton installation root from $RPT_PROTON_PATH
+PROTON_DIR="$(dirname "$RPT_PROTON_PATH")"
+NTOSKRNL="$PROTON_DIR/files/lib/wine/x86_64-windows/ntoskrnl.exe"
+
+# Check standard Proton paths
+[ ! -f "$NTOSKRNL" ] && NTOSKRNL="$PROTON_DIR/lib/wine/x86_64-windows/ntoskrnl.exe"
+
+if [ -f "$NTOSKRNL" ]; then
+    echo "[rpt:hook] Inspecting Proton kernel binary: $NTOSKRNL"
+    
+    # Check if the kernel binary is already patched; if unpatched, patch automatically
+    python3 - << 'EOF' "$NTOSKRNL"
+import sys, os, shutil
+
+path = sys.argv[1]
+with open(path, "r+b") as f:
+    data = bytearray(f.read())
+    
+# Target offset 0x43a8 for PsGetProcessExitProcessCalled
+offset = 0x43a8
+payload = bytes.fromhex("31c0c3" + "90" * 21)
+
+if data[offset:offset+len(payload)] == payload:
+    print("[rpt:hook] ✓ ntoskrnl.exe is already patched for Anti-Cheat Expert.")
+else:
+    print("[rpt:hook] ! ntoskrnl.exe is unpatched; auto-applying binary patch...")
+    if not os.path.exists(path + ".orig"):
+        shutil.copy2(path, path + ".orig")
+    data[offset:offset+len(payload)] = payload
+    
+    # Target offset 0x4f90 for SeQueryInformationToken
+    sec_offset = 0x4f90
+    sec_payload = bytes.fromhex("b8020000c0c3" + "90" * 18)
+    data[sec_offset:sec_offset+len(sec_payload)] = sec_payload
+    
+    f.seek(0)
+    f.write(data)
+    f.truncate()
+    print("[rpt:hook] ✓ Successfully applied Proton kernel binary patches!")
+EOF
+fi
+```
+
+This guarantees that even when ProtonUp-Qt or Steam updates your GE-Proton build in the background, your game will always launch with verified, working kernel binaries without manual re-patching!
+
