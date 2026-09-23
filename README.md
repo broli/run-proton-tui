@@ -7,7 +7,7 @@
 
 **`rpt` makes running Windows games on Linux as simple as entering the game folder and typing `rpt`.**
 
-Whether you are jumping into the main 3D game, running a setup installer (`Setup.exe`), updating through an official launcher (`Launcher.exe`), or applying a game patch, `rpt` handles the entire lifecycle automatically. No wrestling with complicated Wine prefixes, no memorizing dozens of launch flags, and no fear of accidentally deleting your save files. Just a clean, responsive terminal dashboard that gets your games running smoothly in seconds.
+Whether you are jumping into the main game, running a setup installer, updating through an official launcher, or applying a game patch, `rpt` handles the entire lifecycle automatically. No wrestling with complicated Wine prefixes, no memorizing dozens of launch flags, and no fear of accidentally deleting your save files. Just a clean, responsive terminal dashboard that gets your games running smoothly in seconds.
 
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="rpt Main Overview Dashboard" width="90%" />
