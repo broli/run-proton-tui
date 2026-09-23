@@ -83,6 +83,15 @@ Forget opening `winecfg` and messing with the Windows registry. Just press `[o]`
 ### 6. 🩺 Friendly Crash Doctor
 If a game fails to start or crashes within a few seconds, `rpt` doesn't just vanish. It captures the crash logs and opens the **Diagnostics Screen**, explaining in plain English what went wrong (e.g. missing executable permissions, conflicting processes, or DirectX errors) and how to resolve it.
 
+### 7. 🎛️ Zero Setup Out of the Box, Total Control When You Need It
+Every game is unique. While `rpt` works instantly with zero setup, it also lets you customize per-game behavior with a simple, human-readable `.proton-config.toml` right inside the game directory:
+* **Custom Launch Arguments**: Add flags like `-dx11`, `-vulkan`, `-windowed`, or `-skipintro`.
+* **Per-Executable Profiles**: Run the heavy 3D game with your dedicated GPU and Gamescope, while keeping the launcher light on battery.
+* **Custom Symlinks & Directories**: Automatically link in-game photo cameras to your host `~/Pictures/` folder, or redirect save data to cloud storage.
+* **Lifecycle Shell Hooks**: Run custom scripts before launch or after exit to mount archives, launch companion tools, or apply patches.
+
+*(See the [Configuration Reference on the Wiki](https://github.com/broli/run-proton-tui/wiki/Configuration-Reference) for detailed examples!)*
+
 ---
 
 ## ⌨️ Simple Controls & Hotkeys
