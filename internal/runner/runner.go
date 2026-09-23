@@ -73,29 +73,43 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 	// 3. Pre-flight health and permissions check (+x on target and *Shipping.exe)
 	diagnostics.RunPreflightCheck(gameDir, cfg.TargetExe, prefixDir)
 
-	// 4. Pre-clean abandoned locks and flush any lingering wineserver holding this prefix
+	// 4. Pre-flight inter-game conflict detection
+	if conflicts, err := prefix.ListOtherWineProcesses(prefixDir); err == nil && len(conflicts) > 0 {
+		if logFile != nil {
+			_, _ = fmt.Fprintf(logFile, "[PREFLIGHT:WARN] Detected %d active Wine/Proton process(es) in other prefixes:\n", len(conflicts))
+			for _, c := range conflicts {
+				_, _ = fmt.Fprintf(logFile, "  - PID %d: %s (Prefix: %s)\n", c.PID, c.ExeName, c.Prefix)
+			}
+		}
+	}
+
+	// 5. Declarative filesystem directives (ensure_dirs, symlinks)
+	processFilesystemDirectives(gameDir, prefixDir, cfg.Filesystem, logFile)
+
+	// 6. Pre-clean abandoned locks and flush any lingering wineserver holding this prefix
 	_ = prefix.Flush(prefixDir, cfg.ProtonPath)
 	_, _ = prefix.CleanStaleLocks()
 
-	// 5. Pre-Launch Lifecycle Hook Execution
+	// 7. Pre-Launch Lifecycle Hook Execution
 	hookOpts := hooks.HookOptions{
 		GameDir:        gameDir,
 		PrefixDir:      prefixDir,
 		TargetExe:      cfg.TargetExe,
 		ProtonPath:     cfg.ProtonPath,
 		ConfigHookPath: cfg.PreLaunchHook,
+		ExtraHookDirs:  cfg.HookDirs,
 		LogWriter:      logFile,
 	}
 	_, _ = hooks.ExecuteHook(ctx, hooks.PreLaunch, hookOpts)
 
-	// 6. Power Profile Management
+	// 8. Power Profile Management
 	powerMgr := hardware.NewPowerManager()
 	if cfg.ManagePower {
 		_ = powerMgr.SetPerformance()
 		defer powerMgr.Restore()
 	}
 
-	// 7. Build Proton Environment (incorporates UMU ID and custom environment variables)
+	// 9. Build Proton Environment (incorporates UMU ID, 2D/3D isolation, and custom variables)
 	extraOverrides := ""
 	if len(cfg.DLLOverrides) > 0 {
 		var parts []string
@@ -105,10 +119,15 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 		extraOverrides = strings.Join(parts, ";")
 	}
 
+	cls := ClassifyExecutable(cfg.TargetExe)
+	is2D := cls.Type == ExeType2DUtility
+
 	envOpts := proton.EnvOptions{
 		PrefixDir:      prefixDir,
 		GameDir:        gameDir,
 		AppID:          cfg.AppID,
+		UsePrimeRun:    cfg.UsePrimeRun,
+		Is2DUtility:    is2D,
 		UseXalia:       cfg.UseXalia,
 		EnableLogging:  cfg.EnableLogging,
 		ExtraOverrides: extraOverrides,
@@ -118,12 +137,12 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 	envMap := proton.BuildEnvironment(envOpts)
 	envSlice := proton.EnvSlice(envMap)
 
-	// 8. Resolve Executable and Directory
+	// 10. Resolve Executable and Directory
 	fullExePath := filepath.Join(gameDir, cfg.TargetExe)
 	exeDir := filepath.Dir(fullExePath)
 	exeName := filepath.Base(fullExePath)
 
-	// 9. Command Prefix (CPU pinning + prime-run)
+	// 11. Command Prefix (CPU pinning + prime-run)
 	cmdPrefix := ""
 	if cfg.UsePrimeRun {
 		if _, err := exec.LookPath("prime-run"); err == nil {
@@ -194,10 +213,11 @@ exit $EXIT_CODE
 
 		// Post-Exit Lifecycle Hook Execution
 		hookOpts.ConfigHookPath = cfg.PostExitHook
+		hookOpts.ExtraHookDirs = cfg.HookDirs
 		_, _ = hooks.ExecuteHook(context.Background(), hooks.PostExit, hookOpts)
 	}()
 
-	// 11. Prepare Process Command (with or without Gamescope)
+	// 12. Prepare Process Command (with or without Gamescope)
 	var cmd *exec.Cmd
 	combinedArgs := append([]string{wrapperScript}, opts.ExtraArgs...)
 
@@ -207,7 +227,7 @@ exit $EXIT_CODE
 	}
 
 	if cfg.UseGamescope && hasGamescope {
-		// Output to preferred monitor (HDMI-A-1 by default)
+		// Output to preferred monitor (HDMI-A-1 by default, or auto)
 		// Gamescope runs on host iGPU (no prime-run on gamescope itself to prevent KWin crash!)
 		gsArgs := []string{
 			"-W", strconv.Itoa(cfg.GamescopeWidth),
@@ -218,7 +238,7 @@ exit $EXIT_CODE
 			"--force-windows-fullscreen",
 			"-f",
 		}
-		if cfg.GamescopeOutput != "" {
+		if cfg.GamescopeOutput != "" && !strings.EqualFold(cfg.GamescopeOutput, "auto") {
 			gsArgs = append(gsArgs, "--prefer-output", cfg.GamescopeOutput)
 		}
 		gsArgs = append(gsArgs, "--", "/bin/bash")
@@ -283,4 +303,47 @@ exit $EXIT_CODE
 	}
 
 	return result, nil
+}
+
+// processFilesystemDirectives creates required directories and declarative symlinks.
+func processFilesystemDirectives(gameDir, prefixDir string, fs config.FilesystemConfig, logWriter io.Writer) {
+	home, _ := os.UserHomeDir()
+	resolvePath := func(p string) string {
+		p = strings.ReplaceAll(p, "{PREFIX}", prefixDir)
+		p = strings.ReplaceAll(p, "{GAME_DIR}", gameDir)
+		p = strings.ReplaceAll(p, "{HOST_HOME}", home)
+		p = strings.ReplaceAll(p, "{HOST_PICTURES}", filepath.Join(home, "Pictures"))
+		if strings.HasPrefix(p, "~/") {
+			p = filepath.Join(home, p[2:])
+		}
+		return p
+	}
+
+	for _, dir := range fs.EnsureDirs {
+		target := resolvePath(dir)
+		if target != "" {
+			_ = os.MkdirAll(target, 0755)
+		}
+	}
+
+	for _, sym := range fs.Symlinks {
+		src := resolvePath(sym.Source)
+		dst := resolvePath(sym.Target)
+		if src == "" || dst == "" {
+			continue
+		}
+		_ = os.MkdirAll(filepath.Dir(dst), 0755)
+		_ = os.MkdirAll(src, 0755)
+		if fi, err := os.Lstat(dst); err == nil {
+			if fi.Mode()&os.ModeSymlink != 0 {
+				_ = os.Remove(dst)
+			} else if fi.IsDir() {
+				entries, _ := os.ReadDir(dst)
+				if len(entries) == 0 {
+					_ = os.Remove(dst)
+				}
+			}
+		}
+		_ = os.Symlink(src, dst)
+	}
 }

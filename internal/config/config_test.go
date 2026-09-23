@@ -84,3 +84,33 @@ func TestEffectiveConfigProfiles(t *testing.T) {
 		t.Errorf("Setup.exe should have custom env var")
 	}
 }
+
+func TestSubfolderProfileMatching(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.TargetExe = "games/Arknights Endfield/Endfield.exe"
+	cfg.UseGamescope = true
+	cfg.UsePrimeRun = true
+
+	falseVal := false
+	// Key is simple basename
+	cfg.Profiles["Games.exe"] = &ExecutableProfile{
+		TargetExe:    "launcher/Games.exe",
+		UseGamescope: &falseVal,
+		UsePrimeRun:  &falseVal,
+	}
+
+	// 1. Should match when targetExe is "launcher/Games.exe"
+	eff := cfg.GetEffectiveConfig("launcher/Games.exe")
+	if eff.UseGamescope {
+		t.Errorf("Expected UseGamescope=false when matching subfolder launcher/Games.exe against profile Games.exe")
+	}
+	if eff.UsePrimeRun {
+		t.Errorf("Expected UsePrimeRun=false when matching subfolder launcher/Games.exe against profile Games.exe")
+	}
+
+	// 2. Should match case-insensitively
+	effCase := cfg.GetEffectiveConfig("LAUNCHER/GAMES.EXE")
+	if effCase.UseGamescope {
+		t.Errorf("Expected case-insensitive match for subfolder profile")
+	}
+}

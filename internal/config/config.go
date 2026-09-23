@@ -1,5 +1,23 @@
 package config
 
+import (
+	"path/filepath"
+	"strings"
+)
+
+// SymlinkDirective defines a declarative persistent or setup symlink.
+type SymlinkDirective struct {
+	Source string `toml:"source"`
+	Target string `toml:"target"`
+}
+
+// FilesystemConfig defines declarative filesystem operations before launch.
+type FilesystemConfig struct {
+	EnsureDirs       []string           `toml:"ensure_dirs,omitempty"`
+	Symlinks         []SymlinkDirective `toml:"symlinks,omitempty"`
+	ExtraBackupPaths []string           `toml:"extra_backup_paths,omitempty"`
+}
+
 // ExecutableProfile allows fine-grained overrides for specific binaries within the same game directory.
 // For example, Setup.exe (2D utility) vs Game.exe (3D Vulkan engine).
 type ExecutableProfile struct {
@@ -24,35 +42,39 @@ type ExecutableProfile struct {
 	DisplayFile      string            `toml:"display_file,omitempty"`
 	PreLaunchHook    string            `toml:"pre_launch_hook,omitempty"`
 	PostExitHook     string            `toml:"post_exit_hook,omitempty"`
+	Filesystem       *FilesystemConfig `toml:"filesystem,omitempty"`
 }
 
 // GameConfig represents the persistent per-game configuration stored in .proton-config.toml.
 type GameConfig struct {
-	TargetExe        string                       `toml:"target_exe"`
-	ProtonPath       string                       `toml:"proton_path"`
-	AppID            string                       `toml:"app_id"`
-	UseGamescope     bool                         `toml:"use_gamescope"`
-	GamescopeOutput  string                       `toml:"gamescope_output"`
-	GamescopeWidth   int                          `toml:"gamescope_width"`
-	GamescopeHeight  int                          `toml:"gamescope_height"`
-	GamescopeRefresh int                          `toml:"gamescope_refresh"`
-	UsePCores        bool                         `toml:"use_pcores"`
-	PCoresMask       string                       `toml:"pcores_mask"`
-	UsePrimeRun      bool                         `toml:"use_prime_run"`
-	ManagePower      bool                         `toml:"manage_power"`
-	UseXalia         bool                         `toml:"use_xalia"`
-	EnableLogging    bool                         `toml:"enable_logging"`
-	OpaqueBackdrop   bool                         `toml:"opaque_backdrop"`
-	DLLOverrides     map[string]string            `toml:"dll_overrides,omitempty"`
-	ExtraArgs        []string                     `toml:"extra_args"`
+	TargetExe        string                        `toml:"target_exe"`
+	ProtonPath       string                        `toml:"proton_path"`
+	AppID            string                        `toml:"app_id"`
+	UseGamescope     bool                          `toml:"use_gamescope"`
+	GamescopeOutput  string                        `toml:"gamescope_output"`
+	GamescopeWidth   int                           `toml:"gamescope_width"`
+	GamescopeHeight  int                           `toml:"gamescope_height"`
+	GamescopeRefresh int                           `toml:"gamescope_refresh"`
+	UsePCores        bool                          `toml:"use_pcores"`
+	PCoresMask       string                        `toml:"pcores_mask"`
+	UsePrimeRun      bool                          `toml:"use_prime_run"`
+	ManagePower      bool                          `toml:"manage_power"`
+	UseXalia         bool                          `toml:"use_xalia"`
+	EnableLogging    bool                          `toml:"enable_logging"`
+	OpaqueBackdrop   bool                          `toml:"opaque_backdrop"`
+	DLLOverrides     map[string]string             `toml:"dll_overrides,omitempty"`
+	ExtraArgs        []string                      `toml:"extra_args"`
 	// Non-standard game & repack extensions
-	PresetName       string                       `toml:"preset_name,omitempty"`
-	UmuID            string                       `toml:"umu_id,omitempty"`
-	EnvVars          map[string]string            `toml:"env_vars,omitempty"`
-	WaitProcesses    []string                     `toml:"wait_processes,omitempty"`
-	DisplayFile      string                       `toml:"display_file,omitempty"`
-	PreLaunchHook    string                       `toml:"pre_launch_hook,omitempty"`
-	PostExitHook     string                       `toml:"post_exit_hook,omitempty"`
+	PresetName       string                        `toml:"preset_name,omitempty"`
+	UmuID            string                        `toml:"umu_id,omitempty"`
+	EnvVars          map[string]string             `toml:"env_vars,omitempty"`
+	WaitProcesses    []string                      `toml:"wait_processes,omitempty"`
+	DisplayFile      string                        `toml:"display_file,omitempty"`
+	BackupDir        string                        `toml:"backup_dir,omitempty"`
+	HookDirs         []string                      `toml:"hook_dirs,omitempty"`
+	PreLaunchHook    string                        `toml:"pre_launch_hook,omitempty"`
+	PostExitHook     string                        `toml:"post_exit_hook,omitempty"`
+	Filesystem       FilesystemConfig              `toml:"filesystem,omitempty"`
 	Profiles         map[string]*ExecutableProfile `toml:"profiles,omitempty"`
 }
 
@@ -133,9 +155,29 @@ func (c *GameConfig) Clone() *GameConfig {
 					profCpy.WaitProcesses = make([]string, len(v.WaitProcesses))
 					copy(profCpy.WaitProcesses, v.WaitProcesses)
 				}
+				if v.Filesystem != nil {
+					fsCpy := *v.Filesystem
+					profCpy.Filesystem = &fsCpy
+				}
 				cpy.Profiles[k] = &profCpy
 			}
 		}
+	}
+	if c.HookDirs != nil {
+		cpy.HookDirs = make([]string, len(c.HookDirs))
+		copy(cpy.HookDirs, c.HookDirs)
+	}
+	if c.Filesystem.EnsureDirs != nil {
+		cpy.Filesystem.EnsureDirs = make([]string, len(c.Filesystem.EnsureDirs))
+		copy(cpy.Filesystem.EnsureDirs, c.Filesystem.EnsureDirs)
+	}
+	if c.Filesystem.Symlinks != nil {
+		cpy.Filesystem.Symlinks = make([]SymlinkDirective, len(c.Filesystem.Symlinks))
+		copy(cpy.Filesystem.Symlinks, c.Filesystem.Symlinks)
+	}
+	if c.Filesystem.ExtraBackupPaths != nil {
+		cpy.Filesystem.ExtraBackupPaths = make([]string, len(c.Filesystem.ExtraBackupPaths))
+		copy(cpy.Filesystem.ExtraBackupPaths, c.Filesystem.ExtraBackupPaths)
 	}
 	return &cpy
 }
@@ -151,13 +193,16 @@ func (c *GameConfig) GetEffectiveConfig(targetExe string) *GameConfig {
 		return eff
 	}
 
-	// Lookup profile by full path or basename
+	// Lookup profile by full path or basename (case-insensitive)
 	var prof *ExecutableProfile
+	targetBase := strings.ToLower(filepath.Base(targetExe))
 	if p, ok := c.Profiles[targetExe]; ok {
 		prof = p
 	} else {
 		for pKey, pVal := range c.Profiles {
-			if pKey == targetExe || (pVal.TargetExe != "" && pVal.TargetExe == targetExe) {
+			if strings.EqualFold(pKey, targetExe) ||
+				strings.EqualFold(filepath.Base(pKey), targetBase) ||
+				(pVal.TargetExe != "" && (strings.EqualFold(pVal.TargetExe, targetExe) || strings.EqualFold(filepath.Base(pVal.TargetExe), targetBase))) {
 				prof = pVal
 				break
 			}
@@ -218,6 +263,9 @@ func (c *GameConfig) GetEffectiveConfig(targetExe string) *GameConfig {
 	}
 	if prof.PostExitHook != "" {
 		eff.PostExitHook = prof.PostExitHook
+	}
+	if prof.Filesystem != nil {
+		eff.Filesystem = *prof.Filesystem
 	}
 	if len(prof.ExtraArgs) > 0 {
 		eff.ExtraArgs = prof.ExtraArgs
