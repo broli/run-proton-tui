@@ -126,5 +126,5 @@ When you switch executables in `rpt` (using `[3]` or passing `rpt Setup.exe`):
 ---
 
 ## 🎮 Real-World Case Studies & Examples
-- [Arknights: Endfield Production Configuration](Example-Config-Arknights-Endfield.md): Complete setup with decoupled Gamescope, persistent screenshot symlinking, and Tencent Anti-Cheat Expert parameters.
+- [Arknights: Endfield Production Configuration](Example-Config-Arknights-Endfield): Complete setup with decoupled Gamescope, persistent screenshot symlinking, and Tencent Anti-Cheat Expert parameters.
 
