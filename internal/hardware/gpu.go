@@ -94,3 +94,31 @@ func DetectGPU() (*GPUInfo, error) {
 
 	return info, nil
 }
+
+// GetConnectedDisplayOutputs scans /sys/class/drm/card*-*/status on demand
+// and returns all currently connected display connector names (e.g. ["HDMI-A-1", "eDP-1"]).
+// This queries world-readable sysfs files (0444) without requiring root, sudo, polkit, or external tools.
+func GetConnectedDisplayOutputs() []string {
+	var outputs []string
+	seen := make(map[string]bool)
+
+	connectorStatuses, _ := filepath.Glob("/sys/class/drm/card*-*/status")
+	for _, statusFile := range connectorStatuses {
+		content, err := os.ReadFile(statusFile)
+		if err != nil {
+			continue
+		}
+		if strings.TrimSpace(string(content)) == "connected" {
+			dir := filepath.Base(filepath.Dir(statusFile))
+			parts := strings.SplitN(dir, "-", 2)
+			if len(parts) == 2 {
+				name := parts[1]
+				if !seen[name] {
+					seen[name] = true
+					outputs = append(outputs, name)
+				}
+			}
+		}
+	}
+	return outputs
+}
