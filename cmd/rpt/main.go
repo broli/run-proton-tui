@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	version = "2.0.0"
+	version = "0.5.0-alpha"
 )
 
 func main() {
@@ -40,6 +40,8 @@ func main() {
 	flagDiag := flag.Bool("diag", false, "Alias for --diagnostics")
 	flagDiagShort := flag.Bool("d", false, "Alias for --diagnostics")
 	flagVersion := flag.Bool("version", false, "Show version information")
+	flagDumpSpec := flag.Bool("dump-spec", false, "Dump machine-readable architecture specification and schema for AI agents")
+	flagHelpDump := flag.Bool("helpdump", false, "Alias for --dump-spec")
 
 	// Toggles
 	flagGamescope := flag.String("gamescope", "", "Force Gamescope on/off (true/false)")
@@ -48,18 +50,34 @@ func main() {
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "rpt (Run Proton TUI) v%s — Modular Linux Game Launcher Helper\n\n", version)
+		fmt.Fprintf(os.Stderr, "Recommended Workflow:\n")
+		fmt.Fprintf(os.Stderr, "  cd into your game's root directory and simply run 'rpt'.\n")
+		fmt.Fprintf(os.Stderr, "  rpt automatically discovers executables, separates 3D engines from 2D utilities,\n")
+		fmt.Fprintf(os.Stderr, "  manages isolated prefixes (./proton-prefix/), and loads game quirks.\n")
+		fmt.Fprintf(os.Stderr, "  (You do NOT need to specify the .exe manually unless selecting a specific tool).\n\n")
 		fmt.Fprintf(os.Stderr, "Usage:\n")
 		fmt.Fprintf(os.Stderr, "  rpt [flags] [optional-game.exe] [-- extra-game-args...]\n\n")
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  rpt                    # Open interactive TUI in current game directory\n")
-		fmt.Fprintf(os.Stderr, "  rpt --now              # Quick launch with saved/default settings\n")
-		fmt.Fprintf(os.Stderr, "  rpt Game.exe           # Set target executable and open TUI\n")
-		fmt.Fprintf(os.Stderr, "  rpt --clean --now      # Safe prefix reset followed by instant launch\n")
+		fmt.Fprintf(os.Stderr, "  cd ~/Games/Endfield && rpt      # Interactive TUI in game directory (recommended)\n")
+		fmt.Fprintf(os.Stderr, "  rpt --now                       # Quick launch with saved/auto-detected settings\n")
+		fmt.Fprintf(os.Stderr, "  rpt Setup.exe                   # Switch to specific installer/tool and open TUI\n")
+		fmt.Fprintf(os.Stderr, "  rpt --clean --now               # Safe prefix reset followed by instant launch\n")
+		fmt.Fprintf(os.Stderr, "  rpt --dump-spec                 # Output machine-readable JSON schema for AI agents\n")
 	}
 
 	flag.Parse()
+
+	if *flagDumpSpec || *flagHelpDump {
+		specBytes, err := diagnostics.GenerateSpecDump(version)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating specification dump: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(specBytes))
+		os.Exit(0)
+	}
 
 	if *flagVersion {
 		fmt.Printf("rpt v%s\n", version)
@@ -143,7 +161,7 @@ func main() {
 	// Apply CLI overrides to configuration
 	if *flagClean || *flagCleanShort {
 		pfxDir := filepath.Join(gameDir, "proton-prefix")
-		res, err := prefix.SafeCleanPrefix(pfxDir, cfg.ProtonPath, gameDir, cfg.TargetExe, filepath.Base(gameDir))
+		res, err := prefix.SafeCleanPrefixCustom(pfxDir, cfg.ProtonPath, gameDir, cfg.TargetExe, filepath.Base(gameDir), cfg.BackupDir, cfg.Filesystem.ExtraBackupPaths)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Prefix clean aborted: %v\n", err)
 			os.Exit(1)

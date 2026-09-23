@@ -3,6 +3,7 @@ package diagnostics
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -30,5 +31,26 @@ func TestRunPreflightCheck(t *testing.T) {
 	}
 	if info.Mode()&0111 == 0 {
 		t.Errorf("Expected executable bit to be set")
+	}
+}
+
+func TestGenerateSpecDump(t *testing.T) {
+	data, err := GenerateSpecDump("2.1.0")
+	if err != nil {
+		t.Fatalf("GenerateSpecDump failed: %v", err)
+	}
+
+	str := string(data)
+	if len(str) == 0 {
+		t.Fatalf("Expected non-empty output")
+	}
+	if !strings.Contains(str, "rpt-spec-v1") {
+		t.Errorf("Expected rpt-spec-v1 in output")
+	}
+	if !strings.Contains(str, "connected_display_outputs") {
+		t.Errorf("Expected connected_display_outputs in output")
+	}
+	if !strings.Contains(str, "lifecycle_hooks") {
+		t.Errorf("Expected lifecycle_hooks in output")
 	}
 }
