@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // HookType identifies the lifecycle phase of a hook script.
@@ -27,6 +28,7 @@ type HookOptions struct {
 	ProtonPath       string
 	GamescopeDisplay string
 	ConfigHookPath   string
+	ExtraHookDirs    []string
 	LogWriter        io.Writer
 }
 
@@ -39,17 +41,22 @@ type HookResult struct {
 }
 
 // ResolveHook cascades through potential hook locations in order:
-// 1. Explicitly configured path from .proton-config.toml
-// 2. Local game directory ($PWD/.rpt/hooks/<type>.sh)
-// 3. User config directory ($HOME/.config/rpt/hooks/<type>.sh)
-// 4. User legacy directory ($HOME/.rpt/hooks/<type>.sh)
-func ResolveHook(gameDir string, hookType HookType, configHookPath string) string {
+// 1. Explicitly configured path from .proton-config.toml (or profile)
+// 2. Local game directory (unpacked root, ./hooks/, or ./.rpt/hooks/)
+// 3. Custom extra hook directories specified by user/config
+// 4. User global config directory ($HOME/.config/rpt/hooks/<type>.sh)
+// 5. User legacy directory ($HOME/.rpt/hooks/<type>.sh)
+func ResolveHook(gameDir string, hookType HookType, configHookPath string, extraDirs ...string) string {
 	scriptName := string(hookType) + ".sh"
 
-	// 1. Configured hook path
+	// 1. Explicitly configured hook path
 	if configHookPath != "" {
 		target := configHookPath
-		if !filepath.IsAbs(target) {
+		if strings.HasPrefix(target, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				target = filepath.Join(home, target[2:])
+			}
+		} else if !filepath.IsAbs(target) {
 			target = filepath.Join(gameDir, target)
 		}
 		if fi, err := os.Stat(target); err == nil && !fi.IsDir() {
@@ -57,13 +64,35 @@ func ResolveHook(gameDir string, hookType HookType, configHookPath string) strin
 		}
 	}
 
-	// 2. Local game directory: $PWD/.rpt/hooks/<name>.sh
-	localHook := filepath.Join(gameDir, ".rpt", "hooks", scriptName)
-	if fi, err := os.Stat(localHook); err == nil && !fi.IsDir() {
-		return localHook
+	// 2. Local game directory (handles unpacked game folders directly)
+	localCandidates := []string{
+		filepath.Join(gameDir, "hooks", scriptName),
+		filepath.Join(gameDir, ".rpt", "hooks", scriptName),
+		filepath.Join(gameDir, scriptName),
+	}
+	for _, candidate := range localCandidates {
+		if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
+			return candidate
+		}
 	}
 
-	// 3. User home directory
+	// 3. Extra custom hook directories
+	for _, dir := range extraDirs {
+		candidate := dir
+		if strings.HasPrefix(candidate, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				candidate = filepath.Join(home, candidate[2:])
+			}
+		} else if !filepath.IsAbs(candidate) {
+			candidate = filepath.Join(gameDir, candidate)
+		}
+		scriptPath := filepath.Join(candidate, scriptName)
+		if fi, err := os.Stat(scriptPath); err == nil && !fi.IsDir() {
+			return scriptPath
+		}
+	}
+
+	// 4. User global directories
 	if home, err := os.UserHomeDir(); err == nil {
 		userConfigHook := filepath.Join(home, ".config", "rpt", "hooks", scriptName)
 		if fi, err := os.Stat(userConfigHook); err == nil && !fi.IsDir() {
@@ -81,7 +110,7 @@ func ResolveHook(gameDir string, hookType HookType, configHookPath string) strin
 
 // ExecuteHook runs the resolved lifecycle hook script with standardized environment variables.
 func ExecuteHook(ctx context.Context, hookType HookType, opts HookOptions) (*HookResult, error) {
-	scriptPath := ResolveHook(opts.GameDir, hookType, opts.ConfigHookPath)
+	scriptPath := ResolveHook(opts.GameDir, hookType, opts.ConfigHookPath, opts.ExtraHookDirs...)
 	if scriptPath == "" {
 		return &HookResult{Executed: false}, nil
 	}

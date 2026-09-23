@@ -72,3 +72,27 @@ echo "RUNNING_HOOK: dir=$RPT_GAME_DIR target=$RPT_TARGET_EXE"
 		t.Errorf("Log output missing hook prefix: %s", logBuf.String())
 	}
 }
+
+func TestResolveHookUnpackedGameDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 1. Hooks in unpacked root: $PWD/hooks/pre_launch.sh
+	hooksDir := filepath.Join(tmpDir, "hooks")
+	_ = os.MkdirAll(hooksDir, 0755)
+	hookFile := filepath.Join(hooksDir, "pre_launch.sh")
+	_ = os.WriteFile(hookFile, []byte("#!/bin/bash\n"), 0755)
+
+	if path := ResolveHook(tmpDir, PreLaunch, ""); path != hookFile {
+		t.Errorf("Expected unpacked hooks/pre_launch.sh to be found, got %s", path)
+	}
+
+	// 2. Extra directory support
+	extraDir := filepath.Join(tmpDir, "custom_scripts")
+	_ = os.MkdirAll(extraDir, 0755)
+	postHook := filepath.Join(extraDir, "post_exit.sh")
+	_ = os.WriteFile(postHook, []byte("#!/bin/bash\n"), 0755)
+
+	if path := ResolveHook(tmpDir, PostExit, "", extraDir); path != postHook {
+		t.Errorf("Expected custom hook dir to resolve post_exit.sh, got %s", path)
+	}
+}
