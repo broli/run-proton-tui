@@ -73,3 +73,41 @@ func TestDiscoverRunners(t *testing.T) {
 		}
 	}
 }
+
+func Test2DUtilityEnvStripping(t *testing.T) {
+	// 1. When 2D Utility
+	opts2D := EnvOptions{
+		PrefixDir:   "/tmp/test-pfx",
+		GameDir:     "/tmp/test-game",
+		UsePrimeRun: true,
+		Is2DUtility: true,
+	}
+	env2D := BuildEnvironment(opts2D)
+	if _, ok := env2D["PROTON_ENABLE_NVAPI"]; ok {
+		t.Errorf("Expected PROTON_ENABLE_NVAPI to be stripped for 2D utility, but it was present")
+	}
+	if _, ok := env2D["DXVK_ENABLE_NVAPI"]; ok {
+		t.Errorf("Expected DXVK_ENABLE_NVAPI to be stripped for 2D utility, but it was present")
+	}
+	if _, ok := env2D["STEAMOS"]; ok {
+		t.Errorf("Expected STEAMOS to be stripped for 2D utility, but it was present")
+	}
+	if _, ok := env2D["STEAMDECK"]; ok {
+		t.Errorf("Expected STEAMDECK to be stripped for 2D utility, but it was present")
+	}
+
+	// 2. When 3D game with prime-run
+	opts3D := EnvOptions{
+		PrefixDir:   "/tmp/test-pfx",
+		GameDir:     "/tmp/test-game",
+		UsePrimeRun: true,
+		Is2DUtility: false,
+	}
+	env3D := BuildEnvironment(opts3D)
+	if env3D["PROTON_ENABLE_NVAPI"] != "1" {
+		t.Errorf("Expected PROTON_ENABLE_NVAPI=1 for 3D game, got %s", env3D["PROTON_ENABLE_NVAPI"])
+	}
+	if env3D["STEAMOS"] != "1" {
+		t.Errorf("Expected STEAMOS=1 for 3D game, got %s", env3D["STEAMOS"])
+	}
+}

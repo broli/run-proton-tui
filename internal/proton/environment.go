@@ -14,10 +14,12 @@ type EnvOptions struct {
 	PrefixDir      string
 	GameDir        string
 	AppID          string
+	UsePrimeRun    bool
+	Is2DUtility    bool
 	UseXalia       bool
 	EnableLogging  bool
-	ExtraOverrides string // Additional DLL overrides string
-	UmuID          string // UMU game ID (e.g. umu-endfield, umu-genshin)
+	ExtraOverrides string            // Additional DLL overrides string
+	UmuID          string            // UMU game ID (e.g. umu-endfield, umu-genshin)
 	CustomEnv      map[string]string // Custom environment variables
 }
 
@@ -92,13 +94,28 @@ func BuildEnvironment(opts EnvOptions) map[string]string {
 	}
 
 	// 6. Modern Linux & SteamOS compatibility flags
-	env["STEAMOS"] = "1"
-	env["STEAMDECK"] = "1"
+	// Unset for 2D utilities/launchers (prevents Chromium/CEF from altering viewport logic)
+	if !opts.Is2DUtility {
+		env["STEAMOS"] = "1"
+		env["STEAMDECK"] = "1"
+	} else {
+		delete(env, "STEAMOS")
+		delete(env, "STEAMDECK")
+	}
 
 	// 7. NVIDIA NVAPI, DLSS & NGX
-	env["PROTON_ENABLE_NVAPI"] = "1"
-	env["DXVK_ENABLE_NVAPI"] = "1"
-	env["PROTON_ENABLE_NGX_UPDATER"] = "1"
+	// CRITICAL FIX: Strip for 2D utilities, setup installers, and iGPU runs.
+	// Qt 5/6 WebEngine and CEF crash with glibc 'double free or corruption (!prev)' on Wayland
+	// when probing NVAPI without a true 3D surface.
+	if opts.UsePrimeRun && !opts.Is2DUtility {
+		env["PROTON_ENABLE_NVAPI"] = "1"
+		env["DXVK_ENABLE_NVAPI"] = "1"
+		env["PROTON_ENABLE_NGX_UPDATER"] = "1"
+	} else {
+		delete(env, "PROTON_ENABLE_NVAPI")
+		delete(env, "DXVK_ENABLE_NVAPI")
+		delete(env, "PROTON_ENABLE_NGX_UPDATER")
+	}
 
 	// 8. Memory Management: Prevent VRAM thrashing on 8GB GPUs
 	if _, ok := env["VKD3D_CONFIG"]; !ok {
