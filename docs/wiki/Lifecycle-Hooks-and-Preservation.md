@@ -185,3 +185,13 @@ fi
 
 This guarantees that even when ProtonUp-Qt or Steam updates your GE-Proton build in the background, your game will always launch with verified, working kernel binaries without manual re-patching!
 
+---
+
+## 🔮 Upcoming Feature: Interactive Hook Inspector & Built-in Pager
+
+As outlined in the [Project Roadmap](https://github.com/broli/run-proton-tui/blob/main/ROADMAP.md), `rpt` is gaining an interactive Hook Inspector and Pager directly within the TUI:
+- **Cascade Inspector**: View which hook script was resolved (Config vs Local Game Root vs `.rpt/hooks` vs Global `~/.config/rpt/hooks`), execution permissions (`+x`), and active status.
+- **Built-in Pager**: Inspect the complete script contents of `pre_launch.sh` and `post_exit.sh` inside `rpt` without opening an external terminal or editor.
+- **Environment Cheatsheet**: Live preview of all variables exported to the hook (`$RPT_GAME_DIR`, `$RPT_PREFIX_DIR`, `$RPT_TARGET_EXE`, `$RPT_PROTON_PATH`, `$RPT_GAMESCOPE_DISPLAY`, `$RPT_HOOK_TYPE`).
+- **CLI Flag**: Inspect active hooks via `rpt --inspect-hooks`.
+

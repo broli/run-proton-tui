@@ -35,6 +35,21 @@ rpt --now
 
 ---
 
+## 🧭 The Three Core Philosophies of `rpt`
+
+Look, let's be honest: at the end of the day, we all just want to launch our game, play, and be done with it. No headaches, no endless troubleshooting. And let's face it—unless you're an actual Proton developer, you're probably going to ask an AI how to fix whatever weird Wine error popped up anyway. So we planned for that! Here is the simple truth behind how `rpt` gets out of your way and makes gaming happen:
+
+1. **🚀 Always-Work Universal Defaults**:  
+   `rpt` includes all known, stable configurations for games to run out of the box. Safe prefix isolation, Gamescope sandboxing, CPU P-core pinning, auto-selection of your best GPU, and clean process supervision work automatically with zero setup required.
+
+2. **⚡ Modular Power for Any Game (No Rocket Science Required)**:  
+   If a fix or tweak only benefits a small number of games (such as anti-cheat kernel byte patches, memory-mapping IL2CPP caches to RAM, or game installer quirks), `rpt` keeps its core clean and delegates the fix to **modular lifecycle hooks**. This gives you the power to run *any* game, no matter how complicated the setup. Everything is fully documented and structured so an AI assistant (like ChatGPT, Claude, etc.) can write these complex scripts for you — meaning you never have to learn how to launch a rocket to Mars just to play your game.
+
+3. **🎮 "You Do You" (Total Flexibility)**:  
+   The application and configuration format are completely open and documented for hands-on gamers who love fine-tuning every single setting manually. But if you just want to play, you can simply tell an AI assistant to read the documentation, run `rpt`, inspect your files, and generate the configurations and hooks for you!
+
+---
+
 ## 🌟 Why Gamers Love `rpt`
 
 ### 1. 🔍 Seamless Support for Games, Launchers, Installers & Patchers
@@ -90,7 +105,8 @@ Every game is unique. While `rpt` works instantly with zero setup, it also lets 
 * **Custom Symlinks & Directories**: Automatically link in-game photo cameras to your host `~/Pictures/` folder, or redirect save data to cloud storage.
 * **Lifecycle Shell Hooks**: Run custom scripts before launch or after exit to mount archives, launch companion tools, or apply patches.
 
-*(See the [Configuration Reference on the Wiki](https://github.com/broli/run-proton-tui/wiki/Configuration-Reference) for detailed examples!)*
+### 8. 🖥️ 1-Click Desktop & Application Shortcuts
+Once your game is configured and tested, you can turn it into an icon on your desktop or application menu with a single keypress (`[s]`). `rpt` generates standard XDG `.desktop` launcher files with the game's icon and working directory configured, installing it straight to `~/.local/share/applications/` (so it appears in your system start menu/dock) or directly onto `~/Desktop/`.
 
 ---
 
@@ -101,11 +117,12 @@ All main functions are organized into clean numbered categories, with convenient
 | Key | Category / Action | What It Does |
 |:---:|---|---|
 | **`[Enter]`** | **Launch Game** | Run game with active configuration |
-| **`[2]`** | **Proton & Game Setup** | Choose a Proton runner, switch executables, or view ProtonDB ratings |
-| **`[3]`** | **Performance & Sandbox** | Toggle Gamescope, switch GPUs, or cycle display monitors (`[m]`) |
-| **`[4]`** | **Prefix & Overrides** | Manage 1-click DLL mod overrides or safely reset the prefix |
-| **`[5]`** | **Logs & Diagnostics** | View recent session/crash logs and run pre-flight health checks |
-| **`[6]`** | **Settings & Help** | Switch backdrop transparency, open manual, or quit |
+| **`[e / 2]`** | **Switch Executable** | Instant picker to switch between game binaries, launchers, or setup installers |
+| **`[3]`** | **Proton & Game Setup** | Choose a Proton runner, game quirks, or view ProtonDB ratings |
+| **`[4]`** | **Performance & Sandbox** | Toggle Gamescope, switch GPUs, or cycle display monitors (`[m]`) |
+| **`[5]`** | **Prefix & Overrides** | Manage 1-click DLL mod overrides or safely reset the prefix |
+| **`[6]`** | **Logs & Diagnostics** | View recent session/crash logs, AI helper files, and inspect lifecycle hooks |
+| **`[s]`** | **Create Shortcut** | Generate a 1-click `.desktop` launcher for your desktop or app menu |
 | **`[?]`** | **In-Depth Guide** | Open the complete built-in manual anytime |
 | **`[q]`** | **Quit** | Exit `rpt` |
 
@@ -123,6 +140,19 @@ make install
 
 This installs `rpt` to your `~/bin/` folder, sets up shell completions for your terminal, and installs the manual page (`man rpt`).
 
+### 📦 Dependencies & Optional Enhancements
+
+`rpt` is a self-contained, statically compiled Go binary with **zero required runtime dependencies**. It automatically discovers your installed Steam/GE Proton runners and executes games out of the box.
+
+To unlock advanced sandboxing, performance tuning, and cloud save synchronization, you can optionally install:
+
+| Package | Purpose | Why You Might Want It |
+|---|---|---|
+| **`gamescope`** | Micro-compositor sandboxing | Sandboxed virtual display, resolution forcing (1080p, 1440p, 4K), custom refresh rates (75Hz, 144Hz), and multi-monitor routing (`[m]`). |
+| **`util-linux` (`taskset`)** | CPU thread pinning | Pins games to fast CPU P-Cores on hybrid architectures (Intel 12th–14th Gen) to eliminate micro-stutter. |
+| **`mangohud`** | Performance overlay | Real-time FPS, frame timing, GPU/CPU temperature, and VRAM monitoring. |
+| **`rclone`** | Cloud save synchronization | Automatic pre-launch pull and post-exit push to Google Drive, Dropbox, Nextcloud, or OneDrive via `[cloud_sync]`. |
+
 ---
 
 ## 📚 Deep Dive & Documentation
@@ -135,6 +165,7 @@ Looking for technical architecture, config schemas, or developer guides? Check o
 * [🔄 **Lifecycle Shell Hooks & File Directives**](https://github.com/broli/run-proton-tui/wiki/Lifecycle-Hooks-and-Preservation)
 * [🤖 **AI Agent Integration & `--dump-spec`**](https://github.com/broli/run-proton-tui/wiki/AI-Agent-Integration)
 * [🎮 **Example Game Guide (Arknights: Endfield)**](https://github.com/broli/run-proton-tui/wiki/Example-Config-Arknights-Endfield)
+* [🗺️ **Project Roadmap & Planned Features**](ROADMAP.md)
 
 ---
 

@@ -13,6 +13,7 @@ import (
 	"github.com/broli/run-proton-tui/internal/diagnostics"
 	"github.com/broli/run-proton-tui/internal/hardware"
 	"github.com/broli/run-proton-tui/internal/integrations"
+	"github.com/broli/run-proton-tui/internal/launcher"
 	"github.com/broli/run-proton-tui/internal/prefix"
 	"github.com/broli/run-proton-tui/internal/proton"
 	"github.com/broli/run-proton-tui/internal/quirks"
@@ -36,6 +37,7 @@ const (
 	StatePresetPicker
 	StateProtonDB
 	StateSubMenu
+	StateHooks
 )
 
 // Model is the root Elm Architecture model for rpt.
@@ -67,6 +69,7 @@ type Model struct {
 	PresetPickerView *views.PresetPickerView
 	ProtonDBView     *views.ProtonDBView
 	SubMenuView      *views.SubMenuView
+	HooksView        *views.HooksView
 	DetectedPreset   *quirks.Preset
 }
 
@@ -241,6 +244,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.HelpView.Viewport.Width = msg.Width
 			m.HelpView.Viewport.Height = msg.Height - 6
 		}
+		if m.HooksView != nil {
+			m.HooksView.SetDimensions(msg.Width, msg.Height)
+		}
 		return m, nil
 
 	case protonDBResultMsg:
@@ -398,6 +404,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, m.fetchProtonDB("")
 				}
 				return m, cmd
+			}
+			return m, nil
+
+		case StateHooks:
+			if m.HooksView != nil {
+				var done bool
+				m.HooksView, done = m.HooksView.Update(msg)
+				if done {
+					m.State = StateDashboard
+				}
 			}
 			return m, nil
 
@@ -609,6 +625,11 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		m.State = StateHelp
 		return m, nil
 
+	case views.ActionOpenHooks:
+		m.HooksView = views.NewHooksView(m.GameDir, m.Config, m.Width, m.Height)
+		m.State = StateHooks
+		return m, nil
+
 	case views.ActionQuit:
 		return m, tea.Quit
 	}
@@ -622,20 +643,38 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		_ = config.SaveConfig(m.GameDir, m.Config)
 		return m, tea.Quit
 
-	case "2":
-		return m.openSubMenu(views.MenuProton)
+	case "e", "2":
+		m.Exes = views.DiscoverExecutables(m.GameDir)
+		m.ExePickerView = views.NewExePickerView(m.Exes, m.Config.TargetExe)
+		m.State = StateExePicker
+		return m, nil
 
 	case "3":
-		return m.openSubMenu(views.MenuPerformance)
+		return m.openSubMenu(views.MenuProton)
 
 	case "4":
-		return m.openSubMenu(views.MenuPrefix)
+		return m.openSubMenu(views.MenuPerformance)
 
 	case "5":
-		return m.openSubMenu(views.MenuLogs)
+		return m.openSubMenu(views.MenuPrefix)
 
 	case "6":
-		return m.openSubMenu(views.MenuSettings)
+		return m.openSubMenu(views.MenuLogs)
+
+	case "s", "S":
+		opts := launcher.ShortcutOptions{
+			GameTitle: m.GameTitle,
+			GameDir:   m.GameDir,
+			TargetExe: m.Config.TargetExe,
+			Location:  launcher.LocationApplications,
+		}
+		path, err := launcher.CreateDesktopShortcut(opts)
+		if err != nil {
+			m.StatusMessage = fmt.Sprintf("Failed to create desktop shortcut: %v", err)
+		} else {
+			m.StatusMessage = fmt.Sprintf("Desktop shortcut created in Applications menu! (%s)", filepath.Base(path))
+		}
+		return m, nil
 
 	// Direct hotkeys for fast power-user access
 	case "g":
@@ -703,11 +742,9 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.StatusMessage = fmt.Sprintf("Display output set to: %s", m.Config.GamescopeOutput)
 		return m, nil
 
-	case "h":
-		pfxDir := filepath.Join(m.GameDir, "proton-prefix")
-		report := diagnostics.RunPreflightCheck(m.GameDir, m.Config.TargetExe, pfxDir)
-		m.DiagnosticsView = views.NewDiagnosticsView(report)
-		m.State = StateDiagnostics
+	case "h", "H":
+		m.HooksView = views.NewHooksView(m.GameDir, m.Config, m.Width, m.Height)
+		m.State = StateHooks
 		return m, nil
 
 	case "l":
@@ -785,6 +822,10 @@ func (m *Model) View() string {
 	case StateProtonDB:
 		if m.ProtonDBView != nil {
 			return m.ProtonDBView.View()
+		}
+	case StateHooks:
+		if m.HooksView != nil {
+			return m.HooksView.View()
 		}
 	case StateSubMenu:
 		if m.SubMenuView != nil {

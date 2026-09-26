@@ -46,6 +46,7 @@ const (
 	ActionToggleBackdrop
 	ActionOpenHelp
 	ActionQuit
+	ActionOpenHooks
 )
 
 // SubMenuData contains current state needed to display sub-menu options accurately.
@@ -133,8 +134,10 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 				return ActionToggleLogging
 			case "2", "l":
 				return ActionOpenLogs
-			case "3", "h", "H":
+			case "3", "d", "D":
 				return ActionOpenDiagnostics
+			case "4", "h", "H":
+				return ActionOpenHooks
 			}
 
 		case MenuSettings:
@@ -266,7 +269,7 @@ func (v *SubMenuView) View() string {
 
 	case MenuLogs:
 		title = "📜 LOGS & DIAGNOSTICS"
-		desc = "Manage runtime execution logs, DXVK dumps, and pre-flight checks"
+		desc = "Manage runtime execution logs, DXVK dumps, and lifecycle hooks"
 
 		logStatus := style.BadgeMuted.Render("Disabled")
 		if cfg.EnableLogging {
@@ -280,7 +283,8 @@ func (v *SubMenuView) View() string {
 		}{
 			{"[L / 1]", "Toggle Session Logging", logStatus},
 			{"[l / 2]", "View Session Logs & Crash Dumps", "Browse recent logs in .logs/"},
-			{"[h / 3]", "Pre-flight System Diagnostics", "Check permissions and driver state"},
+			{"[d / 3]", "Pre-flight System Diagnostics", "Check permissions and driver state"},
+			{"[h / 4]", "Inspect Lifecycle Hooks", "Resolution checklist, env vars & pager"},
 		}
 
 	case MenuSettings:

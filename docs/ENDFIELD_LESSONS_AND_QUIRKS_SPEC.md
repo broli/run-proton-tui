@@ -29,7 +29,7 @@
    - [Automated Python Reapplication & Verification Utility](#automated-python-reapplication--verification-utility)
 5. [Evaluation of `run-proton-tui` (`rpt`) Against Endfield Requirements](#5-evaluation-of-run-proton-tui-rpt-against-endfield-requirements)
    - [What `rpt` Already Handles Flawlessly](#what-rpt-already-handles-flawlessly)
-   - [The 6 Critical Blindspots in `rpt`](#the-6-critical-blindspots-in-rpt)
+   - [The 7 Critical Blindspots in `rpt`](#the-7-critical-blindspots-in-rpt)
 6. [Architectural Specification: Modular Per-Game Quirks / Plugin Engine](#6-architectural-specification-modular-per-game-quirks--plugin-engine)
    - [Design Philosophy: Decoupled Core vs Declarative Quirks](#design-philosophy-decoupled-core-vs-declarative-quirks)
    - [Quirks Manifest Specification (`.toml`)](#quirks-manifest-specification-toml)
@@ -486,7 +486,7 @@ Comparing the implementation of `rpt` against `play-endfield.fish`:
 
 ---
 
-### The 6 Critical Blindspots in `rpt`
+### The 7 Critical Blindspots in `rpt`
 
 #### 1. Hazard 1: Qt5 WebEngine NVAPI Memory Corruption in Launcher Mode (Fatal Crash)
 * **Problem:** In [`internal/proton/environment.go`](internal/proton/environment.go), `BuildEnvironment()` injects `PROTON_ENABLE_NVAPI=1`, `DXVK_ENABLE_NVAPI=1`, `STEAMOS=1`, and `STEAMDECK=1` **unconditionally for all binaries**.
@@ -521,6 +521,33 @@ Comparing the implementation of `rpt` against `play-endfield.fish`:
 #### 6. Hazard 6: JIT MMAP Folder Pre-Creation
 * **Problem:** `GE-Proton11-6`'s `umu-endfield.py` expects `drive_c/users/steamuser/AppData/LocalLow` to exist. If launching in a clean prefix, `os.symlink` throws `FileNotFoundError`.
 * **Required Fix:** Ensure `AppData/LocalLow` is created prior to launching Proton.
+
+#### 7. Hazard 7: Silent Premature Exit Detection Blindspot (Exit with Clean/Positive Code)
+* **Problem:** Endfield terminated after ~45s (and in testing within 7.9s) due to driver/anti-cheat watchdog abort, but exited with a zero/positive status code (e.g. Gamescope closed cleanly when the game surface disappeared). In [`internal/runner/runner.go`](internal/runner/runner.go), crash detection only triggered if `result.ExitCode != 0`.
+* **Effect:** `rpt` printed `[✓] Game session finished cleanly (duration: 7.9s)` without running log diagnostics or crash analysis.
+* **Terminal Capture (September 23, 2026):**
+  ```text
+  ~/Games/GRYPHLINK
+  ❯ rpt
+
+  🚀 Launching games/Arknights Endfield/Endfield.exe with proton...
+     Gamescope: Active (1920x1080 @ 75Hz -> HDMI-A-1)
+     CPU Cores: P-Cores pinned (Threads 0-11)
+  ...
+  [Gamescope WSI] Application info:
+    pApplicationName: Endfield.exe
+    pEngineName: DXVK
+  [Gamescope WSI] Executable name: Endfield.exe
+  ATTENTION: default value of option vk_wsi_force_swapchain_to_current_extent overridden by environment.
+  [Gamescope WSI] No application info given.
+  [gamescope] [Info]  launch: Primary child shut down!
+  (EE) failed to read Wayland events: Broken pipe
+
+  [✓] Game session finished cleanly (duration: 7.9s).
+  ```
+* **Required Fix:** Track child wrapper exit status explicitly, expand suspicious session window to 90s, and proactively scan session logs for anti-cheat/driver crash signatures (`STATUS_WINE_STUB`, `ProbeForWrite`, `ace-base.sys`, `SIGSEGV`) regardless of exit code (see [Project Roadmap](ROADMAP.md)).
+
+
 
 ---
 

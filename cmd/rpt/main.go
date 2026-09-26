@@ -12,6 +12,8 @@ import (
 
 	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/diagnostics"
+	"github.com/broli/run-proton-tui/internal/hooks"
+	"github.com/broli/run-proton-tui/internal/launcher"
 	"github.com/broli/run-proton-tui/internal/prefix"
 	"github.com/broli/run-proton-tui/internal/proton"
 	"github.com/broli/run-proton-tui/internal/quirks"
@@ -25,7 +27,7 @@ import (
 )
 
 var (
-	version = "0.5.0-alpha"
+	version = "0.5.0"
 )
 
 func main() {
@@ -40,8 +42,12 @@ func main() {
 	flagDiag := flag.Bool("diag", false, "Alias for --diagnostics")
 	flagDiagShort := flag.Bool("d", false, "Alias for --diagnostics")
 	flagVersion := flag.Bool("version", false, "Show version information")
-	flagDumpSpec := flag.Bool("dump-spec", false, "Dump machine-readable architecture specification and schema for AI agents")
+	flagDumpSpec := flag.Bool("dump-spec", false, "Export system and game details for an AI assistant (like ChatGPT or Claude) to configure your game")
 	flagHelpDump := flag.Bool("helpdump", false, "Alias for --dump-spec")
+	flagCreateDesktop := flag.Bool("create-desktop", false, "Generate an XDG .desktop application launcher icon for this game")
+	flagDesktopDir := flag.String("desktop-dir", "applications", "Destination for .desktop shortcut (applications, desktop, local)")
+	flagInspectHooks := flag.Bool("inspect-hooks", false, "Inspect resolved lifecycle hooks, search order, and exported environment variables")
+	flagHooks := flag.Bool("hooks", false, "Alias for --inspect-hooks")
 
 	// Toggles
 	flagGamescope := flag.String("gamescope", "", "Force Gamescope on/off (true/false)")
@@ -64,7 +70,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  rpt --now                       # Quick launch with saved/auto-detected settings\n")
 		fmt.Fprintf(os.Stderr, "  rpt Setup.exe                   # Switch to specific installer/tool and open TUI\n")
 		fmt.Fprintf(os.Stderr, "  rpt --clean --now               # Safe prefix reset followed by instant launch\n")
-		fmt.Fprintf(os.Stderr, "  rpt --dump-spec                 # Output machine-readable JSON schema for AI agents\n")
+		fmt.Fprintf(os.Stderr, "  rpt --create-desktop            # Create 1-click desktop/applications menu shortcut\n")
+		fmt.Fprintf(os.Stderr, "  rpt --dump-spec                 # Output system details and hook guidance for AI assistants\n")
 	}
 
 	flag.Parse()
@@ -159,6 +166,114 @@ func main() {
 	}
 
 	// Apply CLI overrides to configuration
+	if *flagCreateDesktop {
+		loc := launcher.LocationApplications
+		switch strings.ToLower(*flagDesktopDir) {
+		case "desktop":
+			loc = launcher.LocationDesktop
+		case "local", "here", ".":
+			loc = launcher.LocationLocal
+		}
+		gameTitle := filepath.Base(gameDir)
+		if cfg.PresetName != "" {
+			gameTitle = cfg.PresetName
+		}
+		opts := launcher.ShortcutOptions{
+			GameTitle: gameTitle,
+			GameDir:   gameDir,
+			TargetExe: cfg.TargetExe,
+			Location:  loc,
+		}
+		path, err := launcher.CreateDesktopShortcut(opts)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating desktop shortcut: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("[✓] Desktop shortcut created successfully: %s\n", path)
+		os.Exit(0)
+	}
+
+	if *flagInspectHooks || *flagHooks {
+		pfxDir := filepath.Join(gameDir, "proton-prefix")
+		hookOpts := hooks.HookOptions{
+			GameDir:        gameDir,
+			PrefixDir:      pfxDir,
+			TargetExe:      cfg.TargetExe,
+			ProtonPath:     cfg.ProtonPath,
+			ConfigHookPath: cfg.PreLaunchHook,
+			ExtraHookDirs:  cfg.HookDirs,
+		}
+		if cfg.UseGamescope {
+			hookOpts.GamescopeDisplay = ":1"
+		}
+		report := hooks.InspectAllHooks(hookOpts)
+
+		fmt.Println("================================================================================")
+		fmt.Println("🔗 rpt Lifecycle Hook Inspector & Presence Report")
+		fmt.Println("================================================================================")
+
+		preStatus := "None detected (standard launch)"
+		if report.PreLaunch.Resolved != "" {
+			preStatus = report.PreLaunch.Resolved
+		}
+		fmt.Printf("• Pre-Launch Hook: %s\n", preStatus)
+
+		postStatus := "None detected (no cleanup script)"
+		if report.PostExit.Resolved != "" {
+			postStatus = report.PostExit.Resolved
+		}
+		fmt.Printf("• Post-Exit Hook:  %s\n\n", postStatus)
+
+		fmt.Println("--- Pre-Launch Search Order Hierarchy ---")
+		for _, c := range report.PreLaunch.Candidates {
+			marker := "[ ]"
+			if c.Exists {
+				if c.Selected {
+					marker = "[✓ ACTIVE]"
+				} else {
+					marker = "[• SHADOW]"
+				}
+			}
+			fmt.Printf("  %-11s %s (%s)\n", marker, c.Path, c.Source)
+		}
+		fmt.Println()
+
+		fmt.Println("--- Post-Exit Search Order Hierarchy ---")
+		for _, c := range report.PostExit.Candidates {
+			marker := "[ ]"
+			if c.Exists {
+				if c.Selected {
+					marker = "[✓ ACTIVE]"
+				} else {
+					marker = "[• SHADOW]"
+				}
+			}
+			fmt.Printf("  %-11s %s (%s)\n", marker, c.Path, c.Source)
+		}
+		fmt.Println()
+
+		fmt.Println("--- Injected Environment Variables ($RPT_* Cheatsheet) ---")
+		for _, env := range report.EnvVars {
+			fmt.Printf("  $%-22s = %s\n", env.Name, env.CurrentVal)
+			fmt.Printf("    └─ %s\n", env.Description)
+		}
+		fmt.Println()
+
+		if report.PreLaunch.Resolved != "" {
+			if data, err := os.ReadFile(report.PreLaunch.Resolved); err == nil {
+				fmt.Printf("--- Pre-Launch Script Content (%s) ---\n", report.PreLaunch.Resolved)
+				if hl, err := hooks.HighlightBash(string(data)); err == nil {
+					fmt.Print(hl)
+				} else {
+					fmt.Print(string(data))
+				}
+				fmt.Println()
+			}
+		}
+
+		os.Exit(0)
+	}
+
 	if *flagClean || *flagCleanShort {
 		pfxDir := filepath.Join(gameDir, "proton-prefix")
 		res, err := prefix.SafeCleanPrefixCustom(pfxDir, cfg.ProtonPath, gameDir, cfg.TargetExe, filepath.Base(gameDir), cfg.BackupDir, cfg.Filesystem.ExtraBackupPaths)
@@ -256,16 +371,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 3. Execute Game Runner
-	fmt.Printf("\n🚀 Launching %s with %s...\n", cfg.TargetExe, filepath.Base(cfg.ProtonPath))
-	if cfg.UseGamescope {
-		fmt.Printf("   Gamescope: Active (%dx%d @ %dHz -> %s)\n",
-			cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeRefresh, cfg.GamescopeOutput)
+	// 3. Execute Game Runner - Linux Boot Style status lines
+	okStyle := lipgloss.NewStyle().Bold(true).Foreground(style.ColorSuccess)
+	fmt.Printf("\n%s Target executable verified: %s\n", okStyle.Render("[ OK ]"), cfg.TargetExe)
+	if preHook := hooks.ResolveHook(gameDir, hooks.PreLaunch, cfg.PreLaunchHook, cfg.HookDirs...); preHook != "" {
+		fmt.Printf("%s Pre-launch lifecycle hook found: %s\n", okStyle.Render("[ OK ]"), preHook)
 	}
 	if cfg.UsePCores {
-		fmt.Printf("   CPU Cores: P-Cores pinned (Threads %s)\n", cfg.PCoresMask)
+		fmt.Printf("%s CPU affinity pinned to P-Cores (Threads %s)\n", okStyle.Render("[ OK ]"), cfg.PCoresMask)
 	}
-	fmt.Println()
+	if cfg.UseGamescope {
+		fmt.Printf("%s Gamescope sandboxing active (%dx%d @ %dHz -> %s)\n",
+			okStyle.Render("[ OK ]"), cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeRefresh, cfg.GamescopeOutput)
+	}
+	if cfg.UsePrimeRun {
+		fmt.Printf("%s Dedicated GPU offload active (prime-run)\n", okStyle.Render("[ OK ]"))
+	}
+	fmt.Printf("%s Launching Proton runner (%s)...\n\n", okStyle.Render("[ OK ]"), filepath.Base(cfg.ProtonPath))
 
 	opts := runner.LaunchOptions{
 		GameDir:    gameDir,
@@ -300,16 +422,22 @@ func main() {
 
 	// 4. Progressive Fallback, Crash & Stalled Session Interception
 	if result.AbortedByUser || result.CrashDetected {
+		helpDir := filepath.Join(gameDir, ".logs")
+		_ = os.MkdirAll(helpDir, 0755)
+		absHelpFilePath := filepath.Join(helpDir, "ask-ai-help.txt")
+
 		insights := runner.AnalyzeSessionLog(result.LogFile, cfg)
-		report := runner.FormatDiagnosticReport(result, cfg, insights)
+		report := runner.FormatDiagnosticReport(result, cfg, insights, absHelpFilePath)
 		fmt.Println()
 		fmt.Println(report)
 
-		// Print Agent Prompt helper if user wants to copy-paste it
-		logTail := runner.ReadLogTail(result.LogFile, 15)
-		agentPrompt := runner.GenerateAgentPrompt(result, cfg, insights, logTail)
-		fmt.Println("\n" + lipgloss.NewStyle().Bold(true).Foreground(style.ColorPrimary).Render("─── 📋 AGENT COPY-PASTE BLOCK (Markdown) ──────────────────────────────────"))
-		fmt.Println(agentPrompt)
+		// Generate and write AI Assistant Helper package with absolute path and doc links
+		logTail := runner.ReadLogTail(result.LogFile, 35)
+		aiPackage := runner.GenerateAIHelperPackage(result, cfg, insights, logTail, result.LogFile)
+		_ = os.WriteFile(absHelpFilePath, []byte(aiPackage), 0644)
+
+		fmt.Println("\n" + lipgloss.NewStyle().Bold(true).Foreground(style.ColorPrimary).Render("─── 📋 AI ASSISTANT DIAGNOSTIC PACKAGE (Markdown) ─────────────────────────"))
+		fmt.Println(aiPackage)
 		fmt.Println(lipgloss.NewStyle().Bold(true).Foreground(style.ColorPrimary).Render("───────────────────────────────────────────────────────────────────────────"))
 
 		if result.AbortedByUser {

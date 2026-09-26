@@ -153,7 +153,8 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 		cmdPrefix = fmt.Sprintf("taskset -c %s %s", cfg.PCoresMask, cmdPrefix)
 	}
 
-	// 10. Generate Transient Wrapper Script
+	// 10. Generate Transient Wrapper Script & Child Exit Code Tracking
+	childExitFile := filepath.Join(os.TempDir(), fmt.Sprintf("rpt-child-exit-%d-%d", os.Getpid(), time.Now().UnixNano()))
 	wrapperScript := filepath.Join(gameDir, ".rpt_runner.sh")
 	uid := os.Getuid()
 
@@ -194,6 +195,7 @@ cd "%s"
 
 %s"%s" waitforexitandrun ./"%s" "$@"
 EXIT_CODE=$?
+echo "$EXIT_CODE" > "%s"
 %s
 if [ -n "$CLIP_BRIDGE_PID" ]; then
     kill "$CLIP_BRIDGE_PID" 2>/dev/null
@@ -201,13 +203,14 @@ fi
 %s
 
 exit $EXIT_CODE
-`, exeDir, displayExport, bridgeSnippet, cmdPrefix, cfg.ProtonPath, exeName, waitSnippet, displayCleanup)
+`, exeDir, displayExport, bridgeSnippet, cmdPrefix, cfg.ProtonPath, exeName, childExitFile, waitSnippet, displayCleanup)
 
 	if err := os.WriteFile(wrapperScript, []byte(wrapperContent), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create runner wrapper: %w", err)
 	}
 	defer func() {
 		_ = os.Remove(wrapperScript)
+		_ = os.Remove(childExitFile)
 		_ = prefix.Flush(prefixDir, cfg.ProtonPath)
 		_, _ = prefix.CleanStaleLocks()
 
@@ -297,8 +300,18 @@ exit $EXIT_CODE
 		}
 	}
 
-	// Crash Detection: exited with error or died within 15 seconds
-	if !result.AbortedByUser && (result.ExitCode != 0 || (duration < 15*time.Second && result.ExitCode != 0)) {
+	// Unmask child exit code from wrapper (Gamescope may return 0 on child crash)
+	if data, readErr := os.ReadFile(childExitFile); readErr == nil {
+		trimmed := strings.TrimSpace(string(data))
+		if childCode, parseErr := strconv.Atoi(trimmed); parseErr == nil && childCode != 0 {
+			result.ExitCode = childCode
+		}
+	}
+
+	// False-Positive-Friendly Crash / Premature Exit Detection:
+	// If the game exited with error OR terminated in under 90 seconds,
+	// assume the game aborted, stalled, or crashed early.
+	if !result.AbortedByUser && (result.ExitCode != 0 || duration < 90*time.Second) {
 		result.CrashDetected = true
 	}
 

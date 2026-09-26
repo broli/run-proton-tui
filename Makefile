@@ -4,9 +4,22 @@ CMD_DIR := ./cmd/rpt
 PREFIX ?= $(HOME)/bin
 MAN_DIR ?= $(HOME)/.local/share/man/man1
 
-.PHONY: all build clean test lint install install-man
+# Optional dependencies:
+# - gamescope: sandboxed micro-compositor
+# - util-linux (taskset): CPU thread pinning
+# - mangohud: performance overlay
+# - rclone: cloud save synchronization
+
+.PHONY: all build clean test lint install install-man check-deps
 
 all: build
+
+check-deps:
+	@echo "Checking optional runtime dependencies for rpt..."
+	@which gamescope >/dev/null 2>&1 && echo "  [✓] gamescope: found" || echo "  [ ] gamescope: not found (optional - sandboxed micro-compositor)"
+	@which taskset >/dev/null 2>&1 && echo "  [✓] taskset: found" || echo "  [ ] taskset: not found (optional - CPU P-Core pinning)"
+	@which mangohud >/dev/null 2>&1 && echo "  [✓] mangohud: found" || echo "  [ ] mangohud: not found (optional - performance overlay)"
+	@which rclone >/dev/null 2>&1 && echo "  [✓] rclone: found" || echo "  [ ] rclone: not found (optional - cloud save sync)"
 
 build:
 	@mkdir -p $(BUILD_DIR)
