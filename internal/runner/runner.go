@@ -222,7 +222,10 @@ exit $EXIT_CODE
 
 	// 12. Prepare Process Command (with or without Gamescope)
 	var cmd *exec.Cmd
-	combinedArgs := append([]string{wrapperScript}, opts.ExtraArgs...)
+	var effectiveArgs []string
+	effectiveArgs = append(effectiveArgs, cfg.ExtraArgs...)
+	effectiveArgs = append(effectiveArgs, opts.ExtraArgs...)
+	combinedArgs := append([]string{wrapperScript}, effectiveArgs...)
 
 	hasGamescope := false
 	if _, err := exec.LookPath("gamescope"); err == nil {
