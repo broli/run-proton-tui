@@ -66,8 +66,8 @@ func RenderDashboard(d DashboardData) string {
 	if !d.OpaqueBackdrop {
 		backdropText = "[b] Backdrop: Transparent"
 	}
-	leftHeader := fmt.Sprintf("🎮 rpt v0.5.0-alpha │ Game: %s", d.GameTitle)
-	rightHeader := fmt.Sprintf("%s  •  [?] Help  •  [q] Quit", style.KeyStyle.Render(backdropText))
+	leftHeader := fmt.Sprintf("🎮 rpt v0.5.0 │ Game: %s", d.GameTitle)
+	rightHeader := fmt.Sprintf("%s  •  [s] Desktop Icon  •  [?] Help  •  [q] Quit", style.KeyStyle.Render(backdropText))
 	spaceCount := contentWidth - lipgloss.Width(leftHeader) - lipgloss.Width(rightHeader) - 2
 	if spaceCount < 2 {
 		spaceCount = 2
@@ -263,7 +263,11 @@ func RenderDashboard(d DashboardData) string {
 	sb.WriteString("\n")
 
 	// 6. Action Menu & Hotkeys Dock (True 4-Column Grid Indentation)
-	sb.WriteString(renderMenuDock(contentWidth, d.OpaqueBackdrop))
+	targetExe := ""
+	if d.Config != nil {
+		targetExe = d.Config.TargetExe
+	}
+	sb.WriteString(renderMenuDock(contentWidth, d.OpaqueBackdrop, targetExe))
 
 	return sb.String()
 }
@@ -285,7 +289,7 @@ func buildPreviewCommand(d DashboardData) string {
 	return inner
 }
 
-func renderMenuDock(width int, opaque bool) string {
+func renderMenuDock(width int, opaque bool, targetExe string) string {
 	colW := (width - 6) / 3
 	if colW < 24 {
 		colW = 24
@@ -297,13 +301,18 @@ func renderMenuDock(width int, opaque bool) string {
 		sub   string
 	}
 
+	curExe := "None"
+	if targetExe != "" {
+		curExe = filepath.Base(targetExe)
+	}
+
 	items := []dockItem{
 		{"[Enter/1]", "Launch Game", "Run with current settings"},
-		{"[2]", "Proton & Game Setup", "Runner, Exe, Quirks, ProtonDB"},
-		{"[3]", "Performance & Sandbox", "Gamescope, CPU Cores, GPU, Xalia"},
-		{"[4]", "Prefix & Overrides", "DLL Overrides, Reset, Health"},
-		{"[5]", "Logs & Diagnostics", "Toggle Logging, Log Viewer"},
-		{"[6]", "Settings & Help", "Backdrop, Manual, Quit"},
+		{"[e / 2]", "Switch Executable", fmt.Sprintf("Current: %s", curExe)},
+		{"[3]", "Proton & Setup", "Runner, Quirks, ProtonDB"},
+		{"[4]", "Performance & Sandbox", "Gamescope, CPU Cores, GPU, Xalia"},
+		{"[5]", "Prefix & Overrides", "DLL Overrides, Reset, Health"},
+		{"[6]", "Logs & Diagnostics", "Session Logs, AI Helper, Hooks"},
 	}
 
 	var row1, row2 []string
