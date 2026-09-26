@@ -1,8 +1,8 @@
-# AI Agent Integration & Machine-Readable Spec
+# AI Assistant Integration & Game Setup Helper
 
-`rpt` is designed from the ground up to pair seamlessly with modern AI coding assistants (such as Google Antigravity, Claude, GitHub Copilot, and terminal agents).
+`rpt` is designed from the ground up to pair seamlessly with your favorite AI assistants (such as ChatGPT, Claude, Google Antigravity, and terminal coding assistants).
 
-Instead of forcing users to manually learn complex Linux environment flags or explain hardware topology to their AI, `rpt` provides a native discovery flag:
+Instead of forcing you to learn complicated Linux environment variables, wine registry keys, or explain your laptop hardware to an AI, `rpt` provides a built-in helper flag:
 ```bash
 rpt --dump-spec
 # or
@@ -13,29 +13,36 @@ rpt --helpdump
 
 ## 🤖 Why `--dump-spec` Exists
 
-When an AI agent is asked by a user:
-> *"Help me get this non-standard Windows game running with `rpt`!"*
+When you ask an AI assistant:
+> *"Help me get this Windows game running with `rpt` on Linux!"*
 
-The agent typically does not know:
-1. Which GPUs are installed on the user's laptop.
+The AI typically doesn't know:
+1. Which GPUs are installed on your machine (Intel, AMD, NVIDIA).
 2. Which external monitors are currently plugged in.
-3. What CPU P-core threads exist on the machine.
-4. Which Proton runners (GE-Proton, DW-Proton, Proton Experimental) exist on the user's filesystem.
-5. The exact schema of `.proton-config.toml`.
+3. Which CPU P-core threads exist on your processor.
+4. Which Proton runners (GE-Proton, Proton Experimental) exist on your disk.
+5. The exact supported configuration schema of `.proton-config.toml`.
 
-By running `rpt --dump-spec`, the AI agent immediately receives a single, unified JSON document with complete system and launcher awareness.
+By running `rpt --dump-spec`, you can copy and paste a single JSON document directly into ChatGPT or Claude. The AI immediately understands your complete system and can write the exact files you need without guessing.
 
 ---
 
-## 📋 JSON Structure Overview
+## 📋 JSON Structure Overview (`rpt-spec-v2`)
 
 Running `rpt --dump-spec` outputs:
 
 ```json
 {
-  "schema_version": "rpt-spec-v1",
+  "schema_version": "rpt-spec-v2",
   "rpt_version": "0.5.0-alpha",
-  "description": "Machine-readable runtime specification for AI agents configuring games under run-proton-tui.",
+  "title": "AI Assistant Game Setup Helper",
+  "description": "System and launcher specification for AI assistants (like ChatGPT, Claude, etc.) to configure games and write launch hooks under run-proton-tui.",
+  "ai_assistant_guidelines": [
+    "1. PRIMARY GOAL: Configure the game's '.proton-config.toml' for graphics, runner path, Gamescope, CPU pinning, and DLL overrides.",
+    "2. '1-2 GAMES VS EVERY GAME' RULE: If a fix or tweak is game-specific (such as binary patching, Wine ntoskrnl.exe kernel patch checks, memory mapping /dev/shm, or anti-cheat workarounds), DO NOT modify the rpt binary. Write a lifecycle hook in 'hooks/pre_launch.sh'.",
+    "3. IDEMPOTENCY: All hook scripts must be strictly idempotent. Always check if a patch, directory, or symlink is already applied before modifying anything.",
+    "4. COMMUNITY CONTRIBUTION: If your generated hook or configuration resolves an issue, remind the user to submit it to ProtonDB or as an rpt community hook to help fellow Linux gamers!"
+  ],
   "hardware": {
     "has_prime_run": true,
     "has_nvidia": true,
@@ -88,22 +95,33 @@ Running `rpt --dump-spec` outputs:
       "RPT_HOOK_TYPE: pre_launch or post_exit"
     ]
   },
-  "best_practices": {
-    "2d_utility_isolation": "2D utilities, setup installers (Setup.exe), and web launchers (Qt5/CEF/Electron) MUST have NVAPI and Steam Deck flags stripped, and run on host iGPU without Gamescope to avoid glibc double-free memory corruption.",
-    "decoupled_gamescope": "On hybrid laptops, run Gamescope on the host iGPU (KWin compositor) and place prime-run INSIDE the sandbox on the game binary. Running prime-run gamescope exhausts Intel GEM memory (execbuf ENOMEM) and crashes KWin.",
-    "drm_display_routing": "External HDMI/DP ports are typically hardwired to the dGPU on hybrid laptops. Query /sys/class/drm/card*-*/status without sudo to target external displays directly and eliminate PCIe double-bounce stutter.",
-    "screenshot_preservation": "Windows games save screenshots to C:\\users\\steamuser\\Pictures. Always preserve Pictures alongside Saved Games and AppData during prefix wipes."
+  "hook_recipes": {
+    "kernel_patch_check": {
+      "title": "Wine Kernel Patch Verification (ntoskrnl.exe)",
+      "file_name": "hooks/pre_launch.sh",
+      "description": "Idempotently checks if the selected Proton runner contains required kernel patches before launch."
+    },
+    "shm_ram_symlinks": {
+      "title": "Unity IL2CPP Fast RAM Cache Redirection",
+      "file_name": "hooks/pre_launch.sh",
+      "description": "Redirects high-frequency JIT worker temp files to /dev/shm to prevent SSD micro-stutter."
+    }
+  },
+  "documentation_links": {
+    "configuration_reference": "https://github.com/broli/run-proton-tui/wiki/Configuration-Reference",
+    "lifecycle_hooks_guide": "https://github.com/broli/run-proton-tui/wiki/Lifecycle-Hooks-and-Preservation",
+    "arknights_endfield_case": "https://github.com/broli/run-proton-tui/wiki/Example-Config-Arknights-Endfield"
   }
 }
 ```
 
 ---
 
-## 🛠️ How an Agent Configures a Game
+## 🛠️ How an AI Assistant Configures a Game
 
-When a user introduces a new game, the AI agent can simply:
-1. Execute `rpt --dump-spec`.
-2. Inspect the installed Proton runners and pick the best candidate (e.g. GE-Proton).
-3. Generate the tailored `.proton-config.toml` in the game's directory with appropriate environment variables and profile separation.
-4. If the game needs special setup (e.g. `/dev/shm` RAM symlinks or custom registry overrides), write `./hooks/pre_launch.sh`.
-5. Tell the user: *"Done! Simply run `rpt` and hit Enter."*
+When you ask an AI assistant to set up a game:
+1. Run `rpt --dump-spec`.
+2. Paste the output into ChatGPT, Claude, or your assistant.
+3. The AI reads your installed Proton runners, picks the best candidate, and creates `.proton-config.toml`.
+4. If the game needs custom binary patching, anti-cheat kernel verification, or RAM caches, the AI writes `./hooks/pre_launch.sh`.
+5. Run `rpt` or `rpt --create-desktop` — your game is ready to play!

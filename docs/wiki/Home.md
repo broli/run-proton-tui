@@ -93,6 +93,7 @@ rpt --dump-spec
 - **[Lifecycle Hooks & Preservation](Lifecycle-Hooks-and-Preservation)**: How to write `pre_launch.sh` scripts, hook search paths, and save/screenshot preservation.
 - **[Hardware & Wayland Architecture](Hardware-and-Wayland-Architecture)**: Decoupled Gamescope sandboxing, DRM sysfs discovery, P-Core CPU pinning, and Wayland stability.
 - **[AI Agent Integration](AI-Agent-Integration)**: Using `rpt --dump-spec` / `--helpdump` with LLM coding agents.
+- **[Project Roadmap & Backlog](https://github.com/broli/run-proton-tui/blob/main/ROADMAP.md)**: Premature exit analysis, TUI hook inspector & pager, and upcoming milestones.
 
 ---
 
