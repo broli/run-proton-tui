@@ -43,10 +43,16 @@ func GetDefaultSignatures() []SignatureDefinition {
 			Recommendation: "Try toggling Gamescope off ('rpt --gamescope false --now') to allow native Xwayland presentation.",
 		},
 		{
-			Category: "Gamescope & 32-bit Swapchain Stall",
-			Keywords: []string{"failed to read wayland events", "vk_wsi_force_swapchain_to_current_extent"},
-			Observation: "32-bit DirectX engine or nested compositor swapchain deadlock detected.",
-			Recommendation: "Toggle Gamescope OFF ('rpt --gamescope false --now') to run natively on host Wayland / Xwayland.",
+			Category: "32-bit D3D9 Swapchain Deadlock",
+			Keywords: []string{"d3d9: present failed", "d3derr_devicelost", "swapchain creation failed"},
+			Observation: "Vintage 32-bit DirectX 9 engine encountered a swapchain presentation deadlock.",
+			Recommendation: "If running older 32-bit D3D9 titles, testing with Gamescope disabled ('rpt --gamescope false --now') may help isolate whether nested Xwayland presentation is stalling.",
+		},
+		{
+			Category: "Tencent CrashSight / Anti-Cheat Exception",
+			Keywords: []string{"pc.crashsight.wetest.net", "crashsight", "crashsightlog", "suspendthread loop failed"},
+			Observation: "Tencent WeTest CrashSight caught an unhandled fatal exception or anti-cheat driver abort during startup.",
+			Recommendation: "Verify Wine kernel patches (ntoskrnl.exe ProbeForWrite) in your Proton runner via hooks/pre_launch.sh, and ensure AppData/LocalLow exists. Inspect CrashSightLog/ for stack traces.",
 		},
 	}
 }
