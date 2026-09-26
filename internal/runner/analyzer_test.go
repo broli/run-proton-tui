@@ -92,6 +92,18 @@ func TestFormatDiagnosticReport(t *testing.T) {
 	if !strings.Contains(report, "Splash Screen") && !strings.Contains(report, "Bink Video") {
 		t.Errorf("expected report to contain insight category")
 	}
+	if !strings.Contains(report, "Proposed Solution:") {
+		t.Errorf("expected report to contain 'Proposed Solution:' instead of 'Fix:', got:\n%s", report)
+	}
+	if strings.Contains(report, "Fix:") {
+		t.Errorf("report should use humble 'Proposed Solution:' instead of assertive 'Fix:'")
+	}
+	if !strings.Contains(report, "Copy the contents of the file above.") {
+		t.Errorf("expected report to instruct copying the file above")
+	}
+	if strings.Contains(report, "block below") {
+		t.Errorf("report should not reference block below")
+	}
 }
 
 func TestGenerateAgentPrompt(t *testing.T) {
@@ -156,3 +168,56 @@ wine: failed to open "./JCSetup.exe"
 		t.Errorf("expected Executable Not Found insight")
 	}
 }
+
+func TestExplainExitCode(t *testing.T) {
+	tests := []struct {
+		code          int
+		expectedTitle string
+	}{
+		{0, "Clean / Normal Exit (Code 0)"},
+		{1, "General Application Failure (Exit Code 1)"},
+		{53, "Executable File Not Found (Exit Code 53)"},
+		{126, "Permission Denied (Exit Code 126)"},
+		{127, "Binary / Dynamic Library Not Found (Exit Code 127)"},
+		{130, "Session Terminated by User (SIGINT / Exit Code 130)"},
+		{134, "Process Aborted (SIGABRT / Exit Code 134)"},
+		{137, "Terminated by Out-Of-Memory Killer (SIGKILL / Exit Code 137)"},
+		{139, "Segmentation Fault (SIGSEGV / Exit Code 139)"},
+		{222, "Tencent CrashSight Exception Caught (Exit Code 222)"},
+	}
+
+	for _, tt := range tests {
+		exp := ExplainExitCode(tt.code)
+		if exp.Title != tt.expectedTitle {
+			t.Errorf("ExplainExitCode(%d).Title = %q, expected %q", tt.code, exp.Title, tt.expectedTitle)
+		}
+		if exp.Description == "" {
+			t.Errorf("ExplainExitCode(%d).Description should not be empty", tt.code)
+		}
+	}
+}
+
+func TestAnalyzeSessionLog_ExitCode222(t *testing.T) {
+	tmpDir := t.TempDir()
+	logFile := filepath.Join(tmpDir, "test.log")
+	_ = os.WriteFile(logFile, []byte("some log line\n"), 0644)
+
+	cfg := &config.GameConfig{
+		TargetExe: "Endfield.exe",
+	}
+
+	insights := AnalyzeSessionLog(logFile, cfg, 222)
+	found := false
+	for _, ins := range insights {
+		if strings.Contains(ins.Category, "CrashSight") || strings.Contains(ins.Category, "222") {
+			found = true
+			if !strings.Contains(ins.Recommendation, "ntoskrnl.exe") {
+				t.Errorf("expected recommendation to mention ntoskrnl.exe")
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected CrashSight insight when exit code 222 is provided")
+	}
+}
+

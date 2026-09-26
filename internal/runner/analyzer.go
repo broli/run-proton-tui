@@ -19,8 +19,82 @@ type DiagnosticInsight struct {
 	Recommendation string
 }
 
+// ExitCodeExplanation provides plain-English translation and context for an exit code.
+type ExitCodeExplanation struct {
+	Title       string
+	Description string
+}
+
+// ExplainExitCode translates process exit codes into descriptive diagnoses.
+func ExplainExitCode(code int) ExitCodeExplanation {
+	switch code {
+	case 0:
+		return ExitCodeExplanation{
+			Title:       "Clean / Normal Exit (Code 0)",
+			Description: "The process closed without an immediate shell error code. If the game closed prematurely, this often indicates an anti-cheat heartbeat timeout or display server window closure.",
+		}
+	case 1:
+		return ExitCodeExplanation{
+			Title:       "General Application Failure (Exit Code 1)",
+			Description: "The executable or runner wrapper encountered an unhandled general runtime error.",
+		}
+	case 53:
+		return ExitCodeExplanation{
+			Title:       "Executable File Not Found (Exit Code 53)",
+			Description: "Wine was unable to locate or open the specified Windows executable in the working directory.",
+		}
+	case 126:
+		return ExitCodeExplanation{
+			Title:       "Permission Denied (Exit Code 126)",
+			Description: "The executable is missing execute permissions (+x) or the filesystem is mounted with noexec.",
+		}
+	case 127:
+		return ExitCodeExplanation{
+			Title:       "Binary / Dynamic Library Not Found (Exit Code 127)",
+			Description: "A required command, interpreter, or runtime library could not be resolved in system PATH.",
+		}
+	case 130:
+		return ExitCodeExplanation{
+			Title:       "Session Terminated by User (SIGINT / Exit Code 130)",
+			Description: "The session was manually interrupted by the user (Ctrl+C).",
+		}
+	case 134:
+		return ExitCodeExplanation{
+			Title:       "Process Aborted (SIGABRT / Exit Code 134)",
+			Description: "The application or graphics driver aborted abnormally (e.g. glibc assertion failure or KWin abort).",
+		}
+	case 137:
+		return ExitCodeExplanation{
+			Title:       "Terminated by Out-Of-Memory Killer (SIGKILL / Exit Code 137)",
+			Description: "The Linux kernel Out-Of-Memory (OOM) killer terminated the process due to system RAM/VRAM exhaustion.",
+		}
+	case 139:
+		return ExitCodeExplanation{
+			Title:       "Segmentation Fault (SIGSEGV / Exit Code 139)",
+			Description: "The game or Wine driver attempted to read or write to an invalid memory address.",
+		}
+	case 222:
+		return ExitCodeExplanation{
+			Title:       "Tencent CrashSight Exception Caught (Exit Code 222)",
+			Description: "Tencent WeTest CrashSight trapped an unhandled fatal exception in the game or anti-cheat service and generated an error dump before exiting.",
+		}
+	default:
+		if code > 128 && code <= 165 {
+			sig := code - 128
+			return ExitCodeExplanation{
+				Title:       fmt.Sprintf("Terminated by Signal %d (Exit Code %d)", sig, code),
+				Description: fmt.Sprintf("The application was terminated by Linux kernel signal %d.", sig),
+			}
+		}
+		return ExitCodeExplanation{
+			Title:       fmt.Sprintf("Non-Zero Return (Exit Code %d)", code),
+			Description: fmt.Sprintf("The process finished with return code %d.", code),
+		}
+	}
+}
+
 // AnalyzeSessionLog scans the captured log for known failure signatures using built-in checks and modular dictionaries.
-func AnalyzeSessionLog(logPath string, cfg *config.GameConfig) []DiagnosticInsight {
+func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int) []DiagnosticInsight {
 	var insights []DiagnosticInsight
 
 	f, err := os.Open(logPath)
@@ -97,7 +171,7 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig) []DiagnosticInsig
 		insights = append(insights, DiagnosticInsight{
 			Category:       "Gamescope & 32-bit Direct3D 9 Stall",
 			Observation:    "Gamescope was active on Intel iGPU while game launched via prime-run. 32-bit DirectX 9 titles frequently deadlock when presenting swapchain frames to Gamescope's nested Xwayland server.",
-			Recommendation: "Toggle Gamescope OFF ([g] in rpt or pass '--gamescope false'). Vintage D3D9 games run smoother natively under KWin Wayland/Xwayland.",
+			Recommendation: "Consider testing with Gamescope disabled ('rpt --gamescope false --now'). Vintage D3D9 games may present cleaner frames natively under KWin Wayland/Xwayland.",
 		})
 	}
 
@@ -106,7 +180,7 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig) []DiagnosticInsig
 		insights = append(insights, DiagnosticInsight{
 			Category:       "Splash Screen & Bink Video / CODA Stall",
 			Observation:    "Game displayed 2D splash window with loading bar, but froze while loading archives and allocating 64MB CODA buffer for intro video decompression before 3D rendering initialized.",
-			Recommendation: "Toggle Gamescope OFF ('rpt --gamescope false --now'). Running 32-bit DirectX 9 directly on host KWin Xwayland allows the 2D splash window to cleanly hand off to the fullscreen Direct3D 9 engine.",
+			Recommendation: "Testing with Gamescope disabled ('rpt --gamescope false --now') may allow the 2D splash window to cleanly hand off to the fullscreen Direct3D 9 engine.",
 		})
 	}
 
@@ -140,10 +214,34 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig) []DiagnosticInsig
 	// 6. Generic Gamescope reminder if Gamescope was active without DXVK init
 	if (hasGamescope || cfg.UseGamescope) && !hasDXVKInit && !hasCODA && len(insights) == 0 {
 		insights = append(insights, DiagnosticInsight{
-			Category:       "Gamescope Display Sandbox",
+			Category:       "Display Initialization",
 			Observation:    "Gamescope initialized display output, but game rendering pipeline never initialized.",
-			Recommendation: "Test launching with Gamescope OFF: 'rpt --gamescope false --now'.",
+			Recommendation: "Verify game prerequisites and runner compatibility, or test launching natively without Gamescope ('rpt --gamescope false --now') to check for background error dialogs.",
 		})
+	}
+
+	// 7. Process Exit Code Insights
+	if len(exitCodes) > 0 {
+		code := exitCodes[0]
+		if code == 222 && !matchedSigCategories["Tencent CrashSight / Anti-Cheat Exception"] {
+			insights = append(insights, DiagnosticInsight{
+				Category:       "Tencent CrashSight Exception (Exit Code 222)",
+				Observation:    "Tencent WeTest CrashSight caught an unhandled fatal exception during game or anti-cheat startup and wrote a crash dump.",
+				Recommendation: "Verify Wine kernel patches (ntoskrnl.exe ProbeForWrite) in your Proton runner via hooks/pre_launch.sh, and ensure AppData/LocalLow exists. Inspect CrashSightLog/ for detailed stack traces.",
+			})
+		} else if code == 139 && !hasWineServerCrash {
+			insights = append(insights, DiagnosticInsight{
+				Category:       "Memory Segmentation Fault (Exit Code 139)",
+				Observation:    "The process was terminated by SIGSEGV (invalid memory address dereference).",
+				Recommendation: "Check DLL overrides, verify graphics drivers, or test with an alternate Proton runner.",
+			})
+		} else if code == 134 {
+			insights = append(insights, DiagnosticInsight{
+				Category:       "Process Abort (Exit Code 134 / SIGABRT)",
+				Observation:    "The process was aborted abnormally by a runtime assertion failure or signal.",
+				Recommendation: "Check session logs for glibc or graphics library abort messages, and verify compatibility settings.",
+			})
+		}
 	}
 
 	_ = hasKeycodeClip
@@ -172,6 +270,7 @@ func ReadLogTail(logPath string, n int) []string {
 // GenerateAIHelperPackage formats a complete, self-contained diagnostic prompt for AI assistants (like ChatGPT, Claude, etc.).
 func GenerateAIHelperPackage(result *SessionResult, cfg *config.GameConfig, insights []DiagnosticInsight, logTail []string, absLogPath string) string {
 	var sb strings.Builder
+	exp := ExplainExitCode(result.ExitCode)
 
 	sb.WriteString("### 🎮 Linux Game Launch Diagnostic Helper\n\n")
 	sb.WriteString("I am trying to run a Windows game on Linux using `rpt` (Run Proton TUI), but the game stopped unexpectedly or took too long to load.\n")
@@ -185,7 +284,8 @@ func GenerateAIHelperPackage(result *SessionResult, cfg *config.GameConfig, insi
 		cfg.UseGamescope, cfg.GamescopeOutput, cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeRefresh))
 	sb.WriteString(fmt.Sprintf("- **Prime-Run (NVIDIA)**: `%v`\n", cfg.UsePrimeRun))
 	sb.WriteString(fmt.Sprintf("- **P-Cores Pinning**: `%v` (Mask: `%s`)\n", cfg.UsePCores, cfg.PCoresMask))
-	sb.WriteString(fmt.Sprintf("- **Session Duration**: `%v` | **Exit Code**: `%d`\n", result.Duration.Round(100000000), result.ExitCode))
+	sb.WriteString(fmt.Sprintf("- **Session Duration**: `%v` | **Exit Code**: `%d` (%s)\n", result.Duration.Round(100000000), result.ExitCode, exp.Title))
+	sb.WriteString(fmt.Sprintf("- **Exit Interpretation**: %s\n", exp.Description))
 	if result.AbortedByUser {
 		sb.WriteString("- **Termination**: Manually interrupted by user (Ctrl+C) because game appeared stuck / not loading.\n")
 	} else if result.CrashDetected {
@@ -198,7 +298,7 @@ func GenerateAIHelperPackage(result *SessionResult, cfg *config.GameConfig, insi
 	if len(insights) > 0 {
 		sb.WriteString("\n#### Automated Diagnostic Findings\n")
 		for _, ins := range insights {
-			sb.WriteString(fmt.Sprintf("- **%s**: %s\n  *Recommended Fix*: %s\n", ins.Category, ins.Observation, ins.Recommendation))
+			sb.WriteString(fmt.Sprintf("- **%s**: %s\n  *Proposed Solution*: %s\n", ins.Category, ins.Observation, ins.Recommendation))
 		}
 	}
 
@@ -260,18 +360,23 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 	mutedStyle := lipgloss.NewStyle().
 		Foreground(style.ColorMuted)
 
+	solutionStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(style.ColorPrimary)
+
 	fixStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(style.ColorSuccess)
 
 	var lines []string
+	exp := ExplainExitCode(result.ExitCode)
 
 	if result.AbortedByUser {
 		lines = append(lines, titleStyle.Render("⚠️  SESSION TERMINATED BY USER (Ctrl+C) / GAME HANG DETECTED"))
-		lines = append(lines, quoteStyle.Render("“We believe the game crashed, did not work, or was terminated by you because of an issue.”"))
+		lines = append(lines, quoteStyle.Render(fmt.Sprintf("“We believe the game crashed, stalled, or was interrupted: %s”", exp.Description)))
 	} else {
-		lines = append(lines, titleStyle.Render(fmt.Sprintf("💥 GAME CRASH DETECTED (Exit Code: %d after %v)", result.ExitCode, result.Duration.Round(100000000))))
-		lines = append(lines, quoteStyle.Render("“We believe the game crashed, closed early, or encountered an issue.”"))
+		lines = append(lines, titleStyle.Render(fmt.Sprintf("💥 GAME CRASH / EARLY EXIT (Exit Code: %d after %v)", result.ExitCode, result.Duration.Round(100000000))))
+		lines = append(lines, quoteStyle.Render(fmt.Sprintf("“We believe the game crashed or closed early: %s”", exp.Description)))
 	}
 	lines = append(lines, "")
 
@@ -279,6 +384,7 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 	lines = append(lines, headerStyle.Render("Session Information:"))
 	lines = append(lines, textStyle.Render(fmt.Sprintf("  • Target: %s  |  Runner: %s", cfg.TargetExe, filepath.Base(cfg.ProtonPath))))
 	lines = append(lines, textStyle.Render(fmt.Sprintf("  • Gamescope: %v  |  Prime-Run: %v  |  AppID: %s", cfg.UseGamescope, cfg.UsePrimeRun, cfg.AppID)))
+	lines = append(lines, textStyle.Render(fmt.Sprintf("  • Exit Status: %s", exp.Title)))
 	if result.LogFile != "" {
 		lines = append(lines, textStyle.Render(fmt.Sprintf("  • Session Log: %s", result.LogFile)))
 	}
@@ -289,7 +395,7 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 		lines = append(lines, headerStyle.Render("Automated Root-Cause Insights:"))
 		for _, ins := range insights {
 			lines = append(lines, fmt.Sprintf("  %s %s", badgeStyle.Render(ins.Category), textStyle.Render(ins.Observation)))
-			lines = append(lines, fmt.Sprintf("    %s %s", fixStyle.Render("Fix:"), textStyle.Render(ins.Recommendation)))
+			lines = append(lines, fmt.Sprintf("    %s %s", solutionStyle.Render("Proposed Solution:"), textStyle.Render(ins.Recommendation)))
 		}
 		lines = append(lines, "")
 	} else {
@@ -298,18 +404,18 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 		lines = append(lines, "")
 	}
 
-	// Actions
-	lines = append(lines, headerStyle.Render("Recommended Actions:"))
-	lines = append(lines, textStyle.Render("  • Run health check: 'rpt --diagnostics' to inspect prefix permissions."))
-	lines = append(lines, textStyle.Render("  • Test launching without Gamescope: 'rpt --gamescope false --now'."))
-	lines = append(lines, textStyle.Render("  • Try a different Proton runner (e.g. Proton 9.0 or GE-Proton9-23)."))
+	// Troubleshooting Suggestions
+	lines = append(lines, headerStyle.Render("Troubleshooting Suggestions:"))
+	lines = append(lines, textStyle.Render("  • Run health check: 'rpt --diagnostics' to verify prefix permissions and file integrity."))
+	lines = append(lines, textStyle.Render("  • Review runtime logs in .logs/ for detailed driver faults, kernel stubs, or crash dumps."))
+	lines = append(lines, textStyle.Render("  • Consider testing with an alternate Proton runner (e.g. Proton Experimental vs GE-Proton)."))
 	lines = append(lines, "")
 
 	// AI Assistant Helper file instructions with absolute path
 	if absHelpFilePath != "" {
 		lines = append(lines, headerStyle.Render("📋 Need Help Getting This Running? Ask Your Favorite AI Assistant:"))
 		lines = append(lines, fixStyle.Render(fmt.Sprintf("  📄 Diagnostic file created at: %s", absHelpFilePath)))
-		lines = append(lines, mutedStyle.Render("  1. Copy the contents of the file above (or the block below)."))
+		lines = append(lines, mutedStyle.Render("  1. Copy the contents of the file above."))
 		lines = append(lines, mutedStyle.Render("  2. Paste it into your favorite AI assistant (like ChatGPT, Claude, etc.)."))
 		lines = append(lines, quoteStyle.Render("  The AI assistant will do its best to diagnose the issue and suggest settings or launch scripts 😉"))
 	}

@@ -426,19 +426,17 @@ func main() {
 		_ = os.MkdirAll(helpDir, 0755)
 		absHelpFilePath := filepath.Join(helpDir, "ask-ai-help.txt")
 
-		insights := runner.AnalyzeSessionLog(result.LogFile, cfg)
-		report := runner.FormatDiagnosticReport(result, cfg, insights, absHelpFilePath)
-		fmt.Println()
-		fmt.Println(report)
+		insights := runner.AnalyzeSessionLog(result.LogFile, cfg, result.ExitCode)
 
-		// Generate and write AI Assistant Helper package with absolute path and doc links
+		// Generate and write AI Assistant Helper package to log file only (hiding complexity from user)
 		logTail := runner.ReadLogTail(result.LogFile, 35)
 		aiPackage := runner.GenerateAIHelperPackage(result, cfg, insights, logTail, result.LogFile)
 		_ = os.WriteFile(absHelpFilePath, []byte(aiPackage), 0644)
 
-		fmt.Println("\n" + lipgloss.NewStyle().Bold(true).Foreground(style.ColorPrimary).Render("─── 📋 AI ASSISTANT DIAGNOSTIC PACKAGE (Markdown) ─────────────────────────"))
-		fmt.Println(aiPackage)
-		fmt.Println(lipgloss.NewStyle().Bold(true).Foreground(style.ColorPrimary).Render("───────────────────────────────────────────────────────────────────────────"))
+		// The crash card is the LAST thing printed to stdout so it remains directly in view
+		report := runner.FormatDiagnosticReport(result, cfg, insights, absHelpFilePath)
+		fmt.Println()
+		fmt.Println(report)
 
 		if result.AbortedByUser {
 			os.Exit(130)
