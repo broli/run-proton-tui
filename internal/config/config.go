@@ -18,6 +18,15 @@ type FilesystemConfig struct {
 	ExtraBackupPaths []string           `toml:"extra_backup_paths,omitempty"`
 }
 
+// CloudSyncConfig defines optional cloud save synchronization parameters.
+type CloudSyncConfig struct {
+	Backend      string `toml:"backend,omitempty"`       // "rclone", "syncthing", "rsync"
+	RemotePath   string `toml:"remote_path,omitempty"`   // e.g. "gdrive:GameSaves/MyGame"
+	LocalPath    string `toml:"local_path,omitempty"`    // e.g. "{PREFIX}/drive_c/users/steamuser/Saved Games"
+	AutoSyncPre  bool   `toml:"auto_sync_pre,omitempty"` // pull saves before launch
+	AutoSyncPost bool   `toml:"auto_sync_post,omitempty"`// push saves after exit
+}
+
 // ExecutableProfile allows fine-grained overrides for specific binaries within the same game directory.
 // For example, Setup.exe (2D utility) vs Game.exe (3D Vulkan engine).
 type ExecutableProfile struct {
@@ -43,6 +52,7 @@ type ExecutableProfile struct {
 	PreLaunchHook    string            `toml:"pre_launch_hook,omitempty"`
 	PostExitHook     string            `toml:"post_exit_hook,omitempty"`
 	Filesystem       *FilesystemConfig `toml:"filesystem,omitempty"`
+	CloudSync        *CloudSyncConfig  `toml:"cloud_sync,omitempty"`
 }
 
 // GameConfig represents the persistent per-game configuration stored in .proton-config.toml.
@@ -75,6 +85,7 @@ type GameConfig struct {
 	PreLaunchHook    string                        `toml:"pre_launch_hook,omitempty"`
 	PostExitHook     string                        `toml:"post_exit_hook,omitempty"`
 	Filesystem       FilesystemConfig              `toml:"filesystem,omitempty"`
+	CloudSync        *CloudSyncConfig              `toml:"cloud_sync,omitempty"`
 	Profiles         map[string]*ExecutableProfile `toml:"profiles,omitempty"`
 }
 
@@ -266,6 +277,9 @@ func (c *GameConfig) GetEffectiveConfig(targetExe string) *GameConfig {
 	}
 	if prof.Filesystem != nil {
 		eff.Filesystem = *prof.Filesystem
+	}
+	if prof.CloudSync != nil {
+		eff.CloudSync = prof.CloudSync
 	}
 	if len(prof.ExtraArgs) > 0 {
 		eff.ExtraArgs = prof.ExtraArgs

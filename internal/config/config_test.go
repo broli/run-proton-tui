@@ -114,3 +114,39 @@ func TestSubfolderProfileMatching(t *testing.T) {
 		t.Errorf("Expected case-insensitive match for subfolder profile")
 	}
 }
+
+func TestCloudSyncConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := NewDefaultConfig()
+	cfg.TargetExe = "Game.exe"
+	cfg.CloudSync = &CloudSyncConfig{
+		Backend:      "rclone",
+		RemotePath:   "gdrive:GameSaves/TestGame",
+		LocalPath:    "{PREFIX}/drive_c/users/steamuser/Saved Games",
+		AutoSyncPre:  true,
+		AutoSyncPost: true,
+	}
+
+	if err := SaveConfig(tmpDir, cfg); err != nil {
+		t.Fatalf("SaveConfig failed: %v", err)
+	}
+
+	loaded, err := LoadConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if loaded.CloudSync == nil {
+		t.Fatalf("expected loaded CloudSync to not be nil")
+	}
+	if loaded.CloudSync.Backend != "rclone" {
+		t.Errorf("expected backend 'rclone', got '%s'", loaded.CloudSync.Backend)
+	}
+	if loaded.CloudSync.RemotePath != "gdrive:GameSaves/TestGame" {
+		t.Errorf("expected remote path 'gdrive:GameSaves/TestGame', got '%s'", loaded.CloudSync.RemotePath)
+	}
+	if !loaded.CloudSync.AutoSyncPre || !loaded.CloudSync.AutoSyncPost {
+		t.Errorf("expected auto sync flags to be true")
+	}
+}
+
