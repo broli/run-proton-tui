@@ -85,8 +85,8 @@ func TestFormatDiagnosticReport(t *testing.T) {
 		},
 	}
 
-	report := FormatDiagnosticReport(result, cfg, insights)
-	if !strings.Contains(report, "We believe the game crashed, did not work") {
+	report := FormatDiagnosticReport(result, cfg, insights, "/tmp/ask-ai-help.txt")
+	if !strings.Contains(report, "We believe the game crashed") {
 		t.Errorf("expected report to contain explanation quote, got:\n%s", report)
 	}
 	if !strings.Contains(report, "Splash Screen") && !strings.Contains(report, "Bink Video") {

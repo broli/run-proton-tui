@@ -19,7 +19,7 @@ type DiagnosticInsight struct {
 	Recommendation string
 }
 
-// AnalyzeSessionLog scans the captured log for known failure signatures.
+// AnalyzeSessionLog scans the captured log for known failure signatures using built-in checks and modular dictionaries.
 func AnalyzeSessionLog(logPath string, cfg *config.GameConfig) []DiagnosticInsight {
 	var insights []DiagnosticInsight
 
@@ -36,6 +36,13 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig) []DiagnosticInsig
 	hasVulkanError := false
 	hasKeycodeClip := false
 	hasFailedToOpen := false
+
+	gameDir := filepath.Dir(logPath)
+	if filepath.Base(gameDir) == ".logs" {
+		gameDir = filepath.Dir(gameDir)
+	}
+	signatures := LoadSignatures(gameDir)
+	matchedSigCategories := make(map[string]bool)
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -61,8 +68,21 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig) []DiagnosticInsig
 		if strings.Contains(line, "failed to open") {
 			hasFailedToOpen = true
 		}
+
+		// Proactive scan against modular signatures dictionary
+		for _, sig := range signatures {
+			if !matchedSigCategories[sig.Category] && MatchSignature(line, sig) {
+				matchedSigCategories[sig.Category] = true
+				insights = append(insights, DiagnosticInsight{
+					Category:       sig.Category,
+					Observation:    sig.Observation,
+					Recommendation: sig.Recommendation,
+				})
+			}
+		}
 	}
 
+	// Universal Built-in Diagnostics (benefit every game)
 	// 0. Executable not found in working directory
 	if hasFailedToOpen {
 		insights = append(insights, DiagnosticInsight{
@@ -72,7 +92,7 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig) []DiagnosticInsig
 		})
 	}
 
-	// 1. Gamescope with Direct3D 9 titles
+	// 1. Gamescope with Direct3D 9 / vintage engines
 	if (hasGamescope || cfg.UseGamescope) && strings.Contains(strings.ToLower(cfg.TargetExe), "justcause") {
 		insights = append(insights, DiagnosticInsight{
 			Category:       "Gamescope & 32-bit Direct3D 9 Stall",
@@ -81,16 +101,16 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig) []DiagnosticInsig
 		})
 	}
 
-	// 2. Bink Video Codec / Splash Loading Bar Freeze
-	if hasCODA {
+	// 2. Bink Video Codec / Splash Loading Bar Freeze (fallback if not already caught by signatures)
+	if hasCODA && !matchedSigCategories["Bink Video / Intro Splash Stall"] {
 		insights = append(insights, DiagnosticInsight{
 			Category:       "Splash Screen & Bink Video / CODA Stall",
 			Observation:    "Game displayed 2D splash window with loading bar, but froze while loading archives and allocating 64MB CODA buffer for intro video decompression before 3D rendering initialized.",
-			Recommendation: "Toggle Gamescope OFF ('rpt --gamescope false --now'). Running 32-bit DirectX 9 directly on host KWin Xwayland allows the 2D splash window to cleanly hand off to the fullscreen Direct3D 9 engine. Also run 'rpt JCSetup.exe' in the Just Cause directory to lock 1080p resolution.",
+			Recommendation: "Toggle Gamescope OFF ('rpt --gamescope false --now'). Running 32-bit DirectX 9 directly on host KWin Xwayland allows the 2D splash window to cleanly hand off to the fullscreen Direct3D 9 engine.",
 		})
 	}
 
-	// 3. AppID mismatch for Just Cause 1 vs 3
+	// 3. AppID mismatch detection
 	if (cfg.AppID == "225540" || cfg.AppID == "0" || cfg.AppID == "") && strings.Contains(strings.ToLower(cfg.TargetExe), "justcause") {
 		insights = append(insights, DiagnosticInsight{
 			Category:       "Steam AppID Mismatch",
@@ -149,11 +169,15 @@ func ReadLogTail(logPath string, n int) []string {
 	return lines
 }
 
-// GenerateAgentPrompt formats a prompt that the user can copy and paste into any AI agent.
-func GenerateAgentPrompt(result *SessionResult, cfg *config.GameConfig, insights []DiagnosticInsight, logTail []string) string {
+// GenerateAIHelperPackage formats a complete, self-contained diagnostic prompt for AI assistants (like ChatGPT, Claude, etc.).
+func GenerateAIHelperPackage(result *SessionResult, cfg *config.GameConfig, insights []DiagnosticInsight, logTail []string, absLogPath string) string {
 	var sb strings.Builder
 
-	sb.WriteString("### Game Launch & Crash Debug Context\n\n")
+	sb.WriteString("### 🎮 Linux Game Launch Diagnostic Helper\n\n")
+	sb.WriteString("I am trying to run a Windows game on Linux using `rpt` (Run Proton TUI), but the game stopped unexpectedly or took too long to load.\n")
+	sb.WriteString("Please review the system environment, game settings, and error logs below.\n\n")
+
+	sb.WriteString("#### Game & System Overview\n")
 	sb.WriteString(fmt.Sprintf("- **Target Executable**: `%s`\n", cfg.TargetExe))
 	sb.WriteString(fmt.Sprintf("- **Proton Runner**: `%s`\n", filepath.Base(cfg.ProtonPath)))
 	sb.WriteString(fmt.Sprintf("- **Steam AppID**: `%s`\n", cfg.AppID))
@@ -165,7 +189,10 @@ func GenerateAgentPrompt(result *SessionResult, cfg *config.GameConfig, insights
 	if result.AbortedByUser {
 		sb.WriteString("- **Termination**: Manually interrupted by user (Ctrl+C) because game appeared stuck / not loading.\n")
 	} else if result.CrashDetected {
-		sb.WriteString("- **Termination**: Game crashed or exited unexpectedly.\n")
+		sb.WriteString("- **Termination**: Game crashed, exited early, or failed to initialize.\n")
+	}
+	if absLogPath != "" {
+		sb.WriteString(fmt.Sprintf("- **Full Log Path**: `%s`\n", absLogPath))
 	}
 
 	if len(insights) > 0 {
@@ -183,14 +210,30 @@ func GenerateAgentPrompt(result *SessionResult, cfg *config.GameConfig, insights
 		sb.WriteString("```\n")
 	}
 
+	sb.WriteString("\n#### Official Reference Documentation for rpt\n")
+	sb.WriteString("- Configuration Reference (`.proton-config.toml`): https://github.com/broli/run-proton-tui/wiki/Configuration-Reference\n")
+	sb.WriteString("- Lifecycle Hooks & Workarounds (`hooks/pre_launch.sh`): https://github.com/broli/run-proton-tui/wiki/Lifecycle-Hooks-and-Preservation\n")
+	sb.WriteString("- Real-World Case Study (Arknights: Endfield): https://github.com/broli/run-proton-tui/wiki/Example-Config-Arknights-Endfield\n")
+
+	sb.WriteString("\n#### Instructions for the AI Assistant\n")
+	sb.WriteString("1. First, check if the issue can be resolved with standard settings in `.proton-config.toml` (e.g. changing Proton runner, toggling Gamescope, adding environment variables, or configuring DLL overrides).\n")
+	sb.WriteString("2. If the game requires custom fixes (such as binary patching, checking or patching Wine `ntoskrnl.exe`, memory mapping `/dev/shm`, or anti-cheat workarounds), **DO NOT tell the user to modify the rpt binary**. Instead, write a clean, idempotent bash script to be saved in `hooks/pre_launch.sh` (or `hooks/post_exit.sh`).\n")
+	sb.WriteString("3. Provide step-by-step instructions so the user can just copy-paste your solution and run `rpt`!\n")
+	sb.WriteString("4. If your solution works, remind the user that they can submit it to ProtonDB or as an `rpt` community hook to help other players!\n")
+
 	sb.WriteString("\n#### Question for Agent\n")
 	sb.WriteString("Why did this game hang or fail to load with these settings, and what exact configuration or command should I use in Linux / Proton to get it running smoothly?\n")
 
 	return sb.String()
 }
 
-// FormatDiagnosticReport renders a visually structured, user-friendly diagnostic card without awkward wrapping.
-func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insights []DiagnosticInsight) string {
+// GenerateAgentPrompt is a backwards-compatible wrapper calling GenerateAIHelperPackage.
+func GenerateAgentPrompt(result *SessionResult, cfg *config.GameConfig, insights []DiagnosticInsight, logTail []string) string {
+	return GenerateAIHelperPackage(result, cfg, insights, logTail, result.LogFile)
+}
+
+// FormatDiagnosticReport renders a visually structured, user-friendly diagnostic card with absolute file paths.
+func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insights []DiagnosticInsight, absHelpFilePath string) string {
 	boxWidth := 94
 
 	titleStyle := lipgloss.NewStyle().
@@ -228,7 +271,7 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 		lines = append(lines, quoteStyle.Render("“We believe the game crashed, did not work, or was terminated by you because of an issue.”"))
 	} else {
 		lines = append(lines, titleStyle.Render(fmt.Sprintf("💥 GAME CRASH DETECTED (Exit Code: %d after %v)", result.ExitCode, result.Duration.Round(100000000))))
-		lines = append(lines, quoteStyle.Render("“We believe the game crashed, failed to initialize, or encountered a fatal error.”"))
+		lines = append(lines, quoteStyle.Render("“We believe the game crashed, closed early, or encountered an issue.”"))
 	}
 	lines = append(lines, "")
 
@@ -255,45 +298,21 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 		lines = append(lines, "")
 	}
 
-	// Dynamic Actions based on context
-	hasMissingExe := false
-	for _, ins := range insights {
-		if strings.Contains(ins.Category, "Executable Not Found") {
-			hasMissingExe = true
-			break
-		}
+	// Actions
+	lines = append(lines, headerStyle.Render("Recommended Actions:"))
+	lines = append(lines, textStyle.Render("  • Run health check: 'rpt --diagnostics' to inspect prefix permissions."))
+	lines = append(lines, textStyle.Render("  • Test launching without Gamescope: 'rpt --gamescope false --now'."))
+	lines = append(lines, textStyle.Render("  • Try a different Proton runner (e.g. Proton 9.0 or GE-Proton9-23)."))
+	lines = append(lines, "")
+
+	// AI Assistant Helper file instructions with absolute path
+	if absHelpFilePath != "" {
+		lines = append(lines, headerStyle.Render("📋 Need Help Getting This Running? Ask Your Favorite AI Assistant:"))
+		lines = append(lines, fixStyle.Render(fmt.Sprintf("  📄 Diagnostic file created at: %s", absHelpFilePath)))
+		lines = append(lines, mutedStyle.Render("  1. Copy the contents of the file above (or the block below)."))
+		lines = append(lines, mutedStyle.Render("  2. Paste it into your favorite AI assistant (like ChatGPT, Claude, etc.)."))
+		lines = append(lines, quoteStyle.Render("  The AI assistant will do its best to diagnose the issue and suggest settings or launch scripts 😉"))
 	}
-
-	isJustCause := strings.Contains(strings.ToLower(cfg.TargetExe), "justcause") || strings.Contains(strings.ToLower(cfg.TargetExe), "jcsetup")
-
-	if hasMissingExe {
-		lines = append(lines, headerStyle.Render("Recommended Action:"))
-		lines = append(lines, textStyle.Render(fmt.Sprintf("  1. Verify working directory: %q does not exist in current folder.", cfg.TargetExe)))
-		lines = append(lines, mutedStyle.Render("     Make sure you have navigated to the correct game directory before running rpt."))
-		lines = append(lines, "")
-	} else if isJustCause {
-		lines = append(lines, headerStyle.Render("Quick Actions to Fix Just Cause:"))
-		lines = append(lines, textStyle.Render("  1. Run graphics setup first (inside Just Cause folder):"))
-		lines = append(lines, fixStyle.Render("     rpt JCSetup.exe"))
-		lines = append(lines, mutedStyle.Render("     (Configure display resolution to 1920x1080 32-bit before running JustCause.exe)"))
-		lines = append(lines, textStyle.Render("  2. Launch without Gamescope (DirectX 9 compatibility mode):"))
-		lines = append(lines, fixStyle.Render("     rpt --gamescope false --now"))
-		lines = append(lines, mutedStyle.Render("     (Bypasses Gamescope Xwayland presentation stall on hybrid Intel+NVIDIA)"))
-		lines = append(lines, textStyle.Render("  3. Set correct Steam AppID in .proton-config.toml:"))
-		lines = append(lines, fixStyle.Render("     app_id = '6880'"))
-		lines = append(lines, mutedStyle.Render("     (Matches Just Cause 1 instead of Just Cause 3 for ProtonDB and UMU)"))
-		lines = append(lines, "")
-	} else {
-		lines = append(lines, headerStyle.Render("Recommended Actions:"))
-		lines = append(lines, textStyle.Render("  • Run health check: 'rpt --diagnostics' to inspect prefix permissions."))
-		lines = append(lines, textStyle.Render("  • Test launching without Gamescope: 'rpt --gamescope false --now'."))
-		lines = append(lines, textStyle.Render("  • Try a different Proton runner (e.g. Proton 9.0 or GE-Proton9-23)."))
-		lines = append(lines, "")
-	}
-
-	// Copy-paste prompt guide
-	lines = append(lines, headerStyle.Render("📋 Need Deeper Help? Agent-Ready Prompt Generated:"))
-	lines = append(lines, mutedStyle.Render("  Inspect the agent prompt block below to copy-paste into an agent."))
 
 	content := strings.Join(lines, "\n")
 
