@@ -101,7 +101,12 @@ func DetectQuirks(gameDir, exePath, appID, protonPath string) *Preset {
 	dirName := strings.ToLower(filepath.Base(gameDir))
 	exeName := strings.ToLower(filepath.Base(exePath))
 
-	// 1. Check Curated Presets
+	// 1. Check Declarative Quirks Manifests (.rpt/quirks.toml, ~/.config/rpt/quirks/*.toml, /usr/share/rpt/quirks/*.toml)
+	if manifestPreset := MatchManifestQuirk(gameDir, exePath, appID); manifestPreset != nil {
+		return manifestPreset
+	}
+
+	// 2. Check Curated Presets
 	if strings.Contains(dirName, "endfield") || strings.Contains(dirName, "gryphlink") || strings.Contains(exeName, "endfield") {
 		p := CuratedPresets["endfield"]
 		return &p
