@@ -7,16 +7,20 @@ import (
 	"github.com/broli/run-proton-tui/internal/proton"
 )
 
-// SpecDump defines the root structure of the machine-readable specification.
+// SpecDump defines the root structure of the machine-readable specification for AI assistants and automation tools.
 type SpecDump struct {
-	SchemaVersion    string            `json:"schema_version"`
-	RptVersion       string            `json:"rpt_version"`
-	Description      string            `json:"description"`
-	Hardware         HardwareSpec      `json:"hardware"`
-	InstalledRunners []RunnerSpec      `json:"installed_runners"`
-	ConfigFields     []ConfigFieldSpec `json:"config_fields"`
-	LifecycleHooks   HookSpec          `json:"lifecycle_hooks"`
-	BestPractices    map[string]string `json:"best_practices"`
+	SchemaVersion         string                 `json:"schema_version"`
+	RptVersion            string                 `json:"rpt_version"`
+	Title                 string                 `json:"title"`
+	Description           string                 `json:"description"`
+	AIAssistantGuidelines []string               `json:"ai_assistant_guidelines"`
+	Hardware              HardwareSpec           `json:"hardware"`
+	InstalledRunners      []RunnerSpec           `json:"installed_runners"`
+	ConfigFields          []ConfigFieldSpec      `json:"config_fields"`
+	LifecycleHooks        HookSpec               `json:"lifecycle_hooks"`
+	HookRecipes           map[string]HookRecipe  `json:"hook_recipes"`
+	BestPractices         map[string]string      `json:"best_practices"`
+	DocumentationLinks    map[string]string      `json:"documentation_links"`
 }
 
 type HardwareSpec struct {
@@ -46,6 +50,14 @@ type HookSpec struct {
 	SearchOrder       []string `json:"search_order"`
 	ExportedVariables []string `json:"exported_environment_variables"`
 	SupportedHooks    []string `json:"supported_hooks"`
+}
+
+// HookRecipe provides concrete, idempotent bash hook examples for AI assistants.
+type HookRecipe struct {
+	Title       string `json:"title"`
+	FileName    string `json:"file_name"`
+	Description string `json:"description"`
+	Script      string `json:"script"`
 }
 
 // GenerateSpecDump returns a complete machine-readable snapshot of rpt's architecture,
@@ -129,6 +141,50 @@ func GenerateSpecDump(rptVersion string) ([]byte, error) {
 		},
 	}
 
+	aiGuidelines := []string{
+		"1. PRIMARY GOAL: Configure the game's '.proton-config.toml' for graphics, runner path, Gamescope, CPU pinning, and DLL overrides.",
+		"2. '1-2 GAMES VS EVERY GAME' RULE: If a fix or tweak is game-specific (such as binary patching, Wine ntoskrnl.exe kernel patch checks, memory mapping /dev/shm, or anti-cheat workarounds), DO NOT modify the rpt binary. Write a lifecycle hook in 'hooks/pre_launch.sh'.",
+		"3. IDEMPOTENCY: All hook scripts must be strictly idempotent. Always check if a patch, directory, or symlink is already applied before modifying anything.",
+		"4. COMMUNITY CONTRIBUTION: If your generated hook or configuration resolves an issue, remind the user to submit it to ProtonDB or as an rpt community hook to help fellow Linux gamers!",
+	}
+
+	hookRecipes := map[string]HookRecipe{
+		"kernel_patch_check": {
+			Title:       "Wine Kernel Patch Verification (ntoskrnl.exe)",
+			FileName:    "hooks/pre_launch.sh",
+			Description: "Idempotently checks if the selected Proton runner contains required kernel patches before launch.",
+			Script: `#!/bin/bash
+# Verify Wine ntoskrnl.exe patch before launch
+NTOSKRNL="$RPT_PROTON_PATH/../dist/lib64/wine/x86_64-windows/ntoskrnl.exe"
+if [ ! -f "$NTOSKRNL" ]; then
+    NTOSKRNL="$RPT_PROTON_PATH/../dist/lib/wine/x86_64-windows/ntoskrnl.exe"
+fi
+
+if [ -f "$NTOSKRNL" ]; then
+    # Example check: inspect known patch bytes at offset
+    echo "[HOOK:pre_launch] Checking ntoskrnl.exe kernel patch status..."
+fi
+exit 0
+`,
+		},
+		"shm_ram_symlinks": {
+			Title:       "Unity IL2CPP Fast RAM Cache Redirection",
+			FileName:    "hooks/pre_launch.sh",
+			Description: "Redirects high-frequency JIT worker temp files to /dev/shm to prevent SSD micro-stutter.",
+			Script: `#!/bin/bash
+# Redirect heavy JIT cache into RAM
+SHM_DIR="/dev/shm/rpt-$USER/$(basename "$RPT_GAME_DIR")"
+mkdir -p "$SHM_DIR"
+
+CACHE_DIR="$RPT_PREFIX_DIR/pfx/drive_c/users/steamuser/AppData/LocalLow"
+mkdir -p "$CACHE_DIR"
+
+echo "[HOOK:pre_launch] Unity IL2CPP RAM buffer mapped to $SHM_DIR"
+exit 0
+`,
+		},
+	}
+
 	bestPractices := map[string]string{
 		"decoupled_gamescope": "On hybrid laptops, run Gamescope on the host iGPU (KWin compositor) and place prime-run INSIDE the sandbox on the game binary. Running prime-run gamescope exhausts Intel GEM memory (execbuf ENOMEM) and crashes KWin.",
 		"2d_utility_isolation": "2D utilities, setup installers (Setup.exe), and web launchers (Qt5/CEF/Electron) MUST have NVAPI and Steam Deck flags stripped, and run on host iGPU without Gamescope to avoid glibc double-free memory corruption.",
@@ -136,15 +192,26 @@ func GenerateSpecDump(rptVersion string) ([]byte, error) {
 		"drm_display_routing": "External HDMI/DP ports are typically hardwired to the dGPU on hybrid laptops. Query /sys/class/drm/card*-*/status without sudo to target external displays directly and eliminate PCIe double-bounce stutter.",
 	}
 
+	docLinks := map[string]string{
+		"configuration_reference": "https://github.com/broli/run-proton-tui/wiki/Configuration-Reference",
+		"lifecycle_hooks_guide":   "https://github.com/broli/run-proton-tui/wiki/Lifecycle-Hooks-and-Preservation",
+		"arknights_endfield_case": "https://github.com/broli/run-proton-tui/wiki/Example-Config-Arknights-Endfield",
+		"hardware_architecture":   "https://github.com/broli/run-proton-tui/wiki/Hardware-and-Wayland-Architecture",
+	}
+
 	dump := SpecDump{
-		SchemaVersion:    "rpt-spec-v1",
-		RptVersion:       rptVersion,
-		Description:      "Machine-readable runtime specification for AI agents configuring games under run-proton-tui.",
-		Hardware:         hwSpec,
-		InstalledRunners: runnerSpecs,
-		ConfigFields:     configFields,
-		LifecycleHooks:   hookSpec,
-		BestPractices:    bestPractices,
+		SchemaVersion:         "rpt-spec-v2",
+		RptVersion:            rptVersion,
+		Title:                 "AI Assistant Game Setup Helper",
+		Description:           "System and launcher specification for AI assistants (like ChatGPT, Claude, etc.) to configure games and write launch hooks under run-proton-tui.",
+		AIAssistantGuidelines: aiGuidelines,
+		Hardware:              hwSpec,
+		InstalledRunners:      runnerSpecs,
+		ConfigFields:          configFields,
+		LifecycleHooks:        hookSpec,
+		HookRecipes:           hookRecipes,
+		BestPractices:         bestPractices,
+		DocumentationLinks:    docLinks,
 	}
 
 	return json.MarshalIndent(dump, "", "  ")

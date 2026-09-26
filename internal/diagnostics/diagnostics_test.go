@@ -44,8 +44,14 @@ func TestGenerateSpecDump(t *testing.T) {
 	if len(str) == 0 {
 		t.Fatalf("Expected non-empty output")
 	}
-	if !strings.Contains(str, "rpt-spec-v1") {
-		t.Errorf("Expected rpt-spec-v1 in output")
+	if !strings.Contains(str, "rpt-spec-v2") {
+		t.Errorf("Expected rpt-spec-v2 in output")
+	}
+	if !strings.Contains(str, "ai_assistant_guidelines") {
+		t.Errorf("Expected ai_assistant_guidelines in output")
+	}
+	if !strings.Contains(str, "hook_recipes") {
+		t.Errorf("Expected hook_recipes in output")
 	}
 	if !strings.Contains(str, "connected_display_outputs") {
 		t.Errorf("Expected connected_display_outputs in output")
