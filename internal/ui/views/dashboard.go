@@ -66,7 +66,7 @@ func RenderDashboard(d DashboardData) string {
 	if !d.OpaqueBackdrop {
 		backdropText = "[b] Backdrop: Transparent"
 	}
-	leftHeader := fmt.Sprintf("🎮 rpt v0.5.2 │ Game: %s", d.GameTitle)
+	leftHeader := fmt.Sprintf("🎮 rpt v0.6.0 │ Game: %s", d.GameTitle)
 	rightHeader := fmt.Sprintf("%s  •  [s] Desktop Icon  •  [?] Help  •  [q] Quit", style.KeyStyle.Render(backdropText))
 	spaceCount := contentWidth - lipgloss.Width(leftHeader) - lipgloss.Width(rightHeader) - 2
 	if spaceCount < 2 {
@@ -217,8 +217,9 @@ func RenderDashboard(d DashboardData) string {
 			oList = append(oList, k)
 		}
 		summary := strings.Join(oList, ", ")
-		if len(summary) > 22 {
-			summary = summary[:19] + "..."
+		runes := []rune(summary)
+		if len(runes) > 22 {
+			summary = string(runes[:19]) + "..."
 		}
 		overrideStr = style.BadgeSuccess.Render(fmt.Sprintf("Yes (%d active: %s)", len(d.ActiveOverrides), summary))
 	}

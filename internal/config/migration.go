@@ -69,5 +69,9 @@ func ParseLegacyFishConfig(filePath string) (*GameConfig, error) {
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
 }

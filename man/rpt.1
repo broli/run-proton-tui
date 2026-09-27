@@ -1,4 +1,4 @@
-.TH RPT 1 "September 2026" "rpt 0.5.2" "User Commands"
+.TH RPT 1 "September 2026" "rpt 0.6.0" "User Commands"
 .SH NAME
 rpt \- run-proton-tui: Modular Linux Game Launcher Helper and Proton Runner TUI
 .SH SYNOPSIS
@@ -46,6 +46,12 @@ Force Intel Performance-core pinning on or off via \fBtaskset\fR.
 .BR \-\-xalia " [\fItrue\fR|\fIfalse\fR]"
 Force Proton Xalia UI accessibility bridge on or off.
 .TP
+.BR \-\-report\-protondb
+Generate a standardized ProtonDB compatibility report markdown, copy it to the system clipboard, and open the game's page on protondb.com via \fBxdg-open\fR.
+.TP
+.BR \-\-submit\-quirk
+Submit the game's configuration, quirks, and lifecycle hooks directly to the \fBbroli/run-proton-tui\fR repository using fallback hierarchy (gh -> git -> web) under the MIT License.
+.TP
 .BR \-h ", " \-\-help
 Display a concise command-line help manual and exit.
 .TP
@@ -88,7 +94,10 @@ Cycle through connected hardware display outputs on the fly.
 Inspect active or detected quirks preset and UMU compatibility recipes.
 .TP
 .BR a
-View live ProtonDB community tier report and ratings card.
+View live ProtonDB community tier report and ratings card. Inside this view, press \fBc\fR to generate a 1-click contribution report, copy it to the clipboard, and launch the browser via \fBxdg-open\fR.
+.TP
+.BR t
+Open the dedicated full-screen \fBLocal Telemetry & Privacy Hub\fR (accessible from Logs & Diagnostics sub-menu). Review offline metrics, anonymization guarantees (default: OFF / zero tracking), and toggle or wipe local history.
 .TP
 .BR L
 Toggle verbose session logging on/off.

@@ -270,17 +270,20 @@ exit $EXIT_CODE
 	cmd.WaitDelay = 3 * time.Second
 
 	// Pipe output
-	if logFile != nil {
-		if opts.StdoutPipe != nil {
-			cmd.Stdout = io.MultiWriter(opts.StdoutPipe, logFile)
-		} else {
-			cmd.Stdout = logFile
-		}
-		if opts.StderrPipe != nil {
-			cmd.Stderr = io.MultiWriter(opts.StderrPipe, logFile)
-		} else {
-			cmd.Stderr = logFile
-		}
+	if opts.StdoutPipe != nil && logFile != nil {
+		cmd.Stdout = io.MultiWriter(opts.StdoutPipe, logFile)
+	} else if opts.StdoutPipe != nil {
+		cmd.Stdout = opts.StdoutPipe
+	} else if logFile != nil {
+		cmd.Stdout = logFile
+	}
+
+	if opts.StderrPipe != nil && logFile != nil {
+		cmd.Stderr = io.MultiWriter(opts.StderrPipe, logFile)
+	} else if opts.StderrPipe != nil {
+		cmd.Stderr = opts.StderrPipe
+	} else if logFile != nil {
+		cmd.Stderr = logFile
 	}
 
 	startTime := time.Now()
@@ -349,7 +352,11 @@ func processFilesystemDirectives(gameDir, prefixDir string, fs config.Filesystem
 			continue
 		}
 		_ = os.MkdirAll(filepath.Dir(dst), 0755)
-		_ = os.MkdirAll(src, 0755)
+		if filepath.Ext(src) == "" {
+			_ = os.MkdirAll(src, 0755)
+		} else {
+			_ = os.MkdirAll(filepath.Dir(src), 0755)
+		}
 		if fi, err := os.Lstat(dst); err == nil {
 			if fi.Mode()&os.ModeSymlink != 0 {
 				_ = os.Remove(dst)

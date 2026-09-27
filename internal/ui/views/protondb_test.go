@@ -18,22 +18,28 @@ func TestProtonDBView(t *testing.T) {
 	}
 
 	// 2. Test search mode activation
-	query, refresh, done, cmd := pv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	query, refresh, contribute, done, cmd := pv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	if !pv.SearchMode {
 		t.Errorf("Expected SearchMode to be true after pressing 's'")
 	}
-	if query != "" || refresh || done || cmd == nil {
+	if query != "" || refresh || contribute || done || cmd == nil {
 		t.Errorf("Unexpected return values on search activation")
 	}
 
 	// 3. Test typing and submitting custom query
 	pv.SearchInput.SetValue("Endfield")
-	query, refresh, done, _ = pv.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	query, refresh, contribute, done, _ = pv.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if pv.SearchMode {
 		t.Errorf("Expected SearchMode to be false after pressing Enter")
 	}
 	if query != "Endfield" || !refresh {
 		t.Errorf("Expected query='Endfield' and refresh=true, got query=%q, refresh=%v", query, refresh)
+	}
+
+	// 3b. Test 1-click contribute hotkey 'c'
+	_, _, contribute, _, _ = pv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	if !contribute {
+		t.Errorf("Expected contribute=true after pressing 'c'")
 	}
 
 	// 4. Test view with loaded report

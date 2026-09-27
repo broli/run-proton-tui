@@ -26,11 +26,12 @@ type ShortcutOptions struct {
 	CustomIcon string
 }
 
+var slugRegex = regexp.MustCompile(`[^a-z0-9]+`)
+
 // Slugify generates a filesystem-safe identifier for desktop files.
 func Slugify(s string) string {
 	s = strings.ToLower(s)
-	reg := regexp.MustCompile(`[^a-z0-9]+`)
-	s = reg.ReplaceAllString(s, "-")
+	s = slugRegex.ReplaceAllString(s, "-")
 	s = strings.Trim(s, "-")
 	if s == "" {
 		s = "game"

@@ -21,10 +21,11 @@ type steamSearchResponse struct {
 	} `json:"items"`
 }
 
+var reBrackets = regexp.MustCompile(`\[.*?\]|\(.*?\)|\{.*?\}`)
+
 // CleanGameTitle strips repack tags (e.g. [DODI Repack], (GOG), [FitGirl]), version numbers,
 // and delimiters so Steam store search accurately matches the official game name.
 func CleanGameTitle(raw string) string {
-	reBrackets := regexp.MustCompile(`\[.*?\]|\(.*?\)|\{.*?\}`)
 	cleaned := reBrackets.ReplaceAllString(raw, "")
 	cleaned = strings.ReplaceAll(cleaned, "_", " ")
 	cleaned = strings.TrimSpace(cleaned)

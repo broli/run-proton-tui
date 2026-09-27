@@ -2,6 +2,7 @@ package integrations
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,7 +103,7 @@ func ScanEmulators(gameDir string) (*EmulatorInfo, error) {
 		if len(dlcTxtFiles) > 0 {
 			count := countValidDLCLines(dlcTxtFiles[0])
 			if count > 0 {
-				info.DLCStatus = strings.TrimSpace(string(rune('0'+count))) + " DLCs Defined (DLC.txt)"
+				info.DLCStatus = fmt.Sprintf("%d DLCs Defined (DLC.txt)", count)
 			}
 		}
 	}
@@ -162,6 +163,10 @@ func readIniKey(filePath, keyName string) (string, error) {
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
 	return "", nil
 }
 
@@ -179,6 +184,9 @@ func countValidDLCLines(filePath string) int {
 		if line != "" && !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, ";") {
 			count++
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return count
 	}
 	return count
 }

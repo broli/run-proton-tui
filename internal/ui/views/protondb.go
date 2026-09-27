@@ -40,8 +40,8 @@ func NewProtonDBView(report *integrations.ProtonDBReport, title, appID string, w
 	}
 }
 
-// Update handles navigation and custom search within the ProtonDB view.
-func (v *ProtonDBView) Update(msg tea.Msg) (customQuery string, refresh bool, done bool, cmd tea.Cmd) {
+// Update handles navigation, custom search, and 1-click contribute within the ProtonDB view.
+func (v *ProtonDBView) Update(msg tea.Msg) (customQuery string, refresh bool, contribute bool, done bool, cmd tea.Cmd) {
 	if v.SearchMode {
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			switch keyMsg.String() {
@@ -50,34 +50,36 @@ func (v *ProtonDBView) Update(msg tea.Msg) (customQuery string, refresh bool, do
 				v.SearchMode = false
 				v.SearchInput.Blur()
 				if val != "" {
-					return val, true, false, nil
+					return val, true, false, false, nil
 				}
-				return "", false, false, nil
+				return "", false, false, false, nil
 			case "esc":
 				v.SearchMode = false
 				v.SearchInput.Blur()
-				return "", false, false, nil
+				return "", false, false, false, nil
 			}
 		}
 		var inputCmd tea.Cmd
 		v.SearchInput, inputCmd = v.SearchInput.Update(msg)
-		return "", false, false, inputCmd
+		return "", false, false, false, inputCmd
 	}
 
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
 		case "r", "R":
-			return "", true, false, nil
+			return "", true, false, false, nil
+		case "c", "C":
+			return "", false, true, false, nil
 		case "s", "S", "/":
 			v.SearchMode = true
 			v.SearchInput.SetValue("")
 			cmd := v.SearchInput.Focus()
-			return "", false, false, cmd
+			return "", false, false, false, cmd
 		case "esc", "q", "enter":
-			return "", false, true, nil
+			return "", false, false, true, nil
 		}
 	}
-	return "", false, false, nil
+	return "", false, false, false, nil
 }
 
 // View renders the ProtonDB report card.
@@ -139,10 +141,11 @@ func (v *ProtonDBView) View() string {
 			b.WriteString("Press [r] to query/retry, [s] to search by custom title or AppID, or [Esc] to return.\n\n")
 		}
 		b.WriteString(divider + "\n")
-		dock := fmt.Sprintf("%s    %s    %s",
+		dock := fmt.Sprintf("%s    %s    %s    %s",
 			lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[r] Retry Fetch"),
-			lipgloss.NewStyle().Foreground(style.ColorSecondary).Render("[s] Search Custom Game / AppID"),
-			lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc] Return to Dashboard"),
+			lipgloss.NewStyle().Foreground(style.ColorSecondary).Render("[c] Contribute (1-Click)"),
+			lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[s] Search AppID"),
+			lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc] Return"),
 		)
 		b.WriteString(dock)
 
@@ -212,10 +215,11 @@ func (v *ProtonDBView) View() string {
 	b.WriteString(notesBox + "\n\n")
 
 	b.WriteString(divider + "\n")
-	dock := fmt.Sprintf("%s    %s    %s",
-		lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[r] Refresh Report"),
-		lipgloss.NewStyle().Foreground(style.ColorSecondary).Render("[s] Search Custom Game / AppID"),
-		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc] Return to Dashboard"),
+	dock := fmt.Sprintf("%s    %s    %s    %s",
+		lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[r] Refresh"),
+		lipgloss.NewStyle().Foreground(style.ColorSecondary).Render("[c] Contribute (1-Click)"),
+		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[s] Search AppID"),
+		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc] Return"),
 	)
 	b.WriteString(dock)
 

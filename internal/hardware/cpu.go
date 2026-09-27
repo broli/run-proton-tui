@@ -43,6 +43,7 @@ func DetectCPUTopology() (*CPUTopology, error) {
 				}
 			}
 		}
+		_ = scanner.Err()
 	}
 
 	// 2. Check for Linux kernel hybrid CPU sysfs interface: /sys/devices/cpu_core and /sys/devices/cpu_atom

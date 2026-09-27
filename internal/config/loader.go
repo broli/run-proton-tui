@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -20,9 +21,12 @@ func LoadConfig(gameDir string) (*GameConfig, error) {
 	tomlPath := filepath.Join(gameDir, ConfigFileName)
 	if data, err := os.ReadFile(tomlPath); err == nil {
 		cfg := NewDefaultConfig()
-		if err := toml.Unmarshal(data, cfg); err == nil {
-			return cfg, nil
+		if err := toml.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse %s: %w", ConfigFileName, err)
 		}
+		return cfg, nil
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to read %s: %w", ConfigFileName, err)
 	}
 
 	// Check for legacy Fish configuration

@@ -42,6 +42,7 @@ type ExecutableProfile struct {
 	ManagePower      *bool             `toml:"manage_power,omitempty"`
 	UseXalia         *bool             `toml:"use_xalia,omitempty"`
 	EnableLogging    *bool             `toml:"enable_logging,omitempty"`
+	EnableLocalTelemetry *bool         `toml:"enable_local_telemetry,omitempty"`
 	OpaqueBackdrop   *bool             `toml:"opaque_backdrop,omitempty"`
 	ExtraArgs        []string          `toml:"extra_args,omitempty"`
 	DLLOverrides     map[string]string `toml:"dll_overrides,omitempty"`
@@ -71,6 +72,7 @@ type GameConfig struct {
 	ManagePower      bool                          `toml:"manage_power"`
 	UseXalia         bool                          `toml:"use_xalia"`
 	EnableLogging    bool                          `toml:"enable_logging"`
+	EnableLocalTelemetry bool                      `toml:"enable_local_telemetry,omitempty"`
 	OpaqueBackdrop   bool                          `toml:"opaque_backdrop"`
 	DLLOverrides     map[string]string             `toml:"dll_overrides,omitempty"`
 	ExtraArgs        []string                      `toml:"extra_args"`
@@ -106,6 +108,7 @@ func NewDefaultConfig() *GameConfig {
 		ManagePower:      true,
 		UseXalia:         false,
 		EnableLogging:    false,
+		EnableLocalTelemetry: false,
 		OpaqueBackdrop:   true,
 		DLLOverrides:     make(map[string]string),
 		ExtraArgs:        make([]string, 0),
@@ -168,11 +171,31 @@ func (c *GameConfig) Clone() *GameConfig {
 				}
 				if v.Filesystem != nil {
 					fsCpy := *v.Filesystem
+					if v.Filesystem.EnsureDirs != nil {
+						fsCpy.EnsureDirs = make([]string, len(v.Filesystem.EnsureDirs))
+						copy(fsCpy.EnsureDirs, v.Filesystem.EnsureDirs)
+					}
+					if v.Filesystem.Symlinks != nil {
+						fsCpy.Symlinks = make([]SymlinkDirective, len(v.Filesystem.Symlinks))
+						copy(fsCpy.Symlinks, v.Filesystem.Symlinks)
+					}
+					if v.Filesystem.ExtraBackupPaths != nil {
+						fsCpy.ExtraBackupPaths = make([]string, len(v.Filesystem.ExtraBackupPaths))
+						copy(fsCpy.ExtraBackupPaths, v.Filesystem.ExtraBackupPaths)
+					}
 					profCpy.Filesystem = &fsCpy
+				}
+				if v.CloudSync != nil {
+					csCpy := *v.CloudSync
+					profCpy.CloudSync = &csCpy
 				}
 				cpy.Profiles[k] = &profCpy
 			}
 		}
+	}
+	if c.CloudSync != nil {
+		csCpy := *c.CloudSync
+		cpy.CloudSync = &csCpy
 	}
 	if c.HookDirs != nil {
 		cpy.HookDirs = make([]string, len(c.HookDirs))
@@ -260,6 +283,9 @@ func (c *GameConfig) GetEffectiveConfig(targetExe string) *GameConfig {
 	if prof.EnableLogging != nil {
 		eff.EnableLogging = *prof.EnableLogging
 	}
+	if prof.EnableLocalTelemetry != nil {
+		eff.EnableLocalTelemetry = *prof.EnableLocalTelemetry
+	}
 	if prof.OpaqueBackdrop != nil {
 		eff.OpaqueBackdrop = *prof.OpaqueBackdrop
 	}
@@ -276,16 +302,32 @@ func (c *GameConfig) GetEffectiveConfig(targetExe string) *GameConfig {
 		eff.PostExitHook = prof.PostExitHook
 	}
 	if prof.Filesystem != nil {
-		eff.Filesystem = *prof.Filesystem
+		fsCpy := *prof.Filesystem
+		if prof.Filesystem.EnsureDirs != nil {
+			fsCpy.EnsureDirs = make([]string, len(prof.Filesystem.EnsureDirs))
+			copy(fsCpy.EnsureDirs, prof.Filesystem.EnsureDirs)
+		}
+		if prof.Filesystem.Symlinks != nil {
+			fsCpy.Symlinks = make([]SymlinkDirective, len(prof.Filesystem.Symlinks))
+			copy(fsCpy.Symlinks, prof.Filesystem.Symlinks)
+		}
+		if prof.Filesystem.ExtraBackupPaths != nil {
+			fsCpy.ExtraBackupPaths = make([]string, len(prof.Filesystem.ExtraBackupPaths))
+			copy(fsCpy.ExtraBackupPaths, prof.Filesystem.ExtraBackupPaths)
+		}
+		eff.Filesystem = fsCpy
 	}
 	if prof.CloudSync != nil {
-		eff.CloudSync = prof.CloudSync
+		csCpy := *prof.CloudSync
+		eff.CloudSync = &csCpy
 	}
 	if len(prof.ExtraArgs) > 0 {
-		eff.ExtraArgs = prof.ExtraArgs
+		eff.ExtraArgs = make([]string, len(prof.ExtraArgs))
+		copy(eff.ExtraArgs, prof.ExtraArgs)
 	}
 	if len(prof.WaitProcesses) > 0 {
-		eff.WaitProcesses = prof.WaitProcesses
+		eff.WaitProcesses = make([]string, len(prof.WaitProcesses))
+		copy(eff.WaitProcesses, prof.WaitProcesses)
 	}
 	for k, v := range prof.DLLOverrides {
 		if eff.DLLOverrides == nil {

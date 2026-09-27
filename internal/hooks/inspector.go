@@ -145,8 +145,14 @@ func InspectCandidates(gameDir string, hookType HookType, configHookPath string,
 
 // InspectAllHooks compiles an inspection report for both lifecycle phases and environment variables.
 func InspectAllHooks(opts HookOptions) FullHooksReport {
-	pre := InspectCandidates(opts.GameDir, PreLaunch, opts.ConfigHookPath, opts.ExtraHookDirs...)
-	post := InspectCandidates(opts.GameDir, PostExit, opts.ConfigHookPath, opts.ExtraHookDirs...)
+	preHook := opts.PreLaunchHook
+	if preHook == "" {
+		preHook = opts.ConfigHookPath
+	}
+	postHook := opts.PostExitHook
+
+	pre := InspectCandidates(opts.GameDir, PreLaunch, preHook, opts.ExtraHookDirs...)
+	post := InspectCandidates(opts.GameDir, PostExit, postHook, opts.ExtraHookDirs...)
 
 	envDocs := []EnvVarDoc{
 		{

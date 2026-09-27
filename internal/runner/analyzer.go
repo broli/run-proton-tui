@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/ui/style"
@@ -108,7 +109,6 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 	hasWineServerCrash := false
 	hasDXVKInit := false
 	hasVulkanError := false
-	hasKeycodeClip := false
 	hasFailedToOpen := false
 
 	gameDir := filepath.Dir(logPath)
@@ -136,9 +136,6 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 		if strings.Contains(line, "VK_ERROR") || (strings.Contains(line, "vulkan") && strings.Contains(line, "failed")) {
 			hasVulkanError = true
 		}
-		if strings.Contains(line, "xkbcomp") && strings.Contains(line, "clipping") {
-			hasKeycodeClip = true
-		}
 		if strings.Contains(line, "failed to open") {
 			hasFailedToOpen = true
 		}
@@ -155,6 +152,7 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 			}
 		}
 	}
+	_ = scanner.Err()
 
 	// Universal Built-in Diagnostics (benefit every game)
 	// 0. Executable not found in working directory
@@ -244,7 +242,6 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 		}
 	}
 
-	_ = hasKeycodeClip
 	return insights
 }
 
@@ -258,12 +255,15 @@ func ReadLogTail(logPath string, n int) []string {
 
 	var lines []string
 	scanner := bufio.NewScanner(f)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024) // Allow lines up to 1MB
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 		if len(lines) > n {
 			lines = lines[1:]
 		}
 	}
+	_ = scanner.Err()
 	return lines
 }
 
@@ -284,7 +284,7 @@ func GenerateAIHelperPackage(result *SessionResult, cfg *config.GameConfig, insi
 		cfg.UseGamescope, cfg.GamescopeOutput, cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeRefresh))
 	sb.WriteString(fmt.Sprintf("- **Prime-Run (NVIDIA)**: `%v`\n", cfg.UsePrimeRun))
 	sb.WriteString(fmt.Sprintf("- **P-Cores Pinning**: `%v` (Mask: `%s`)\n", cfg.UsePCores, cfg.PCoresMask))
-	sb.WriteString(fmt.Sprintf("- **Session Duration**: `%v` | **Exit Code**: `%d` (%s)\n", result.Duration.Round(100000000), result.ExitCode, exp.Title))
+	sb.WriteString(fmt.Sprintf("- **Session Duration**: `%v` | **Exit Code**: `%d` (%s)\n", result.Duration.Round(100*time.Millisecond), result.ExitCode, exp.Title))
 	sb.WriteString(fmt.Sprintf("- **Exit Interpretation**: %s\n", exp.Description))
 	if result.AbortedByUser {
 		sb.WriteString("- **Termination**: Manually interrupted by user (Ctrl+C) because game appeared stuck / not loading.\n")
@@ -375,7 +375,7 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 		lines = append(lines, titleStyle.Render("⚠️  SESSION TERMINATED BY USER (Ctrl+C) / GAME HANG DETECTED"))
 		lines = append(lines, quoteStyle.Render(fmt.Sprintf("“We believe the game crashed, stalled, or was interrupted: %s”", exp.Description)))
 	} else {
-		lines = append(lines, titleStyle.Render(fmt.Sprintf("💥 GAME CRASH / EARLY EXIT (Exit Code: %d after %v)", result.ExitCode, result.Duration.Round(100000000))))
+		lines = append(lines, titleStyle.Render(fmt.Sprintf("💥 GAME CRASH / EARLY EXIT (Exit Code: %d after %v)", result.ExitCode, result.Duration.Round(100*time.Millisecond))))
 		lines = append(lines, quoteStyle.Render(fmt.Sprintf("“We believe the game crashed or closed early: %s”", exp.Description)))
 	}
 	lines = append(lines, "")

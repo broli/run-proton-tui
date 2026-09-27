@@ -9,10 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/diagnostics"
 	"github.com/broli/run-proton-tui/internal/hooks"
+	"github.com/broli/run-proton-tui/internal/integrations"
 	"github.com/broli/run-proton-tui/internal/launcher"
 	"github.com/broli/run-proton-tui/internal/prefix"
 	"github.com/broli/run-proton-tui/internal/proton"
@@ -27,7 +29,7 @@ import (
 )
 
 var (
-	version = "0.5.2"
+	version = "0.6.0"
 )
 
 func main() {
@@ -48,6 +50,8 @@ func main() {
 	flagDesktopDir := flag.String("desktop-dir", "applications", "Destination for .desktop shortcut (applications, desktop, local)")
 	flagInspectHooks := flag.Bool("inspect-hooks", false, "Inspect resolved lifecycle hooks, search order, and exported environment variables")
 	flagHooks := flag.Bool("hooks", false, "Alias for --inspect-hooks")
+	flagReportProtonDB := flag.Bool("report-protondb", false, "Generate a ProtonDB compatibility report markdown and copy to clipboard")
+	flagSubmitQuirk := flag.Bool("submit-quirk", false, "Submit game quirk profile to broli/run-proton-tui (gh -> git -> web)")
 
 	// Toggles
 	flagGamescope := flag.String("gamescope", "", "Force Gamescope on/off (true/false)")
@@ -72,6 +76,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  rpt --clean --now               # Safe prefix reset followed by instant launch\n")
 		fmt.Fprintf(os.Stderr, "  rpt --create-desktop            # Create 1-click desktop/applications menu shortcut\n")
 		fmt.Fprintf(os.Stderr, "  rpt --dump-spec                 # Output system details and hook guidance for AI assistants\n")
+		fmt.Fprintf(os.Stderr, "  rpt --report-protondb           # Generate standardized ProtonDB Markdown report & copy to clipboard\n")
+		fmt.Fprintf(os.Stderr, "  rpt --submit-quirk              # Submit game quirks to broli/run-proton-tui under MIT License\n")
 	}
 
 	flag.Parse()
@@ -201,6 +207,8 @@ func main() {
 			TargetExe:      cfg.TargetExe,
 			ProtonPath:     cfg.ProtonPath,
 			ConfigHookPath: cfg.PreLaunchHook,
+			PreLaunchHook:  cfg.PreLaunchHook,
+			PostExitHook:   cfg.PostExitHook,
 			ExtraHookDirs:  cfg.HookDirs,
 		}
 		if cfg.UseGamescope {
@@ -320,6 +328,50 @@ func main() {
 	// 2. Pre-flight health check (auto-adds +x if missing)
 	diagnostics.RunPreflightCheck(gameDir, cfg.TargetExe, pfxDir)
 
+	if *flagReportProtonDB {
+		history, _ := runner.ReadSessionHistory(gameDir)
+		report := integrations.GenerateProtonDBReport(integrations.ExportOptions{
+			AppID:     cfg.AppID,
+			GameTitle: filepath.Base(gameDir),
+			GameDir:   gameDir,
+			Config:    cfg,
+			History:   history,
+		})
+		fmt.Println(report)
+		if err := launcher.CopyToClipboard(report); err == nil {
+			fmt.Println("\n[✓] Report copied to system clipboard!")
+		}
+		targetURL := fmt.Sprintf("https://www.protondb.com/app/%s", cfg.AppID)
+		if cfg.AppID == "" || cfg.AppID == "0" {
+			targetURL = "https://www.protondb.com/contribute"
+		}
+		_ = launcher.OpenURL(targetURL)
+		fmt.Printf("[✓] Opened %s in your default browser.\n", targetURL)
+		os.Exit(0)
+	}
+
+	if *flagSubmitQuirk {
+		fmt.Println(quirks.MITConsentNotice)
+		fmt.Print("\nDo you accept the MIT License terms to contribute this quirk? [y/N]: ")
+		var resp string
+		fmt.Scanln(&resp)
+		if strings.ToLower(strings.TrimSpace(resp)) != "y" && strings.ToLower(strings.TrimSpace(resp)) != "yes" {
+			fmt.Println("Aborted: MIT License terms must be accepted to contribute quirks.")
+			os.Exit(1)
+		}
+
+		res, err := quirks.SubmitQuirk(gameDir, cfg, true)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Submission failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("\n[%s] %s\n", res.Method, res.Message)
+		if res.URL != "" {
+			fmt.Printf("URL: %s\n", res.URL)
+		}
+		os.Exit(0)
+	}
+
 	skipTUI := *flagNow || *flagNoTUI || *flagYes || !isatty.IsTerminal(os.Stdin.Fd())
 
 	if !skipTUI {
@@ -404,9 +456,12 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		sig, ok := <-sigChan
-		if ok && sig != nil {
-			cancel()
+		select {
+		case sig, ok := <-sigChan:
+			if ok && sig != nil {
+				cancel()
+			}
+		case <-ctx.Done():
 		}
 	}()
 	defer func() {
@@ -419,6 +474,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Execution error: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Record local session telemetry (strictly no-op if cfg.EnableLocalTelemetry is false)
+	_ = runner.RecordSession(gameDir, cfg, result, "")
 
 	// 4. Progressive Fallback, Crash & Stalled Session Interception
 	if result.AbortedByUser || result.CrashDetected {
@@ -444,5 +502,5 @@ func main() {
 		os.Exit(result.ExitCode)
 	}
 
-	fmt.Printf("\n[✓] Game session finished cleanly (duration: %v).\n", result.Duration.Round(100*1000*1000))
+	fmt.Printf("\n[✓] Game session finished cleanly (duration: %v).\n", result.Duration.Round(100*time.Millisecond))
 }

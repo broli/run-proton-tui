@@ -67,10 +67,14 @@ func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *Heal
 
 	// 3. Scan and auto-fix Unreal Engine *Shipping.exe binaries
 	_ = filepath.Walk(gameDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+		if err != nil {
 			return nil
 		}
-		if strings.Contains(path, "proton-prefix") || strings.Contains(path, ".logs") {
+		if info.IsDir() {
+			name := info.Name()
+			if name == "proton-prefix" || name == ".logs" || name == ".git" {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if strings.HasSuffix(strings.ToLower(info.Name()), "shipping.exe") {

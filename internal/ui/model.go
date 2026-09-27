@@ -38,6 +38,7 @@ const (
 	StateProtonDB
 	StateSubMenu
 	StateHooks
+	StateTelemetry
 )
 
 // Model is the root Elm Architecture model for rpt.
@@ -70,6 +71,7 @@ type Model struct {
 	ProtonDBView     *views.ProtonDBView
 	SubMenuView      *views.SubMenuView
 	HooksView        *views.HooksView
+	TelemetryView    *views.TelemetryView
 	DetectedPreset   *quirks.Preset
 }
 
@@ -247,6 +249,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.HooksView != nil {
 			m.HooksView.SetDimensions(msg.Width, msg.Height)
 		}
+		if m.TelemetryView != nil {
+			m.TelemetryView.Width = msg.Width
+			m.TelemetryView.Height = msg.Height
+		}
 		return m, nil
 
 	case protonDBResultMsg:
@@ -392,9 +398,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case StateProtonDB:
 			if m.ProtonDBView != nil {
-				customQuery, refresh, done, cmd := m.ProtonDBView.Update(msg)
+				customQuery, refresh, contribute, done, cmd := m.ProtonDBView.Update(msg)
 				if done {
 					m.State = StateDashboard
+					return m, nil
+				}
+				if contribute {
+					m.contributeProtonDB()
 					return m, nil
 				}
 				if customQuery != "" {
@@ -402,6 +412,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				if refresh {
 					return m, m.fetchProtonDB("")
+				}
+				return m, cmd
+			}
+			return m, nil
+
+		case StateTelemetry:
+			if m.TelemetryView != nil {
+				act, cmd := m.TelemetryView.Update(msg)
+				switch act {
+				case views.TelemetryActionClose:
+					m.State = StateDashboard
+					return m, nil
+				case views.TelemetryActionToggle:
+					m.Config.EnableLocalTelemetry = !m.Config.EnableLocalTelemetry
+					_ = config.SaveConfig(m.GameDir, m.Config)
+					if m.Config.EnableLocalTelemetry {
+						m.TelemetryView.StatusMessage = "Local session telemetry ENABLED (Local-only, anonymous logging)."
+					} else {
+						m.TelemetryView.StatusMessage = "Local session telemetry DISABLED (Zero persistent tracking)."
+					}
+					m.updateSubMenuData()
+					return m, nil
+				case views.TelemetryActionWipe:
+					if err := runner.ClearSessionHistory(m.GameDir); err != nil {
+						m.TelemetryView.StatusMessage = fmt.Sprintf("Wipe error: %v", err)
+					} else {
+						m.TelemetryView.RefreshHistory()
+						m.TelemetryView.StatusMessage = "✓ All local session history wiped from disk."
+					}
+					return m, nil
 				}
 				return m, cmd
 			}
@@ -630,6 +670,11 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		m.State = StateHooks
 		return m, nil
 
+	case views.ActionOpenTelemetry:
+		m.TelemetryView = views.NewTelemetryView(m.Config, m.GameDir, m.Width, m.Height)
+		m.State = StateTelemetry
+		return m, nil
+
 	case views.ActionQuit:
 		return m, tea.Quit
 	}
@@ -827,6 +872,10 @@ func (m *Model) View() string {
 		if m.HooksView != nil {
 			return m.HooksView.View()
 		}
+	case StateTelemetry:
+		if m.TelemetryView != nil {
+			return m.TelemetryView.View()
+		}
 	case StateSubMenu:
 		if m.SubMenuView != nil {
 			return m.SubMenuView.View()
@@ -855,4 +904,37 @@ func (m *Model) View() string {
 		})
 	}
 	return ""
+}
+
+// contributeProtonDB generates a standardized ProtonDB report, copies it to clipboard,
+// and opens the game's ProtonDB contribute page in the user's default browser via xdg-open.
+func (m *Model) contributeProtonDB() {
+	history, _ := runner.ReadSessionHistory(m.GameDir)
+	report := integrations.GenerateProtonDBReport(integrations.ExportOptions{
+		AppID:     m.Config.AppID,
+		GameTitle: m.GameTitle,
+		GameDir:   m.GameDir,
+		Config:    m.Config,
+		History:   history,
+	})
+
+	clipErr := launcher.CopyToClipboard(report)
+
+	targetURL := fmt.Sprintf("https://www.protondb.com/app/%s", m.Config.AppID)
+	if m.Config.AppID == "" || m.Config.AppID == "0" {
+		targetURL = "https://www.protondb.com/contribute"
+	}
+	openErr := launcher.OpenURL(targetURL)
+
+	if clipErr != nil {
+		m.StatusMessage = fmt.Sprintf("Clipboard error: %v", clipErr)
+	} else if openErr != nil {
+		m.StatusMessage = fmt.Sprintf("Report copied to clipboard! (Browser launch note: %v)", openErr)
+	} else {
+		m.StatusMessage = "✓ Copied report to clipboard & opened protondb.com in browser!"
+	}
+
+	if m.ProtonDBView != nil {
+		m.ProtonDBView.Status = m.StatusMessage
+	}
 }
