@@ -89,3 +89,19 @@ func TestResolveSteamAppID(t *testing.T) {
 		t.Logf("Resolved Endfield to AppID %s (%s)", aid, name)
 	}
 }
+
+func TestFetchSteamAppTitle(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	title, err := FetchSteamAppTitle(ctx, "242640")
+	if err != nil {
+		t.Logf("Network query skipped or failed: %v", err)
+		return
+	}
+
+	if title != "Styx: Master of Shadows" {
+		t.Errorf("Expected 'Styx: Master of Shadows', got %q", title)
+	}
+}
+

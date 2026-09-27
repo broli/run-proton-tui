@@ -136,3 +136,48 @@ func ResolveSteamAppID(ctx context.Context, presetName, targetExe, folderTitle s
 	}
 	return "", "", fmt.Errorf("no candidate search queries available")
 }
+
+// FetchSteamAppTitle queries the official Steam Store appdetails endpoint to retrieve the game's title.
+func FetchSteamAppTitle(ctx context.Context, appID string) (string, error) {
+	if appID == "" || appID == "0" {
+		return "", fmt.Errorf("invalid or missing AppID")
+	}
+
+	endpoint := fmt.Sprintf("https://store.steampowered.com/api/appdetails?appids=%s&filters=basic", url.QueryEscape(appID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Steam API returned HTTP %d", resp.StatusCode)
+	}
+
+	var raw map[string]struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return "", err
+	}
+
+	if entry, ok := raw[appID]; ok && entry.Success && entry.Data.Name != "" {
+		return entry.Data.Name, nil
+	}
+
+	return "", fmt.Errorf("app details not found for AppID %s", appID)
+}
+
