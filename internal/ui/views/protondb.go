@@ -158,9 +158,13 @@ func (v *ProtonDBView) View() string {
 	}
 
 	r := v.Report
+	displayTitle := v.GameTitle
+	if r.Title != "" {
+		displayTitle = r.Title
+	}
 	gameLine := fmt.Sprintf("%s %s  %s",
 		lipgloss.NewStyle().Bold(true).Render("Game:"),
-		lipgloss.NewStyle().Foreground(style.ColorHighlight).Render(v.GameTitle),
+		lipgloss.NewStyle().Foreground(style.ColorHighlight).Render(displayTitle),
 		lipgloss.NewStyle().Foreground(style.ColorMuted).Render(fmt.Sprintf("(AppID: %s)", v.AppID)),
 	)
 	b.WriteString(gameLine + "\n\n")

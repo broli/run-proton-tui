@@ -188,7 +188,11 @@ func (v *SubMenuView) View() string {
 
 		pdbStatus := "Unknown / Unrated"
 		if v.Data.ProtonDB != nil {
-			pdbStatus = fmt.Sprintf("%s (%s, %d reports)", v.Data.ProtonDB.GetTierBadge(), v.Data.ProtonDB.Confidence, v.Data.ProtonDB.Total)
+			titlePart := ""
+			if v.Data.ProtonDB.Title != "" {
+				titlePart = " - " + v.Data.ProtonDB.Title
+			}
+			pdbStatus = fmt.Sprintf("%s (%s, %d reports)%s", v.Data.ProtonDB.GetTierBadge(), v.Data.ProtonDB.Confidence, v.Data.ProtonDB.Total, titlePart)
 		}
 
 		items = []struct {

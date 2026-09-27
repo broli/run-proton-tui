@@ -37,15 +37,21 @@ func TestPresetPickerView(t *testing.T) {
 	}
 
 	// Test Enter key
-	applied, cancel := view.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if !applied || cancel {
-		t.Errorf("Expected applied=true, cancel=false on Enter")
+	applied, cleared, cancel := view.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if !applied || cleared || cancel {
+		t.Errorf("Expected applied=true, cleared=false, cancel=false on Enter")
+	}
+
+	// Test Clear key
+	applied, cleared, cancel = view.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	if applied || !cleared || cancel {
+		t.Errorf("Expected applied=false, cleared=true, cancel=false on 'c'")
 	}
 
 	// Test Esc key
-	applied, cancel = view.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if applied || !cancel {
-		t.Errorf("Expected applied=false, cancel=true on Esc")
+	applied, cleared, cancel = view.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if applied || cleared || !cancel {
+		t.Errorf("Expected applied=false, cleared=false, cancel=true on Esc")
 	}
 }
 
@@ -73,3 +79,33 @@ func TestExePickerFilterInstallers(t *testing.T) {
 		t.Errorf("Expected 3 items after unfiltering, got %d", len(picker.FilteredItems))
 	}
 }
+
+func TestExePickerNumberAndSpaceSelection(t *testing.T) {
+	items := []ExeItem{
+		{RelativePath: "Setup.exe"},
+		{RelativePath: "StyxGame.exe"},
+	}
+
+	picker := NewExePickerView(items, "Setup.exe")
+
+	// Select item 2 by pressing '2'
+	_, selected, cancel := picker.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	if !selected || cancel {
+		t.Fatalf("Expected selected=true on pressing '2'")
+	}
+	if picker.Selected != "StyxGame.exe" {
+		t.Errorf("Expected selected 'StyxGame.exe', got %q", picker.Selected)
+	}
+
+	// Move back to item 1 and select via space
+	picker.Selected = "Setup.exe"
+	picker.Cursor = 0
+	_, selected, cancel = picker.Update(tea.KeyMsg{Type: tea.KeySpace})
+	if !selected || cancel {
+		t.Fatalf("Expected selected=true on space")
+	}
+	if picker.Selected != "Setup.exe" {
+		t.Errorf("Expected selected 'Setup.exe', got %q", picker.Selected)
+	}
+}
+

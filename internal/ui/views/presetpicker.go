@@ -32,19 +32,21 @@ func NewPresetPickerView(preset *quirks.Preset, gameTitle string, cfg *config.Ga
 }
 
 // Update handles key navigation within the preset picker.
-func (v *PresetPickerView) Update(msg tea.Msg) (applied bool, cancel bool) {
+func (v *PresetPickerView) Update(msg tea.Msg) (applied bool, cleared bool, cancel bool) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
 		case "enter", "y", "Y":
 			if v.Preset != nil {
-				return true, false
+				return true, false, false
 			}
-			return false, true
+			return false, false, true
+		case "c", "C", "x", "X", "backspace", "delete":
+			return false, true, false
 		case "esc", "q", "n", "N":
-			return false, true
+			return false, false, true
 		}
 	}
-	return false, false
+	return false, false, false
 }
 
 // View renders the preset review dialog.
@@ -178,8 +180,9 @@ func (v *PresetPickerView) View() string {
 	if isActive {
 		enterLabel = "[Enter] Re-apply Presets & Save"
 	}
-	dock := fmt.Sprintf("%s    %s",
+	dock := fmt.Sprintf("%s    %s    %s",
 		lipgloss.NewStyle().Bold(true).Foreground(style.ColorSuccess).Render(enterLabel),
+		lipgloss.NewStyle().Foreground(style.ColorWarning).Render("[c] Clear Preset (Standard Defaults)"),
 		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc] Return to Dashboard"),
 	)
 	b.WriteString(dock)

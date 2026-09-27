@@ -66,7 +66,7 @@ func RenderDashboard(d DashboardData) string {
 	if !d.OpaqueBackdrop {
 		backdropText = "[b] Backdrop: Transparent"
 	}
-	leftHeader := fmt.Sprintf("🎮 rpt v0.6.0 │ Game: %s", d.GameTitle)
+	leftHeader := fmt.Sprintf("🎮 rpt v0.6.1 │ Game: %s", d.GameTitle)
 	rightHeader := fmt.Sprintf("%s  •  [s] Desktop Icon  •  [?] Help  •  [q] Quit", style.KeyStyle.Render(backdropText))
 	spaceCount := contentWidth - lipgloss.Width(leftHeader) - lipgloss.Width(rightHeader) - 2
 	if spaceCount < 2 {
@@ -106,11 +106,16 @@ func RenderDashboard(d DashboardData) string {
 
 	// ProtonDB Rating
 	if d.ProtonDB != nil {
-		leftSb.WriteString(fmt.Sprintf("%s %s (%s, %d reports) %s\n\n",
+		titleSuffix := ""
+		if d.ProtonDB.Title != "" {
+			titleSuffix = fmt.Sprintf(" - %s", style.ValueStyle.Render(d.ProtonDB.Title))
+		}
+		leftSb.WriteString(fmt.Sprintf("%s %s (%s, %d reports)%s %s\n\n",
 			lbl("ProtonDB Tier:"),
 			d.ProtonDB.GetTierBadge(),
 			d.ProtonDB.Confidence,
 			d.ProtonDB.Total,
+			titleSuffix,
 			style.KeyStyle.Render("([a] Info)")))
 	} else {
 		leftSb.WriteString(fmt.Sprintf("%s %s %s\n\n",

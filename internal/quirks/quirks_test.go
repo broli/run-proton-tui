@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/broli/run-proton-tui/internal/config"
 )
 
 func TestDetectQuirksCurated(t *testing.T) {
@@ -57,3 +59,22 @@ Dark Earth,none,none,umu-darkearth,,Standalone installer,darkearth.exe
 		t.Errorf("Expected umu-darkearth, got %s", preset.UmuID)
 	}
 }
+
+func TestGetActiveOrDetectedPresetStaleInstaller(t *testing.T) {
+	cfg := &config.GameConfig{
+		PresetName: "Repack Installer / Setup",
+	}
+
+	// When current exe is Setup.exe, returns the repack_installer preset
+	p1 := GetActiveOrDetectedPreset("/home/carlos/Games/Styx", "Setup.exe", "0", "", cfg)
+	if p1 == nil || p1.Name != "Repack Installer / Setup" {
+		t.Errorf("Expected Repack Installer preset for Setup.exe, got %v", p1)
+	}
+
+	// When current exe is switched to StyxGame.exe, does NOT return stale repack_installer preset
+	p2 := GetActiveOrDetectedPreset("/home/carlos/Games/Styx", "StyxGame.exe", "0", "", cfg)
+	if p2 != nil && p2.Name == "Repack Installer / Setup" {
+		t.Errorf("Did not expect stale Repack Installer preset for StyxGame.exe")
+	}
+}
+

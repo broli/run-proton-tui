@@ -12,6 +12,7 @@ import (
 // ProtonDBReport represents the compatibility summary retrieved from the ProtonDB API.
 type ProtonDBReport struct {
 	AppID            string `json:"appId"`
+	Title            string `json:"title,omitempty"`
 	Tier             string `json:"tier"`             // "platinum", "gold", "silver", "bronze", "borked"
 	Total            int    `json:"total"`            // Total number of user reports
 	TrendingTier     string `json:"trendingTier"`     // Recent reports tier

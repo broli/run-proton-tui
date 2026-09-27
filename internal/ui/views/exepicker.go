@@ -152,7 +152,14 @@ func (p *ExePickerView) Update(msg tea.Msg) (*ExePickerView, bool, bool) {
 			p.HideInstallers = !p.HideInstallers
 			p.recomputeFiltered()
 			return p, false, false
-		case "enter":
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+			idx := int(msg.String()[0] - '1')
+			if idx < len(p.FilteredItems) {
+				p.Cursor = idx
+				p.Selected = p.FilteredItems[idx].RelativePath
+				return p, true, false
+			}
+		case "enter", " ":
 			if len(p.FilteredItems) > 0 {
 				p.Selected = p.FilteredItems[p.Cursor].RelativePath
 				return p, true, false // selected, don't cancel
@@ -167,7 +174,7 @@ func (p *ExePickerView) Update(msg tea.Msg) (*ExePickerView, bool, bool) {
 // View renders the executable list.
 func (p *ExePickerView) View() string {
 	var sb strings.Builder
-	sb.WriteString(style.TitleStyle.Render("🎯 Select Game Executable (Press [Enter] to Select, [i] Filter Setups, [Esc] to Cancel)"))
+	sb.WriteString(style.TitleStyle.Render("🎯 Select Game Executable (Press [1-9] or [Enter]/[Space] to Select, [i] Filter Setups, [Esc] to Cancel)"))
 	sb.WriteString("\n\n")
 
 	if len(p.FilteredItems) == 0 {
@@ -183,13 +190,18 @@ func (p *ExePickerView) View() string {
 			lineStyle = lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight)
 		}
 
+		numKey := ""
+		if i < 9 {
+			numKey = style.KeyBadge.Render(fmt.Sprintf("[%d]", i+1)) + " "
+		}
+
 		tag := style.BadgeHighlight.Render("3D Game")
 		if item.Classification.Type == runner.ExeType2DUtility {
 			tag = style.BadgeWarning.Render("2D Utility / Setup")
 		}
 
 		sizeStr := fmt.Sprintf("%.1f MB", float64(item.Size)/(1024*1024))
-		sb.WriteString(fmt.Sprintf("%s %s (%s) %s\n", cursor, lineStyle.Render(item.RelativePath), sizeStr, tag))
+		sb.WriteString(fmt.Sprintf("%s %s%s (%s) %s\n", cursor, numKey, lineStyle.Render(item.RelativePath), sizeStr, tag))
 	}
 
 	sb.WriteString("\n")

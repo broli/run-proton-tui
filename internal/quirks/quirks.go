@@ -246,6 +246,12 @@ func findUMUDatabasePaths(protonPath string) []string {
 // or performs auto-detection across curated rules and the UMU database.
 func GetActiveOrDetectedPreset(gameDir, exePath, appID, protonPath string, cfg *config.GameConfig) *Preset {
 	if cfg != nil && cfg.PresetName != "" {
+		// If preset is Repack Installer / Setup, but the target exe is no longer setup.exe or installer.exe, don't keep returning it
+		exeName := strings.ToLower(filepath.Base(exePath))
+		if strings.EqualFold(cfg.PresetName, "Repack Installer / Setup") && exeName != "setup.exe" && exeName != "installer.exe" && exeName != "" {
+			return DetectQuirks(gameDir, exePath, appID, protonPath)
+		}
+
 		for _, cp := range CuratedPresets {
 			if strings.EqualFold(cp.Name, cfg.PresetName) || (cp.UmuID != "" && strings.EqualFold(cp.UmuID, cfg.UmuID)) {
 				p := cp
