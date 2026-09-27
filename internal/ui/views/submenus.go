@@ -47,6 +47,7 @@ const (
 	ActionOpenHelp
 	ActionQuit
 	ActionOpenHooks
+	ActionOpenTelemetry
 )
 
 // SubMenuData contains current state needed to display sub-menu options accurately.
@@ -138,6 +139,8 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 				return ActionOpenDiagnostics
 			case "4", "h", "H":
 				return ActionOpenHooks
+			case "5", "t", "T":
+				return ActionOpenTelemetry
 			}
 
 		case MenuSettings:
@@ -276,6 +279,11 @@ func (v *SubMenuView) View() string {
 			logStatus = style.BadgeSuccess.Render("ACTIVE (writing to .logs/)")
 		}
 
+		telemStatus := style.BadgeMuted.Render("Disabled (Default)")
+		if cfg.EnableLocalTelemetry {
+			telemStatus = style.BadgeSuccess.Render("ACTIVE (Local-Only)")
+		}
+
 		items = []struct {
 			keys  string
 			label string
@@ -285,6 +293,7 @@ func (v *SubMenuView) View() string {
 			{"[l / 2]", "View Session Logs & Crash Dumps", "Browse recent logs in .logs/"},
 			{"[d / 3]", "Pre-flight System Diagnostics", "Check permissions and driver state"},
 			{"[h / 4]", "Inspect Lifecycle Hooks", "Resolution checklist, env vars & pager"},
+			{"[t / 5]", "Local Telemetry & Privacy Hub", telemStatus},
 		}
 
 	case MenuSettings:

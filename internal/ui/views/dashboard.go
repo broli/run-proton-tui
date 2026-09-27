@@ -217,8 +217,9 @@ func RenderDashboard(d DashboardData) string {
 			oList = append(oList, k)
 		}
 		summary := strings.Join(oList, ", ")
-		if len(summary) > 22 {
-			summary = summary[:19] + "..."
+		runes := []rune(summary)
+		if len(runes) > 22 {
+			summary = string(runes[:19]) + "..."
 		}
 		overrideStr = style.BadgeSuccess.Render(fmt.Sprintf("Yes (%d active: %s)", len(d.ActiveOverrides), summary))
 	}
