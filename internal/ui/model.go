@@ -39,11 +39,13 @@ const (
 	StateSubMenu
 	StateHooks
 	StateTelemetry
+	StateCleanConfirm
 )
 
 // Model is the root Elm Architecture model for rpt.
 type Model struct {
 	State           ViewState
+	PrevState       ViewState
 	GameDir         string
 	GameTitle       string
 	Config          *config.GameConfig
@@ -72,6 +74,7 @@ type Model struct {
 	SubMenuView      *views.SubMenuView
 	HooksView        *views.HooksView
 	TelemetryView    *views.TelemetryView
+	CleanConfirmView *views.CleanConfirmView
 	DetectedPreset   *quirks.Preset
 }
 
@@ -187,28 +190,41 @@ func (m *Model) fetchProtonDB(customQuery string) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
+		var matchedTitle string
+
 		if customQuery != "" {
 			if _, err := strconv.Atoi(customQuery); err == nil {
 				appID = customQuery
+				if title, err := integrations.FetchSteamAppTitle(ctx, appID); err == nil && title != "" {
+					matchedTitle = title
+				}
 			} else {
-				aid, _, err := integrations.SearchSteamAppID(ctx, customQuery)
+				aid, name, err := integrations.SearchSteamAppID(ctx, customQuery)
 				if err != nil {
 					return protonDBResultMsg{
 						Err: fmt.Errorf("Steam search for %q: %w", customQuery, err),
 					}
 				}
 				appID = aid
+				matchedTitle = name
 			}
 		}
 
 		if appID == "" || appID == "0" {
-			aid, _, err := integrations.ResolveSteamAppID(ctx, presetName, targetExe, gameTitle)
+			aid, name, err := integrations.ResolveSteamAppID(ctx, presetName, targetExe, gameTitle)
 			if err != nil {
 				return protonDBResultMsg{
 					Err: fmt.Errorf("no Steam title matched: %w", err),
 				}
 			}
 			appID = aid
+			matchedTitle = name
+		}
+
+		if matchedTitle == "" && appID != "" && appID != "0" {
+			if title, err := integrations.FetchSteamAppTitle(ctx, appID); err == nil && title != "" {
+				matchedTitle = title
+			}
 		}
 
 		rep, err := integrations.FetchProtonDBReport(ctx, appID)
@@ -218,6 +234,8 @@ func (m *Model) fetchProtonDB(customQuery string) tea.Cmd {
 				Err:   fmt.Errorf("ProtonDB API (AppID %s): %w", appID, err),
 			}
 		}
+
+		rep.Title = matchedTitle
 
 		return protonDBResultMsg{
 			Report: rep,
@@ -253,6 +271,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.TelemetryView.Width = msg.Width
 			m.TelemetryView.Height = msg.Height
 		}
+		if m.CleanConfirmView != nil {
+			m.CleanConfirmView.Width = msg.Width
+			m.CleanConfirmView.Height = msg.Height
+		}
 		return m, nil
 
 	case protonDBResultMsg:
@@ -265,10 +287,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ProtonDB = msg.Report
 			m.Config.AppID = msg.AppID
 			_ = config.SaveConfig(m.GameDir, m.Config)
-			m.StatusMessage = fmt.Sprintf("ProtonDB: %s (%d reports)", msg.Report.GetTierBadge(), msg.Report.Total)
+			if msg.Report.Title != "" {
+				m.StatusMessage = fmt.Sprintf("ProtonDB: %s (%d reports) - %s", msg.Report.GetTierBadge(), msg.Report.Total, msg.Report.Title)
+			} else {
+				m.StatusMessage = fmt.Sprintf("ProtonDB: %s (%d reports)", msg.Report.GetTierBadge(), msg.Report.Total)
+			}
 			if m.ProtonDBView != nil {
 				m.ProtonDBView.Report = m.ProtonDB
 				m.ProtonDBView.AppID = msg.AppID
+				if msg.Report.Title != "" {
+					m.ProtonDBView.GameTitle = msg.Report.Title
+				}
 				m.ProtonDBView.Status = ""
 			}
 		}
@@ -291,6 +320,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ExePickerView, selected, cancel = m.ExePickerView.Update(msg)
 			if selected {
 				m.Config.TargetExe = m.ExePickerView.Selected
+
+				// If previously assigned Repack Installer / Setup, check if targetExe is no longer an installer
+				baseExe := strings.ToLower(filepath.Base(m.Config.TargetExe))
+				isInstaller := strings.Contains(baseExe, "setup") || strings.Contains(baseExe, "installer")
+				if strings.EqualFold(m.Config.PresetName, "Repack Installer / Setup") && !isInstaller {
+					m.Config.PresetName = ""
+					// Check if the newly selected game executable matches another preset
+					if newPreset := quirks.DetectQuirks(m.GameDir, m.Config.TargetExe, m.Config.AppID, m.Config.ProtonPath); newPreset != nil {
+						m.Config.PresetName = newPreset.Name
+						if newPreset.UmuID != "" {
+							m.Config.UmuID = newPreset.UmuID
+						}
+						if newPreset.DisplayFile != "" {
+							m.Config.DisplayFile = newPreset.DisplayFile
+						}
+						if len(newPreset.ExtraArgs) > 0 {
+							m.Config.ExtraArgs = newPreset.ExtraArgs
+						}
+						if len(newPreset.WaitProcesses) > 0 {
+							m.Config.WaitProcesses = newPreset.WaitProcesses
+						}
+						if m.Config.EnvVars == nil {
+							m.Config.EnvVars = make(map[string]string)
+						}
+						for k, v := range newPreset.EnvVars {
+							m.Config.EnvVars[k] = v
+						}
+					}
+				}
+
 				// Auto-apply per-executable profile or classification recommendations
 				if _, ok := m.Config.Profiles[m.Config.TargetExe]; ok {
 					eff := m.Config.GetEffectiveConfig(m.Config.TargetExe)
@@ -313,7 +372,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case StatePresetPicker:
 			if m.PresetPickerView != nil {
-				applied, cancel := m.PresetPickerView.Update(msg)
+				applied, cleared, cancel := m.PresetPickerView.Update(msg)
 				if applied {
 					preset := m.PresetPickerView.Preset
 					if preset != nil {
@@ -345,6 +404,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						_ = config.SaveConfig(m.GameDir, m.Config)
 						m.StatusMessage = fmt.Sprintf("Applied %s preset!", preset.Name)
 					}
+					m.State = StateDashboard
+				} else if cleared {
+					m.Config.PresetName = ""
+					m.Config.UmuID = ""
+					m.Config.DisplayFile = ""
+					m.StatusMessage = "Quirks preset cleared; using standard defaults"
+					_ = config.SaveConfig(m.GameDir, m.Config)
 					m.State = StateDashboard
 				} else if cancel {
 					m.State = StateDashboard
@@ -464,6 +530,38 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
+		case StateCleanConfirm:
+			if m.CleanConfirmView != nil {
+				confirmed, done := m.CleanConfirmView.Update(msg)
+				if done {
+					if confirmed {
+						pfxDir := filepath.Join(m.GameDir, "proton-prefix")
+						res, err := prefix.SafeCleanPrefixCustom(pfxDir, m.Config.ProtonPath, m.GameDir, m.Config.TargetExe, m.GameTitle, m.Config.BackupDir, m.Config.Filesystem.ExtraBackupPaths)
+						if err != nil {
+							m.StatusMessage = fmt.Sprintf("Clean failed: %v", err)
+							m.PrefixCleaned = false
+						} else if res.BackupDir != "" {
+							m.StatusMessage = fmt.Sprintf("Prefix cleaned! Saved data preserved to: %s", res.BackupDir)
+							m.PrefixCleaned = true
+						} else {
+							m.StatusMessage = "Prefix cleaned and reset successfully."
+							m.PrefixCleaned = true
+						}
+						m.updateSubMenuData()
+					} else {
+						m.StatusMessage = "Prefix reset cancelled."
+					}
+
+					if m.PrevState != 0 {
+						m.State = m.PrevState
+					} else {
+						m.State = StateDashboard
+					}
+					return m, nil
+				}
+			}
+			return m, nil
+
 		case StateDashboard:
 			return m.handleDashboardKeys(msg)
 		}
@@ -522,6 +620,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		return m, nil
 
 	case views.ActionOpenExePicker:
+		m.Exes = views.DiscoverExecutables(m.GameDir)
 		m.ExePickerView = views.NewExePickerView(m.Exes, m.Config.TargetExe)
 		m.State = StateExePicker
 		return m, nil
@@ -534,7 +633,11 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		return m, nil
 
 	case views.ActionOpenProtonDB:
-		m.ProtonDBView = views.NewProtonDBView(m.ProtonDB, m.GameTitle, m.Config.AppID, m.Width, m.Height)
+		title := m.GameTitle
+		if m.ProtonDB != nil && m.ProtonDB.Title != "" {
+			title = m.ProtonDB.Title
+		}
+		m.ProtonDBView = views.NewProtonDBView(m.ProtonDB, title, m.Config.AppID, m.Width, m.Height)
 		m.State = StateProtonDB
 		if m.ProtonDB == nil {
 			return m, m.fetchProtonDB("")
@@ -609,19 +712,9 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		return m, nil
 
 	case views.ActionCleanPrefix:
-		pfxDir := filepath.Join(m.GameDir, "proton-prefix")
-		res, err := prefix.SafeCleanPrefixCustom(pfxDir, m.Config.ProtonPath, m.GameDir, m.Config.TargetExe, m.GameTitle, m.Config.BackupDir, m.Config.Filesystem.ExtraBackupPaths)
-		if err != nil {
-			m.StatusMessage = fmt.Sprintf("Clean failed: %v", err)
-			m.PrefixCleaned = false
-		} else if res.BackupDir != "" {
-			m.StatusMessage = fmt.Sprintf("Prefix cleaned! Saved data preserved to: %s", res.BackupDir)
-			m.PrefixCleaned = true
-		} else {
-			m.StatusMessage = "Prefix cleaned and reset successfully."
-			m.PrefixCleaned = true
-		}
-		m.updateSubMenuData()
+		m.PrevState = m.State
+		m.CleanConfirmView = views.NewCleanConfirmView(m.GameTitle, "./proton-prefix/", m.Config.BackupDir, m.Width, m.Height)
+		m.State = StateCleanConfirm
 		return m, nil
 
 	case views.ActionOpenDiagnostics:
@@ -749,7 +842,11 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "a":
-		m.ProtonDBView = views.NewProtonDBView(m.ProtonDB, m.GameTitle, m.Config.AppID, m.Width, m.Height)
+		title := m.GameTitle
+		if m.ProtonDB != nil && m.ProtonDB.Title != "" {
+			title = m.ProtonDB.Title
+		}
+		m.ProtonDBView = views.NewProtonDBView(m.ProtonDB, title, m.Config.AppID, m.Width, m.Height)
 		m.State = StateProtonDB
 		if m.ProtonDB != nil {
 			return m, nil
@@ -757,18 +854,9 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.fetchProtonDB("")
 
 	case "c":
-		pfxDir := filepath.Join(m.GameDir, "proton-prefix")
-		res, err := prefix.SafeCleanPrefixCustom(pfxDir, m.Config.ProtonPath, m.GameDir, m.Config.TargetExe, m.GameTitle, m.Config.BackupDir, m.Config.Filesystem.ExtraBackupPaths)
-		if err != nil {
-			m.StatusMessage = fmt.Sprintf("Clean failed: %v", err)
-			m.PrefixCleaned = false
-		} else if res.BackupDir != "" {
-			m.StatusMessage = fmt.Sprintf("Prefix cleaned! Saved data preserved to: %s", res.BackupDir)
-			m.PrefixCleaned = true
-		} else {
-			m.StatusMessage = "Prefix cleaned and reset successfully."
-			m.PrefixCleaned = true
-		}
+		m.PrevState = StateDashboard
+		m.CleanConfirmView = views.NewCleanConfirmView(m.GameTitle, "./proton-prefix/", m.Config.BackupDir, m.Width, m.Height)
+		m.State = StateCleanConfirm
 		return m, nil
 
 	case "m", "M":
@@ -879,6 +967,10 @@ func (m *Model) View() string {
 	case StateSubMenu:
 		if m.SubMenuView != nil {
 			return m.SubMenuView.View()
+		}
+	case StateCleanConfirm:
+		if m.CleanConfirmView != nil {
+			return m.CleanConfirmView.View()
 		}
 	case StateDashboard:
 		pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))

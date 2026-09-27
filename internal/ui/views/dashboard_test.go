@@ -81,3 +81,36 @@ func TestRenderDashboardOpaque(t *testing.T) {
 	}
 }
 
+func TestRenderDashboardProtonDBTitle(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.TargetExe = "StyxGame.exe"
+
+	data := DashboardData{
+		GameTitle: "Styx: Master of Shadows",
+		GameDir:   "/home/carlos/Games/Styx",
+		Config:    cfg,
+		ProtonDB: &integrations.ProtonDBReport{
+			AppID:      "242640",
+			Title:      "Styx: Master of Shadows",
+			Tier:       "platinum",
+			Confidence: "strong",
+			Total:      142,
+		},
+		Classification: runner.ClassifyExecutable("StyxGame.exe"),
+		Width:          120,
+		Height:         35,
+	}
+
+	out := RenderDashboard(data)
+	if !strings.Contains(out, "⭐ PLATINUM") {
+		t.Errorf("Expected tier badge in output")
+	}
+	if !strings.Contains(out, "Styx: Master of Shadows") {
+		t.Errorf("Expected matched game title in output")
+	}
+	if !strings.Contains(out, "142 reports") {
+		t.Errorf("Expected report count in output")
+	}
+}
+
+
