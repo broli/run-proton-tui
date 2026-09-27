@@ -27,7 +27,9 @@ type HookOptions struct {
 	TargetExe        string
 	ProtonPath       string
 	GamescopeDisplay string
-	ConfigHookPath   string
+	ConfigHookPath   string // Generic or PreLaunch fallback
+	PreLaunchHook    string // Explicit pre-launch hook path
+	PostExitHook     string // Explicit post-exit hook path
 	ExtraHookDirs    []string
 	LogWriter        io.Writer
 }
@@ -179,5 +181,8 @@ func StreamHookOutput(r io.Reader, w io.Writer, hookType HookType) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		_, _ = fmt.Fprintf(w, "[HOOK:%s] %s\n", hookType, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		_, _ = fmt.Fprintf(w, "[HOOK:%s] stream read error: %v\n", hookType, err)
 	}
 }

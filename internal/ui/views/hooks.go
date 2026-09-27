@@ -31,10 +31,12 @@ type HooksView struct {
 func NewHooksView(gameDir string, cfg *config.GameConfig, width, height int) *HooksView {
 	opts := hooks.HookOptions{
 		GameDir:        gameDir,
-		PrefixDir:      filepath.Join(gameDir, ".prefix"),
+		PrefixDir:      filepath.Join(gameDir, "proton-prefix"),
 		TargetExe:      cfg.TargetExe,
 		ProtonPath:     cfg.ProtonPath,
 		ConfigHookPath: cfg.PreLaunchHook,
+		PreLaunchHook:  cfg.PreLaunchHook,
+		PostExitHook:   cfg.PostExitHook,
 		ExtraHookDirs:  cfg.HookDirs,
 	}
 	if cfg.UseGamescope {
