@@ -45,15 +45,10 @@ func ListOtherWineProcesses(currentPrefix string) ([]ProcessConflict, error) {
 
 		// Verify process owner matches current user
 		procDir := filepath.Join("/proc", entry.Name())
-		stat, err := os.Stat(procDir)
-		if err != nil {
-			continue
-		}
 		var sysStat syscall.Stat_t
 		if err := syscall.Stat(procDir, &sysStat); err != nil || int(sysStat.Uid) != uid {
 			continue
 		}
-		_ = stat
 
 		// Check executable name
 		exeTarget, err := os.Readlink(filepath.Join(procDir, "exe"))

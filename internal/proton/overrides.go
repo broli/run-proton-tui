@@ -128,6 +128,10 @@ func ReadRegistryOverridesSeparated(prefixDir string) (userOverrides, systemDefa
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		return userOverrides, systemDefaults, err
+	}
+
 	return userOverrides, systemDefaults, nil
 }
 
