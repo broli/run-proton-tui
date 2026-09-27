@@ -140,65 +140,75 @@ func DetectQuirks(gameDir, exePath, appID, protonPath string) *Preset {
 func scanLocalUMUDatabase(dirName, exeName, appID, protonPath string) *Preset {
 	csvPaths := findUMUDatabasePaths(protonPath)
 	for _, csvPath := range csvPaths {
-		f, err := os.Open(csvPath)
-		if err != nil {
+		if preset := scanSingleUMUDatabase(csvPath, dirName, exeName, appID); preset != nil {
+			return preset
+		}
+	}
+	return nil
+}
+
+func scanSingleUMUDatabase(csvPath, dirName, exeName, appID string) *Preset {
+	f, err := os.Open(csvPath)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	r := csv.NewReader(f)
+	r.FieldsPerRecord = -1
+
+	// Avoid false positive substring matching if directory is a generic container
+	isGenericDir := dirName == "games" || dirName == "game" || dirName == "bin" || dirName == "rpt" || dirName == "prefix" || len(dirName) < 3
+
+	// Header: TITLE,STORE,CODENAME,UMU_ID,COMMON ACRONYM (Optional),NOTE (Optional),EXE_STRINGS (Optional)
+	isHeader := true
+	for {
+		record, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil || len(record) < 4 {
 			continue
 		}
-		defer f.Close()
+		if isHeader {
+			isHeader = false
+			continue
+		}
 
-		r := csv.NewReader(f)
-		r.FieldsPerRecord = -1
+		title := strings.ToLower(strings.TrimSpace(record[0]))
+		store := strings.ToLower(strings.TrimSpace(record[1]))
+		codename := strings.ToLower(strings.TrimSpace(record[2]))
+		umuID := strings.TrimSpace(record[3])
+		acronym := ""
+		if len(record) > 4 {
+			acronym = strings.ToLower(strings.TrimSpace(record[4]))
+		}
+		exeStrings := ""
+		if len(record) > 6 {
+			exeStrings = strings.ToLower(strings.TrimSpace(record[6]))
+		}
 
-		// Header: TITLE,STORE,CODENAME,UMU_ID,COMMON ACRONYM (Optional),NOTE (Optional),EXE_STRINGS (Optional)
-		isHeader := true
-		for {
-			record, err := r.Read()
-			if err == io.EOF {
-				break
-			}
-			if err != nil || len(record) < 4 {
-				continue
-			}
-			if isHeader {
-				isHeader = false
-				continue
-			}
+		// Matching logic
+		matched := false
+		if appID != "" && appID != "0" && (codename == appID || umuID == "umu-"+appID) {
+			matched = true
+		} else if title != "" && !isGenericDir && (strings.Contains(dirName, title) || (len(dirName) >= 4 && strings.Contains(title, dirName))) {
+			matched = true
+		} else if acronym != "" && dirName == acronym {
+			matched = true
+		} else if exeStrings != "" && exeName != "" && strings.Contains(exeStrings, exeName) {
+			matched = true
+		}
 
-			title := strings.ToLower(strings.TrimSpace(record[0]))
-			store := strings.ToLower(strings.TrimSpace(record[1]))
-			codename := strings.ToLower(strings.TrimSpace(record[2]))
-			umuID := strings.TrimSpace(record[3])
-			acronym := ""
-			if len(record) > 4 {
-				acronym = strings.ToLower(strings.TrimSpace(record[4]))
-			}
-			exeStrings := ""
-			if len(record) > 6 {
-				exeStrings = strings.ToLower(strings.TrimSpace(record[6]))
-			}
-
-			// Matching logic
-			matched := false
-			if appID != "" && appID != "0" && (codename == appID || umuID == "umu-"+appID) {
-				matched = true
-			} else if title != "" && (strings.Contains(dirName, title) || strings.Contains(title, dirName)) {
-				matched = true
-			} else if acronym != "" && dirName == acronym {
-				matched = true
-			} else if exeStrings != "" && strings.Contains(exeStrings, exeName) {
-				matched = true
-			}
-
-			if matched && umuID != "" {
-				return &Preset{
-					Name:          record[0],
-					MatchedSource: "UMU Database (" + store + ")",
-					SummaryNotes:  "Matched in Proton UMU gamefixes database. Activates upstream ProtonFixes recipe.",
-					UmuID:         umuID,
-					EnvVars:       make(map[string]string),
-					WaitProcesses: make([]string, 0),
-					Profiles:      make(map[string]*config.ExecutableProfile),
-				}
+		if matched && umuID != "" {
+			return &Preset{
+				Name:          record[0],
+				MatchedSource: "UMU Database (" + store + ")",
+				SummaryNotes:  "Matched in Proton UMU gamefixes database. Activates upstream ProtonFixes recipe.",
+				UmuID:         umuID,
+				EnvVars:       make(map[string]string),
+				WaitProcesses: make([]string, 0),
+				Profiles:      make(map[string]*config.ExecutableProfile),
 			}
 		}
 	}
