@@ -1,6 +1,7 @@
 package diagnostics
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,5 +59,32 @@ func TestGenerateSpecDump(t *testing.T) {
 	}
 	if !strings.Contains(str, "lifecycle_hooks") {
 		t.Errorf("Expected lifecycle_hooks in output")
+	}
+	if !strings.Contains(str, "managed_internally") {
+		t.Errorf("Expected managed_internally in output")
+	}
+
+	var dump SpecDump
+	if err := json.Unmarshal(data, &dump); err != nil {
+		t.Fatalf("Failed to unmarshal SpecDump JSON: %v", err)
+	}
+
+	foundPrefixGuideline := false
+	for _, g := range dump.AIAssistantGuidelines {
+		if strings.Contains(g, "PREFIX FLUSHING & STALE LOCKS ARE AUTOMATIC") {
+			foundPrefixGuideline = true
+			break
+		}
+	}
+	if !foundPrefixGuideline {
+		t.Errorf("Expected PREFIX FLUSHING & STALE LOCKS ARE AUTOMATIC in ai_assistant_guidelines")
+	}
+
+	if len(dump.LifecycleHooks.ManagedInternally) == 0 {
+		t.Errorf("Expected ManagedInternally to be populated in lifecycle_hooks")
+	}
+
+	if _, ok := dump.BestPractices["wine_prefix_lifecycle_and_stale_locks"]; !ok {
+		t.Errorf("Expected wine_prefix_lifecycle_and_stale_locks in best_practices")
 	}
 }
