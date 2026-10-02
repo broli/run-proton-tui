@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/hardware"
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // EnvOptions contains settings required to construct the execution environment.
@@ -27,7 +29,7 @@ type EnvOptions struct {
 // It incorporates critical bugfixes for Steam emulators, Wayland swapchains,
 // and the Proton Python runner logging requirement (SteamGameId).
 func BuildEnvironment(opts EnvOptions) map[string]string {
-	home, _ := os.UserHomeDir()
+	home := pathutil.UserHomeDir()
 	env := make(map[string]string)
 
 	// Copy base process environment
@@ -39,7 +41,7 @@ func BuildEnvironment(opts EnvOptions) map[string]string {
 	}
 
 	appID := opts.AppID
-	if appID == "" || appID == "0" {
+	if !config.IsValidAppID(appID) {
 		appID = "0"
 	}
 
