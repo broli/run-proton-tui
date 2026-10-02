@@ -9,7 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
+
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // HookType identifies the lifecycle phase of a hook script.
@@ -53,14 +54,7 @@ func ResolveHook(gameDir string, hookType HookType, configHookPath string, extra
 
 	// 1. Explicitly configured hook path
 	if configHookPath != "" {
-		target := configHookPath
-		if strings.HasPrefix(target, "~/") {
-			if home, err := os.UserHomeDir(); err == nil {
-				target = filepath.Join(home, target[2:])
-			}
-		} else if !filepath.IsAbs(target) {
-			target = filepath.Join(gameDir, target)
-		}
+		target := ExpandPath(gameDir, configHookPath)
 		if fi, err := os.Stat(target); err == nil && !fi.IsDir() {
 			return target
 		}
@@ -80,14 +74,7 @@ func ResolveHook(gameDir string, hookType HookType, configHookPath string, extra
 
 	// 3. Extra custom hook directories
 	for _, dir := range extraDirs {
-		candidate := dir
-		if strings.HasPrefix(candidate, "~/") {
-			if home, err := os.UserHomeDir(); err == nil {
-				candidate = filepath.Join(home, candidate[2:])
-			}
-		} else if !filepath.IsAbs(candidate) {
-			candidate = filepath.Join(gameDir, candidate)
-		}
+		candidate := ExpandPath(gameDir, dir)
 		scriptPath := filepath.Join(candidate, scriptName)
 		if fi, err := os.Stat(scriptPath); err == nil && !fi.IsDir() {
 			return scriptPath
@@ -95,7 +82,7 @@ func ResolveHook(gameDir string, hookType HookType, configHookPath string, extra
 	}
 
 	// 4. User global directories
-	if home, err := os.UserHomeDir(); err == nil {
+	if home := pathutil.UserHomeDir(); home != "" {
 		userConfigHook := filepath.Join(home, ".config", "rpt", "hooks", scriptName)
 		if fi, err := os.Stat(userConfigHook); err == nil && !fi.IsDir() {
 			return userConfigHook
@@ -185,4 +172,9 @@ func StreamHookOutput(r io.Reader, w io.Writer, hookType HookType) {
 	if err := scanner.Err(); err != nil {
 		_, _ = fmt.Fprintf(w, "[HOOK:%s] stream read error: %v\n", hookType, err)
 	}
+}
+
+// ExpandPath resolves tilde (~) and relative paths based on baseDir into canonical paths.
+func ExpandPath(baseDir, path string) string {
+	return pathutil.ExpandWithBase(baseDir, path)
 }
