@@ -86,7 +86,16 @@ func TestGamescopeView(t *testing.T) {
 		t.Errorf("Expected Detect to reset GamescopeRefresh to 0 (Native), got %d", cfg.GamescopeRefresh)
 	}
 
-	// 8. Test Esc returns done=true
+	// 8. Test 'r' shortcut to reset to safe defaults
+	cfg.GamescopeWidth = 3840
+	cfg.GamescopeHeight = 2160
+	cfg.GamescopeHDR = true
+	gv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if cfg.GamescopeWidth != 1920 || cfg.GamescopeHeight != 1080 || cfg.GamescopeHDR {
+		t.Errorf("Expected 'r' to reset Gamescope to 1080p SDR, got %dx%d HDR=%v", cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeHDR)
+	}
+
+	// 9. Test Esc returns done=true
 	done, _ := gv.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if !done {
 		t.Errorf("Expected done=true on Esc")

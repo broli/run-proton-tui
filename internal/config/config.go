@@ -140,6 +140,57 @@ func NewDefaultConfig() *GameConfig {
 	}
 }
 
+// ResetGamescopeToDefaults restores Gamescope fields to clean, rock-solid defaults.
+func (c *GameConfig) ResetGamescopeToDefaults() {
+	c.UseGamescope = true
+	c.GamescopeOutput = "auto"
+	c.GamescopeWidth = 1920
+	c.GamescopeHeight = 1080
+	c.GamescopeRefresh = 0 // Untouched / Native
+	c.GamescopeScaling = "fit"
+	c.GamescopeFilter = "linear"
+	c.GamescopeSharpness = 0
+	c.GamescopeWindowMode = "fullscreen"
+	c.GamescopeAdaptiveSync = false
+	c.GamescopeMangoApp = false
+	c.GamescopeHDR = false
+	c.GamescopeFPSLimit = 0
+	c.GamescopeExtraArgs = make([]string, 0)
+}
+
+// ResetHardwareToDefaults restores CPU, GPU, and engine bridge settings to standard hardware-detected defaults.
+func (c *GameConfig) ResetHardwareToDefaults(hasPrimeRun bool, pcoresMask string) {
+	c.UsePrimeRun = hasPrimeRun
+	c.UsePCores = pcoresMask != ""
+	if pcoresMask != "" {
+		c.PCoresMask = pcoresMask
+	} else if c.PCoresMask == "" {
+		c.PCoresMask = "0-11"
+	}
+	c.ManagePower = true
+	c.UseXalia = false
+}
+
+// ResetToSafeDefaults resets all complex tweaks, overrides, and engine options to clean defaults,
+// while preserving the user's selected TargetExe, ProtonPath, and AppID.
+func (c *GameConfig) ResetToSafeDefaults(hasPrimeRun bool, pcoresMask string) {
+	c.ResetGamescopeToDefaults()
+	c.ResetHardwareToDefaults(hasPrimeRun, pcoresMask)
+	c.EnableLogging = false
+	c.EnableLocalTelemetry = false
+	c.OpaqueBackdrop = true
+	c.DLLOverrides = make(map[string]string)
+	c.ExtraArgs = make([]string, 0)
+	c.EnvVars = make(map[string]string)
+	c.WaitProcesses = make([]string, 0)
+	c.PresetName = ""
+	c.UmuID = ""
+	c.DisplayFile = ""
+	c.PreLaunchHook = ""
+	c.PostExitHook = ""
+	c.Profiles = make(map[string]*ExecutableProfile)
+}
+
 // Clone creates a deep copy of the GameConfig.
 func (c *GameConfig) Clone() *GameConfig {
 	if c == nil {

@@ -41,6 +41,7 @@ const (
 	StateTelemetry
 	StateCleanConfirm
 	StateGamescopeSettings
+	StateResetConfirm
 )
 
 // Model is the root Elm Architecture model for rpt.
@@ -77,6 +78,7 @@ type Model struct {
 	TelemetryView    *views.TelemetryView
 	CleanConfirmView *views.CleanConfirmView
 	GamescopeView    *views.GamescopeView
+	ResetConfirmView *views.ResetConfirmView
 	DetectedPreset   *quirks.Preset
 }
 
@@ -276,6 +278,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.CleanConfirmView != nil {
 			m.CleanConfirmView.Width = msg.Width
 			m.CleanConfirmView.Height = msg.Height
+		}
+		if m.ResetConfirmView != nil {
+			m.ResetConfirmView.Width = msg.Width
+			m.ResetConfirmView.Height = msg.Height
+		}
+		if m.ProtonPickerView != nil {
+			m.ProtonPickerView.SetDimensions(msg.Width, msg.Height)
 		}
 		return m, nil
 
@@ -584,6 +593,35 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
+		case StateResetConfirm:
+			if m.ResetConfirmView != nil {
+				confirmed, done := m.ResetConfirmView.Update(msg)
+				if done {
+					if confirmed {
+						pcoresMask := ""
+						if m.CPUTopo != nil {
+							pcoresMask = m.CPUTopo.PCoresMask
+						}
+						hasPrimeRun := m.GPUInfo != nil && m.GPUInfo.HasPrimeRun
+						m.Config.ResetToSafeDefaults(hasPrimeRun, pcoresMask)
+						_ = config.SaveConfig(m.GameDir, m.Config)
+						m.ActiveOverrides = make(map[string]string)
+						m.StatusMessage = "✓ Settings successfully reverted to safe defaults (Target & Runner preserved)"
+						m.updateSubMenuData()
+					} else {
+						m.StatusMessage = "Safe defaults reset cancelled."
+					}
+
+					if m.PrevState != 0 {
+						m.State = m.PrevState
+					} else {
+						m.State = StateDashboard
+					}
+					return m, nil
+				}
+			}
+			return m, nil
+
 		case StateDashboard:
 			return m.handleDashboardKeys(msg)
 		}
@@ -638,6 +676,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 
 	case views.ActionOpenProtonPicker:
 		m.ProtonPickerView = views.NewProtonPickerView(m.Runners, m.Config.ProtonPath)
+		m.ProtonPickerView.SetDimensions(m.Width, m.Height)
 		m.State = StateProtonPicker
 		return m, nil
 
@@ -836,6 +875,43 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		m.State = StateTelemetry
 		return m, nil
 
+	case views.ActionResetGamescope:
+		m.Config.ResetGamescopeToDefaults()
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.StatusMessage = "✓ Display & Gamescope reset to safe defaults (1080p, Linear, SDR, Untouched Hz)"
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionResetHardware:
+		pcoresMask := ""
+		if m.CPUTopo != nil {
+			pcoresMask = m.CPUTopo.PCoresMask
+		}
+		hasPrimeRun := m.GPUInfo != nil && m.GPUInfo.HasPrimeRun
+		m.Config.ResetHardwareToDefaults(hasPrimeRun, pcoresMask)
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.StatusMessage = "✓ Hardware performance reset to hardware-detected safe defaults"
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionResetOverrides:
+		m.Config.DLLOverrides = make(map[string]string)
+		m.ActiveOverrides = make(map[string]string)
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.StatusMessage = "✓ DLL overrides cleared back to clean system registry defaults"
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionConfirmResetDefaults:
+		pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))
+		if pName == "." || pName == "" {
+			pName = filepath.Base(m.Config.ProtonPath)
+		}
+		m.ResetConfirmView = views.NewResetConfirmView(m.GameTitle, m.Config.TargetExe, pName, m.Width, m.Height)
+		m.PrevState = StateSubMenu
+		m.State = StateResetConfirm
+		return m, nil
+
 	case views.ActionQuit:
 		return m, tea.Quit
 	}
@@ -910,6 +986,16 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	// Direct hotkeys for fast power-user access
+	case "R":
+		pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))
+		if pName == "." || pName == "" {
+			pName = filepath.Base(m.Config.ProtonPath)
+		}
+		m.ResetConfirmView = views.NewResetConfirmView(m.GameTitle, m.Config.TargetExe, pName, m.Width, m.Height)
+		m.PrevState = StateDashboard
+		m.State = StateResetConfirm
+		return m, nil
+
 	case "g":
 		m.Config.UseGamescope = !m.Config.UseGamescope
 		_ = config.SaveConfig(m.GameDir, m.Config)
@@ -1070,6 +1156,10 @@ func (m *Model) View() string {
 	case StateGamescopeSettings:
 		if m.GamescopeView != nil {
 			return m.GamescopeView.View()
+		}
+	case StateResetConfirm:
+		if m.ResetConfirmView != nil {
+			return m.ResetConfirmView.View()
 		}
 	case StateDashboard:
 		pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))

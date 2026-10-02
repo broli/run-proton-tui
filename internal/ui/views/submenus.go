@@ -57,6 +57,10 @@ const (
 	ActionOpenHooks
 	ActionOpenTelemetry
 	ActionCreateDesktopShortcut
+	ActionResetGamescope
+	ActionResetHardware
+	ActionResetOverrides
+	ActionConfirmResetDefaults
 )
 
 // SubMenuData contains current state needed to display sub-menu options accurately.
@@ -121,6 +125,8 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 				return ActionDetectMonitor
 			case "4", "s", "S":
 				return ActionOpenGamescopeSettings
+			case "5", "r", "R":
+				return ActionResetGamescope
 			}
 
 		case MenuHardware:
@@ -131,6 +137,8 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 				return ActionTogglePCores
 			case "3", "x", "X":
 				return ActionToggleXalia
+			case "4", "r", "R":
+				return ActionResetHardware
 			case "g", "G":
 				// Forwarding for test / muscle memory
 				return ActionToggleGamescope
@@ -144,6 +152,8 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 				return ActionCleanPrefix
 			case "3", "h", "H":
 				return ActionOpenDiagnostics
+			case "4", "r", "R":
+				return ActionResetOverrides
 			}
 
 		case MenuDiagnostics:
@@ -164,6 +174,8 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 				return ActionToggleBackdrop
 			case "8", "?", "f1":
 				return ActionOpenHelp
+			case "9", "R":
+				return ActionConfirmResetDefaults
 			}
 		}
 	}
@@ -249,6 +261,7 @@ func (v *SubMenuView) View() string {
 			{"[m / 2]", "Target Display Monitor", dispStatus},
 			{"[d / 3]", "Detect Monitor Size & Native Hz", detectDesc},
 			{"[s / 4]", "Gamescope Advanced Options", optSummary},
+			{"[r / 5]", "Reset Display & Gamescope to Defaults", "Restores 1080p, Linear, SDR, Untouched Hz"},
 		}
 
 	case MenuHardware:
@@ -278,6 +291,7 @@ func (v *SubMenuView) View() string {
 			{"[v / 1]", "Toggle GPU Runner (prime-run)", gpuStatus},
 			{"[p / 2]", "Toggle CPU P-Core Pinning", pcoreStatus},
 			{"[x / 3]", "Toggle Proton Xalia Bridge", xaliaStatus},
+			{"[r / 4]", "Reset Hardware to Safe Defaults", "Restore detected GPU & CPU core pinning"},
 		}
 
 	case MenuPrefix:
@@ -305,6 +319,7 @@ func (v *SubMenuView) View() string {
 			{"[o / 1]", "Configure DLL Overrides", ovStatus},
 			{"[c / 2]", "Clean / Reset Wine Prefix", cleanStatus},
 			{"[h / 3]", "Pre-flight Health & Diagnostics", "Checks +x bits and prefix paths"},
+			{"[r / 4]", "Reset DLL Overrides to Clean", "Clears all custom user overrides"},
 		}
 
 	case MenuDiagnostics:
@@ -339,6 +354,7 @@ func (v *SubMenuView) View() string {
 			{"[s / 6]", "Create Desktop Application Icon", "Install .desktop application launcher"},
 			{"[b / 7]", "Terminal Backdrop Style", bdStatus},
 			{"[? / 8]", "In-Depth Help & Documentation", "Comprehensive offline manual"},
+			{"[R / 9]", "Revert Entire Config to Safe Defaults", "Preserves target exe & runner, resets all tweaks"},
 		}
 	}
 
