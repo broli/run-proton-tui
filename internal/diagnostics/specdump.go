@@ -96,15 +96,15 @@ func GenerateSpecDump(rptVersion string) ([]byte, error) {
 		{"target_exe", "string", "", "Relative path to target Windows executable"},
 		{"proton_path", "string", "", "Absolute path to Proton runner executable"},
 		{"app_id", "string", "0", "Steam AppID for compatibility and protonfixes lookup"},
-		{"use_gamescope", "bool", "true", "Run inside Gamescope nested micro-compositor"},
+		{"use_gamescope", "bool", "false (Clean Zero) / auto (Wayland)", "Run inside Gamescope nested micro-compositor"},
 		{"gamescope_output", "string", "auto", "Target DRM display output connector (e.g. HDMI-A-1, eDP-1, or auto)"},
 		{"gamescope_width", "int", "1920", "Gamescope virtual canvas width"},
 		{"gamescope_height", "int", "1080", "Gamescope virtual canvas height"},
-		{"gamescope_refresh", "int", "75", "Gamescope target display refresh rate (Hz)"},
-		{"use_prime_run", "bool", "true", "Execute game with prime-run NVIDIA GPU offloading"},
-		{"use_pcores", "bool", "true", "Pin execution to Intel Performance cores via taskset"},
-		{"pcores_mask", "string", "0-11", "CPU affinity mask for Performance core threads"},
-		{"manage_power", "bool", "true", "Automatically switch KDE power profile to performance"},
+		{"gamescope_refresh", "int", "0 (native)", "Gamescope target display refresh rate in Hz (0 = native/untouched)"},
+		{"use_prime_run", "bool", "false (Clean Zero) / dynamic (hybrid GPU)", "Execute game with prime-run NVIDIA GPU offloading"},
+		{"use_pcores", "bool", "false (Clean Zero) / dynamic (hybrid CPU)", "Pin execution to Intel Performance cores via taskset"},
+		{"pcores_mask", "string", "dynamic (detected mask)", "CPU affinity mask for Performance core threads"},
+		{"manage_power", "bool", "false (Clean Zero) / dynamic (powerprofilesctl)", "Automatically switch KDE power profile to performance"},
 		{"use_xalia", "bool", "false", "Enable Proton Xalia UI automation accessibility bridge"},
 		{"enable_logging", "bool", "false", "Capture verbose Proton, DXVK, and VKD3D logs to .logs/"},
 		{"backup_dir", "string", "~/Games/Backups", "Destination directory to preserve user saves/screenshots"},
@@ -150,10 +150,15 @@ func GenerateSpecDump(rptVersion string) ([]byte, error) {
 
 	aiGuidelines := []string{
 		"1. PRIMARY GOAL: Configure the game's '.proton-config.toml' for graphics, runner path, Gamescope, CPU pinning, and DLL overrides.",
-		"2. '1-2 GAMES VS EVERY GAME' RULE: If a fix or tweak is game-specific (such as binary patching, Wine ntoskrnl.exe kernel patch checks, memory mapping /dev/shm, or anti-cheat workarounds), DO NOT modify the rpt binary. Write a lifecycle hook in 'hooks/pre_launch.sh'.",
-		"3. IDEMPOTENCY: All hook scripts must be strictly idempotent. Always check if a patch, directory, or symlink is already applied before modifying anything.",
-		"4. PREFIX FLUSHING & STALE LOCKS ARE AUTOMATIC: DO NOT add wineserver -k, wineserver -w, killall wine, or /tmp/.wine-* lock cleanup to hooks. rpt automatically flushes the Wine prefix, isolates and terminates lingering prefix processes, and cleans stale socket locks via non-blocking flock before launch, inside the process wrapper, and during teardown.",
-		"5. COMMUNITY CONTRIBUTION: If your generated hook or configuration resolves an issue, remind the user to submit it to ProtonDB or as an rpt community hook to help fellow Linux gamers!",
+		"2. 'CLEAN ZERO' BASELINE GATE: Before diagnosing deep issues, writing custom patches, or adding workarounds, verify baseline behavior with pure upstream defaults and zero extra flags.",
+		"3. SINGLE-VARIABLE ISOLATION (STRICT DELTA TESTING): Never stack workarounds or arguments (A + B + C + D). Test each variable in isolation; if variable A does not resolve the issue, revert it before testing B.",
+		"4. VERIFY EXCEPTION CAUSALITY: Never assume a logged exception, Wine 'fixme:', or stub warning caused a process exit. Correlate timestamps, thread IDs, and parent process termination before attempting to patch or stub an error.",
+		"5. COMPOSITOR SANDBOXING OVER ENGINE FLAGS: When dealing with fractional scaling or display resolution mismatches on Wayland, prefer external compositor isolation (Gamescope virtual canvas) over forcing internal engine render flags (e.g. -vulkan or -force-d3d11).",
+		"6. '1-2 GAMES VS EVERY GAME' RULE: If a fix or tweak is game-specific (such as binary patching, Wine ntoskrnl.exe kernel patch checks, memory mapping /dev/shm, or anti-cheat workarounds), DO NOT modify the rpt binary. Write a lifecycle hook in 'hooks/pre_launch.sh'.",
+		"7. IDEMPOTENCY: All hook scripts must be strictly idempotent. Always check if a patch, directory, or symlink is already applied before modifying anything.",
+		"8. PREFIX FLUSHING & STALE LOCKS ARE AUTOMATIC: DO NOT add wineserver -k, wineserver -w, killall wine, or /tmp/.wine-* lock cleanup to hooks. rpt automatically flushes the Wine prefix, isolates and terminates lingering prefix processes, and cleans stale socket locks via non-blocking flock before launch, inside the process wrapper, and during teardown.",
+		"9. ESCALATION & DEEP DOCUMENTATION: If simple baseline testing and single-variable delta tuning do not resolve the issue, consult the 'best_practices' dictionary in this dump and review 'documentation_links.troubleshooting_methodology' before attempting invasive patches or binary edits.",
+		"10. COMMUNITY CONTRIBUTION: If your generated hook or configuration resolves an issue, remind the user to submit it to ProtonDB or as an rpt community hook to help fellow Linux gamers!",
 	}
 
 	hookRecipes := map[string]HookRecipe{
@@ -194,18 +199,24 @@ exit 0
 	}
 
 	bestPractices := map[string]string{
-		"decoupled_gamescope": "On hybrid laptops, run Gamescope on the host iGPU (KWin compositor) and place prime-run INSIDE the sandbox on the game binary. Running prime-run gamescope exhausts Intel GEM memory (execbuf ENOMEM) and crashes KWin.",
-		"2d_utility_isolation": "2D utilities, setup installers (Setup.exe), and web launchers (Qt5/CEF/Electron) MUST have NVAPI and Steam Deck flags stripped, and run on host iGPU without Gamescope to avoid glibc double-free memory corruption.",
-		"screenshot_preservation": "Windows games save screenshots to C:\\users\\steamuser\\Pictures. Always preserve Pictures alongside Saved Games and AppData during prefix wipes.",
-		"drm_display_routing": "External HDMI/DP ports are typically hardwired to the dGPU on hybrid laptops. Query /sys/class/drm/card*-*/status without sudo to target external displays directly and eliminate PCIe double-bounce stutter.",
+		"clean_zero_vs_safe_defaults":           "Distinguish between Level 0 ('Clean Zero' Baseline) and Level 1 ('Safe Hardware-Aware Defaults'). When diagnosing issues (Gate 1), always begin with pure upstream defaults (use_gamescope=false, use_prime_run=false, use_pcores=false, manage_power=false). Once baseline functionality is verified, introduce safe hardware defaults (Gamescope for Wayland fractional scaling, prime-run for hybrid laptops, P-core pinning for hybrid CPUs) one variable at a time (Gate 2).",
+		"clean_zero_baseline":                   "Before diagnosing complex crashes, applying registry tweaks, or writing launch hooks, always verify baseline behavior with pure upstream defaults and zero extra flags. If a clean prefix and default Proton runner launches the title, do not introduce speculative arguments.",
+		"single_variable_delta_isolation":       "Never combine multiple unverified arguments or workarounds at once (A + B + C + D). Test each variable strictly in isolation. If introducing variable A does not fix the issue or produces a different symptom, revert A completely before testing variable B. Stacking workarounds creates compounding failure states and obscures the true root cause.",
+		"verify_exception_causality":            "Never assume a logged Wine exception, 'fixme:' stub, or console warning caused a game exit. Wine routinely outputs benign warnings during normal execution. Always correlate exact log timestamps, thread IDs, and parent/child process exit signals before attempting to patch a binary or stub an error.",
+		"compositor_sandboxing_wayland":         "When encountering display resolution mismatches, aspect ratio distortion, or mouse cursor trapping issues under Wayland fractional scaling, prefer external compositor isolation via Gamescope (e.g. gamescope_width, gamescope_height, gamescope_output) over passing internal engine render flags (like -vulkan, -force-d3d11, -screen-width). Engine-level flag overrides often destabilize DXVK/VKD3D or trigger anti-cheat driver checks.",
+		"decoupled_gamescope":                   "On hybrid laptops, run Gamescope on the host iGPU (KWin compositor) and place prime-run INSIDE the sandbox on the game binary. Running prime-run gamescope exhausts Intel GEM memory (execbuf ENOMEM) and crashes KWin.",
+		"2d_utility_isolation":                  "2D utilities, setup installers (Setup.exe), and web launchers (Qt5/CEF/Electron) MUST have NVAPI and Steam Deck flags stripped, and run on host iGPU without Gamescope to avoid glibc double-free memory corruption.",
+		"screenshot_preservation":               "Windows games save screenshots to C:\\users\\steamuser\\Pictures. Always preserve Pictures alongside Saved Games and AppData during prefix wipes.",
+		"drm_display_routing":                   "External HDMI/DP ports are typically hardwired to the dGPU on hybrid laptops. Query /sys/class/drm/card*-*/status without sudo to target external displays directly and eliminate PCIe double-bounce stutter.",
 		"wine_prefix_lifecycle_and_stale_locks": "Never add wineserver shutdown or prefix lock clearing to pre_launch.sh or post_exit.sh. rpt automatically performs prefix flushing (graceful wineserver -k/-w), per-prefix process isolation, and non-blocking flock stale lock cleanup (/tmp/.wine-<UID>) both immediately before launch and during post-exit teardown. Adding manual wineserver kills to hooks risks terminating concurrent Wine sessions and disrupts rpt's process supervisor.",
 	}
 
 	docLinks := map[string]string{
-		"configuration_reference": "https://github.com/broli/run-proton-tui/wiki/Configuration-Reference",
-		"lifecycle_hooks_guide":   "https://github.com/broli/run-proton-tui/wiki/Lifecycle-Hooks-and-Preservation",
-		"arknights_endfield_case": "https://github.com/broli/run-proton-tui/wiki/Example-Config-Arknights-Endfield",
-		"hardware_architecture":   "https://github.com/broli/run-proton-tui/wiki/Hardware-and-Wayland-Architecture",
+		"configuration_reference":    "https://github.com/broli/run-proton-tui/wiki/Configuration-Reference",
+		"lifecycle_hooks_guide":      "https://github.com/broli/run-proton-tui/wiki/Lifecycle-Hooks-and-Preservation",
+		"arknights_endfield_case":    "https://github.com/broli/run-proton-tui/wiki/Example-Config-Arknights-Endfield",
+		"hardware_architecture":      "https://github.com/broli/run-proton-tui/wiki/Hardware-and-Wayland-Architecture",
+		"troubleshooting_methodology": "https://github.com/broli/run-proton-tui/wiki/AI-Agent-Integration#ai-troubleshooting-protocol-the-4-discipline-gates",
 	}
 
 	dump := SpecDump{

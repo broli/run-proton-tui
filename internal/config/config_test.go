@@ -238,3 +238,57 @@ func TestResetToSafeDefaults(t *testing.T) {
 	}
 }
 
+func TestCleanZeroConfig(t *testing.T) {
+	cfg := NewCleanZeroConfig()
+	if cfg.UseGamescope {
+		t.Errorf("Clean Zero must have UseGamescope=false")
+	}
+	if cfg.UsePrimeRun {
+		t.Errorf("Clean Zero must have UsePrimeRun=false")
+	}
+	if cfg.UsePCores {
+		t.Errorf("Clean Zero must have UsePCores=false")
+	}
+	if cfg.PCoresMask != "" {
+		t.Errorf("Clean Zero must have empty PCoresMask, got %q", cfg.PCoresMask)
+	}
+	if cfg.ManagePower {
+		t.Errorf("Clean Zero must have ManagePower=false")
+	}
+	if cfg.GamescopeOutput != "auto" {
+		t.Errorf("Clean Zero must have GamescopeOutput='auto', got %q", cfg.GamescopeOutput)
+	}
+	if cfg.OpaqueBackdrop {
+		t.Errorf("Clean Zero must have OpaqueBackdrop=false")
+	}
+}
+
+func TestResetToCleanZero(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.TargetExe = "Game.exe"
+	cfg.ProtonPath = "/opt/proton"
+	cfg.AppID = "999"
+	cfg.UseGamescope = true
+	cfg.UsePrimeRun = true
+	cfg.UsePCores = true
+	cfg.PCoresMask = "0-7"
+	cfg.ManagePower = true
+	cfg.DLLOverrides["dxgi"] = "n"
+
+	cfg.ResetToCleanZero()
+
+	if cfg.TargetExe != "Game.exe" || cfg.ProtonPath != "/opt/proton" || cfg.AppID != "999" {
+		t.Errorf("TargetExe, ProtonPath, and AppID must be preserved")
+	}
+	if cfg.UseGamescope || cfg.UsePrimeRun || cfg.UsePCores || cfg.ManagePower {
+		t.Errorf("All performance wrappers must be disabled in Clean Zero")
+	}
+	if cfg.PCoresMask != "" {
+		t.Errorf("PCoresMask must be empty in Clean Zero, got %q", cfg.PCoresMask)
+	}
+	if len(cfg.DLLOverrides) != 0 {
+		t.Errorf("DLLOverrides must be empty in Clean Zero")
+	}
+}
+
+
