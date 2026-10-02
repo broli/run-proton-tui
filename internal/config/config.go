@@ -109,14 +109,22 @@ type GameConfig struct {
 	Profiles            map[string]*ExecutableProfile `toml:"profiles,omitempty"`
 }
 
-// NewDefaultConfig returns a sane default configuration.
+// NewCleanZeroConfig returns a pristine, unadorned baseline configuration (Gate 1).
+// All performance wrappers, compositor sandboxing, CPU pinning, and power management are disabled.
+func NewCleanZeroConfig() *GameConfig {
+	cfg := NewDefaultConfig()
+	cfg.OpaqueBackdrop = false
+	return cfg
+}
+
+// NewDefaultConfig returns a sane baseline configuration with neutral defaults and zero machine-specific hardcoding.
 func NewDefaultConfig() *GameConfig {
 	return &GameConfig{
 		TargetExe:           "",
 		ProtonPath:          "",
 		AppID:               "0",
-		UseGamescope:        true,
-		GamescopeOutput:     "HDMI-A-1",
+		UseGamescope:        false, // Baseline is false (Clean Zero)
+		GamescopeOutput:     "auto",
 		GamescopeWidth:      1920,
 		GamescopeHeight:     1080,
 		GamescopeRefresh:    0, // 0 = Native / Untouched
@@ -124,10 +132,10 @@ func NewDefaultConfig() *GameConfig {
 		GamescopeFilter:     "linear",
 		GamescopeWindowMode: "fullscreen",
 		GamescopeExtraArgs:  make([]string, 0),
-		UsePCores:           true,
-		PCoresMask:          "0-11",
-		UsePrimeRun:         true,
-		ManagePower:         true,
+		UsePCores:           false, // Baseline is false (Clean Zero)
+		PCoresMask:          "",     // Determined dynamically
+		UsePrimeRun:         false, // Baseline is false (Clean Zero)
+		ManagePower:         false, // Baseline is false (Clean Zero)
 		UseXalia:            false,
 		EnableLogging:       false,
 		EnableLocalTelemetry: false,
@@ -162,13 +170,46 @@ func (c *GameConfig) ResetGamescopeToDefaults() {
 func (c *GameConfig) ResetHardwareToDefaults(hasPrimeRun bool, pcoresMask string) {
 	c.UsePrimeRun = hasPrimeRun
 	c.UsePCores = pcoresMask != ""
-	if pcoresMask != "" {
-		c.PCoresMask = pcoresMask
-	} else if c.PCoresMask == "" {
-		c.PCoresMask = "0-11"
-	}
-	c.ManagePower = true
+	c.PCoresMask = pcoresMask
+	c.ManagePower = false
 	c.UseXalia = false
+}
+
+// ResetToCleanZero resets all options to the pure upstream Proton baseline (Gate 1),
+// preserving only the user's selected TargetExe, ProtonPath, and AppID.
+func (c *GameConfig) ResetToCleanZero() {
+	c.UseGamescope = false
+	c.GamescopeOutput = "auto"
+	c.GamescopeWidth = 1920
+	c.GamescopeHeight = 1080
+	c.GamescopeRefresh = 0
+	c.GamescopeScaling = "fit"
+	c.GamescopeFilter = "linear"
+	c.GamescopeSharpness = 0
+	c.GamescopeWindowMode = "fullscreen"
+	c.GamescopeAdaptiveSync = false
+	c.GamescopeMangoApp = false
+	c.GamescopeHDR = false
+	c.GamescopeFPSLimit = 0
+	c.GamescopeExtraArgs = make([]string, 0)
+	c.UsePrimeRun = false
+	c.UsePCores = false
+	c.PCoresMask = ""
+	c.ManagePower = false
+	c.UseXalia = false
+	c.EnableLogging = false
+	c.EnableLocalTelemetry = false
+	c.OpaqueBackdrop = false
+	c.DLLOverrides = make(map[string]string)
+	c.ExtraArgs = make([]string, 0)
+	c.EnvVars = make(map[string]string)
+	c.WaitProcesses = make([]string, 0)
+	c.PresetName = ""
+	c.UmuID = ""
+	c.DisplayFile = ""
+	c.PreLaunchHook = ""
+	c.PostExitHook = ""
+	c.Profiles = make(map[string]*ExecutableProfile)
 }
 
 // ResetToSafeDefaults resets all complex tweaks, overrides, and engine options to clean defaults,
