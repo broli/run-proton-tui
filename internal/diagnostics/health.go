@@ -7,6 +7,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/broli/run-proton-tui/internal/pathutil"
 	"github.com/broli/run-proton-tui/internal/prefix"
 )
 
@@ -72,7 +73,7 @@ func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *Heal
 		}
 		if info.IsDir() {
 			name := info.Name()
-			if name == "proton-prefix" || name == ".logs" || name == ".git" {
+			if pathutil.IsIgnoredDir(name) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -90,11 +91,9 @@ func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *Heal
 
 	// 4. File Ownership Check
 	_ = filepath.Walk(gameDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if strings.Contains(path, "proton-prefix") || strings.Contains(path, ".logs") || strings.Contains(path, ".git") {
-			if info.IsDir() {
+		if info.IsDir() {
+			name := info.Name()
+			if pathutil.IsIgnoredDir(name) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -116,10 +115,8 @@ func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *Heal
 	}
 
 	// 5. Game Directory Writeability
-	testFile := filepath.Join(gameDir, ".rpt_write_test")
-	if err := os.WriteFile(testFile, []byte("ok"), 0644); err == nil {
+	if isDirWritable(gameDir) {
 		report.GameDirWritable = true
-		_ = os.Remove(testFile)
 	} else {
 		report.AllHealthy = false
 		report.Issues = append(report.Issues, "Game directory is not writable!")
@@ -130,14 +127,23 @@ func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *Heal
 	if _, err := os.Stat(checkDir); os.IsNotExist(err) {
 		checkDir = filepath.Dir(prefixDir)
 	}
-	pfxTest := filepath.Join(checkDir, ".rpt_write_test")
-	if err := os.WriteFile(pfxTest, []byte("ok"), 0644); err == nil {
+	if isDirWritable(checkDir) {
 		report.PrefixDirWritable = true
-		_ = os.Remove(pfxTest)
 	} else {
 		report.AllHealthy = false
 		report.Issues = append(report.Issues, "Wine prefix path is not writable!")
 	}
 
 	return report
+}
+
+func isDirWritable(dir string) bool {
+	f, err := os.CreateTemp(dir, ".rpt_write_test_*")
+	if err != nil {
+		return false
+	}
+	name := f.Name()
+	_ = f.Close()
+	_ = os.Remove(name)
+	return true
 }
