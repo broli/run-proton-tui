@@ -11,7 +11,9 @@ func TestFormatCoreRange(t *testing.T) {
 		{"empty", []int{}, ""},
 		{"single core", []int{3}, "3"},
 		{"range 0 to 11", []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, "0-11"},
-		{"unordered", []int{5, 2, 8, 1}, "1-8"},
+		{"unordered and disjoint", []int{5, 2, 8, 1}, "1-2,5,8"},
+		{"split hybrid cores", []int{0, 1, 2, 3, 8, 9, 10, 11}, "0-3,8-11"},
+		{"duplicate cores", []int{3, 1, 2, 1, 3}, "1-3"},
 	}
 
 	for _, tt := range tests {

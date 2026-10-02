@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // DiagnoseCrashWithAI sends a summary of a game crash log to the Gemini API for actionable recommendations.
@@ -17,15 +19,16 @@ func DiagnoseCrashWithAI(ctx context.Context, gameName string, logExcerpt string
 		return "", fmt.Errorf("GEMINI_API_KEY environment variable is not set")
 	}
 
-	endpoint := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s", apiKey)
+	endpoint := "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
+	safeExcerpt := pathutil.Sanitize(logExcerpt)
 	prompt := fmt.Sprintf(`You are a Linux gaming expert specializing in Wine, Proton, DXVK, and VKD3D.
 The user is running the game: %s.
 The game crashed or exited prematurely. Below is the recent crash log excerpt:
 
 %s
 
-Provide a concise, 3-bullet diagnosis with the exact recommended fix (e.g. Proton version to use, environment variables like PROTON_ENABLE_NVAPI=1, or Wine DLL overrides like dwmapi=native,builtin). Keep it brief and focused strictly on the fix.`, gameName, logExcerpt)
+Provide a concise, 3-bullet diagnosis with the exact recommended fix (e.g. Proton version to use, environment variables like PROTON_ENABLE_NVAPI=1, or Wine DLL overrides like dwmapi=native,builtin). Keep it brief and focused strictly on the fix.`, gameName, safeExcerpt)
 
 	reqBody := map[string]interface{}{
 		"contents": []map[string]interface{}{
@@ -47,6 +50,7 @@ Provide a concise, 3-bullet diagnosis with the exact recommended fix (e.g. Proto
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-goog-api-key", apiKey)
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -59,7 +63,7 @@ Provide a concise, 3-bullet diagnosis with the exact recommended fix (e.g. Proto
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Gemini API error (HTTP %d)", resp.StatusCode)
+		return "", fmt.Errorf("gemini API error (HTTP %d)", resp.StatusCode)
 	}
 
 	var geminiResp struct {

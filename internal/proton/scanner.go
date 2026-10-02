@@ -1,12 +1,15 @@
 package proton
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // RunnerType identifies the compatibility tool flavor.
@@ -155,23 +158,47 @@ func classifyRunner(name, dirPath, protonBin string) Runner {
 	}
 }
 
+// GetRunnerName derives a clean, human-readable display name from a proton executable path.
+func GetRunnerName(protonPath string) string {
+	if protonPath == "" {
+		return "Unknown Runner"
+	}
+	pName := filepath.Base(filepath.Dir(protonPath))
+	if pName == "." || pName == "" || pName == "/" {
+		pName = filepath.Base(protonPath)
+	}
+	return pName
+}
+
+// GetCompatibilityToolDirs returns the standard search paths for Steam compatibility tools.
+func GetCompatibilityToolDirs() []string {
+	var dirs []string
+	home := pathutil.UserHomeDir()
+	if home != "" {
+		dirs = append(dirs,
+			filepath.Join(home, ".local", "share", "Steam", "compatibilitytools.d"),
+			filepath.Join(home, ".steam", "root", "compatibilitytools.d"),
+			filepath.Join(home, ".steam", "steam", "compatibilitytools.d"),
+		)
+	}
+	dirs = append(dirs, "/usr/share/steam/compatibilitytools.d")
+	return dirs
+}
+
 // DiscoverRunners scans all common Steam and custom compatibility tool locations.
 func DiscoverRunners() ([]Runner, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
+	home := pathutil.UserHomeDir()
+	if home == "" {
+		return nil, fmt.Errorf("user home directory unavailable")
 	}
 
-	searchDirs := []string{
-		filepath.Join(home, ".local/share/Steam/compatibilitytools.d"),
-		filepath.Join(home, ".steam/root/compatibilitytools.d"),
-		filepath.Join(home, ".steam/steam/compatibilitytools.d"),
-		"/usr/share/steam/compatibilitytools.d",
-		filepath.Join(home, ".local/share/Steam/steamapps/common"),
-		filepath.Join(home, ".config/heroic/tools/wine"),
-		filepath.Join(home, ".config/heroic/tools/proton"),
-		filepath.Join(home, ".local/share/lutris/runners/wine"),
-	}
+	searchDirs := append([]string{}, GetCompatibilityToolDirs()...)
+	searchDirs = append(searchDirs,
+		filepath.Join(home, ".local", "share", "Steam", "steamapps", "common"),
+		filepath.Join(home, ".config", "heroic", "tools", "wine"),
+		filepath.Join(home, ".config", "heroic", "tools", "proton"),
+		filepath.Join(home, ".local", "share", "lutris", "runners", "wine"),
+	)
 
 	seenDirs := make(map[string]bool)
 	var uniqueSearchDirs []string

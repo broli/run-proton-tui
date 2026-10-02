@@ -109,7 +109,7 @@ func renderHelpContent() string {
 	sb.WriteString("  2D tools (like GRYPHLINK Games.exe, patchers, setup.exe, CEF/Qt5 WebEngine)\n")
 	sb.WriteString("  crash with 'double free or corruption (!prev)' if forced to run via prime-run\n")
 	sb.WriteString("  on Wayland. rpt's classification engine automatically assigns them to run\n")
-	sb.WriteString("  on the host iGPU without Gamescope.\n\n")
+	sb.WriteString("  with system default GPU (unset offload) and without Gamescope.\n\n")
 
 	sb.WriteString(section("5. SAFE DIRECTORY LAYOUT & GUARDRAILS"))
 	sb.WriteString(sub("Never install games inside drive_c!"))

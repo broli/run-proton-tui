@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/alecthomas/chroma/v2/quick"
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // CascadeCandidate describes a candidate location checked during hook resolution.
@@ -57,14 +57,7 @@ func InspectCandidates(gameDir string, hookType HookType, configHookPath string,
 
 	// 1. Explicit config path
 	if configHookPath != "" {
-		target := configHookPath
-		if strings.HasPrefix(target, "~/") {
-			if home, err := os.UserHomeDir(); err == nil {
-				target = filepath.Join(home, target[2:])
-			}
-		} else if !filepath.IsAbs(target) {
-			target = filepath.Join(gameDir, target)
-		}
+		target := ExpandPath(gameDir, configHookPath)
 		exists := fileExists(target)
 		candidates = append(candidates, CascadeCandidate{
 			Path:   target,
@@ -93,14 +86,7 @@ func InspectCandidates(gameDir string, hookType HookType, configHookPath string,
 
 	// 3. Extra custom hook directories
 	for _, dir := range extraDirs {
-		candidate := dir
-		if strings.HasPrefix(candidate, "~/") {
-			if home, err := os.UserHomeDir(); err == nil {
-				candidate = filepath.Join(home, candidate[2:])
-			}
-		} else if !filepath.IsAbs(candidate) {
-			candidate = filepath.Join(gameDir, candidate)
-		}
+		candidate := ExpandPath(gameDir, dir)
 		fullPath := filepath.Join(candidate, scriptName)
 		candidates = append(candidates, CascadeCandidate{
 			Path:   fullPath,
@@ -110,7 +96,7 @@ func InspectCandidates(gameDir string, hookType HookType, configHookPath string,
 	}
 
 	// 4. User global directories
-	if home, err := os.UserHomeDir(); err == nil {
+	if home := pathutil.UserHomeDir(); home != "" {
 		globalConfig := filepath.Join(home, ".config", "rpt", "hooks", scriptName)
 		candidates = append(candidates, CascadeCandidate{
 			Path:   globalConfig,

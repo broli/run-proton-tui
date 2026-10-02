@@ -110,7 +110,7 @@ func TestProtonPickerNavigation(t *testing.T) {
 	}
 
 	// Cancel with Esc
-	picker, sel, cancel = picker.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	_, sel, cancel = picker.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if sel || !cancel {
 		t.Fatalf("Expected sel=false, cancel=true after Esc")
 	}

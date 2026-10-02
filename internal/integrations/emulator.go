@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // EmulatorInfo contains detected Steam emulator signatures and DLC unlock statuses.
@@ -122,7 +124,7 @@ func findFilesNamed(rootDir, targetName string, maxDepth int) []string {
 		// Skip wine prefix and logs directory
 		if info.IsDir() {
 			name := info.Name()
-			if name == "proton-prefix" || name == ".logs" || name == ".git" {
+			if pathutil.IsIgnoredDir(name) {
 				return filepath.SkipDir
 			}
 			curDepth := strings.Count(path, string(os.PathSeparator))

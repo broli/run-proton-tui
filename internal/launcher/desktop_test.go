@@ -71,3 +71,44 @@ func TestCreateDesktopShortcut(t *testing.T) {
 		t.Errorf("missing Categories in desktop file: %s", s)
 	}
 }
+
+func TestCreateDesktopShortcutInjection(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rpt-desktop-inject-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	opts := ShortcutOptions{
+		GameTitle: "Malicious\nExec=malicious-command\nComment=pwned",
+		GameDir:   tmpDir,
+		TargetExe: "game.exe",
+		Location:  LocationLocal,
+	}
+
+	path, err := CreateDesktopShortcut(opts)
+	if err != nil {
+		t.Fatalf("CreateDesktopShortcut failed: %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read desktop file: %v", err)
+	}
+
+	s := string(content)
+	// Verify that the title does not inject a raw newline creating an Exec=malicious-command key
+	lines := strings.Split(s, "\n")
+	execCount := 0
+	for _, l := range lines {
+		if strings.HasPrefix(l, "Exec=") {
+			execCount++
+			if strings.Contains(l, "malicious-command") {
+				t.Fatalf("Vulnerability detected: malicious command injected into Exec line: %s", l)
+			}
+		}
+	}
+	if execCount != 1 {
+		t.Errorf("Expected exactly 1 Exec line, got %d", execCount)
+	}
+}

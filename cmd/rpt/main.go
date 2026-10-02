@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	version = "0.8.0"
+	version = "0.9.0"
 )
 
 func main() {
@@ -54,6 +54,8 @@ func main() {
 	flagHooks := flag.Bool("hooks", false, "Alias for --inspect-hooks")
 	flagReportProtonDB := flag.Bool("report-protondb", false, "Generate a ProtonDB compatibility report markdown and copy to clipboard")
 	flagSubmitQuirk := flag.Bool("submit-quirk", false, "Submit game quirk profile to broli/run-proton-tui (gh -> git -> web)")
+	flagBugReport := flag.Bool("bug-report", false, "Generate a sanitized system diagnostic bug report for GitHub issues")
+	flagBug := flag.Bool("bug", false, "Alias for --bug-report")
 
 	// Toggles
 	flagGamescope := flag.String("gamescope", "", "Force Gamescope on/off (true/false)")
@@ -81,6 +83,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  rpt --dump-spec                 # Output system details and hook guidance for AI assistants\n")
 		fmt.Fprintf(os.Stderr, "  rpt --report-protondb           # Generate standardized ProtonDB Markdown report & copy to clipboard\n")
 		fmt.Fprintf(os.Stderr, "  rpt --submit-quirk              # Submit game quirks to broli/run-proton-tui under MIT License\n")
+		fmt.Fprintf(os.Stderr, "  rpt --bug-report                # Generate sanitized bug report, copy to clipboard & open GitHub\n")
 	}
 
 	flag.Parse()
@@ -142,36 +145,23 @@ func main() {
 	// Auto-detect quirks preset if not yet configured
 	if cfg.PresetName == "" && cfg.TargetExe != "" {
 		if p := quirks.DetectQuirks(gameDir, cfg.TargetExe, cfg.AppID, cfg.ProtonPath); p != nil {
-			cfg.PresetName = p.Name
-			if p.UmuID != "" && cfg.UmuID == "" {
-				cfg.UmuID = p.UmuID
-			}
-			if p.DisplayFile != "" && cfg.DisplayFile == "" {
-				cfg.DisplayFile = p.DisplayFile
-			}
-			if len(p.ExtraArgs) > 0 && len(cfg.ExtraArgs) == 0 {
-				cfg.ExtraArgs = p.ExtraArgs
-			}
-			if len(p.WaitProcesses) > 0 && len(cfg.WaitProcesses) == 0 {
-				cfg.WaitProcesses = p.WaitProcesses
-			}
-			for k, v := range p.EnvVars {
-				if cfg.EnvVars == nil {
-					cfg.EnvVars = make(map[string]string)
-				}
-				if _, ok := cfg.EnvVars[k]; !ok {
-					cfg.EnvVars[k] = v
-				}
-			}
-			for k, v := range p.Profiles {
-				if cfg.Profiles == nil {
-					cfg.Profiles = make(map[string]*config.ExecutableProfile)
-				}
-				if _, ok := cfg.Profiles[k]; !ok {
-					cfg.Profiles[k] = v
-				}
-			}
+			p.ApplyToConfig(cfg, false)
 		}
+	}
+
+	if *flagBugReport || *flagBug {
+		report, err := diagnostics.OpenBugReport(diagnostics.BugReportOptions{
+			Version: version,
+			GameDir: gameDir,
+			Config:  cfg,
+		})
+		fmt.Println(report)
+		if err != nil {
+			fmt.Printf("\n[✓] Bug report copied to clipboard. (Could not open browser automatically: %v)\n", err)
+		} else {
+			fmt.Println("\n[✓] Bug report copied to clipboard and GitHub issue page opened in browser.")
+		}
+		os.Exit(0)
 	}
 
 	// Apply CLI overrides to configuration
@@ -348,7 +338,7 @@ func main() {
 			fmt.Println("\n[✓] Report copied to system clipboard!")
 		}
 		targetURL := fmt.Sprintf("https://www.protondb.com/app/%s", cfg.AppID)
-		if cfg.AppID == "" || cfg.AppID == "0" {
+		if !cfg.HasValidAppID() {
 			targetURL = "https://www.protondb.com/contribute"
 		}
 		_ = launcher.OpenURL(targetURL)
@@ -387,6 +377,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Failed to initialize TUI: %v\n", err)
 			os.Exit(1)
 		}
+		m.Version = version
 
 		p := tea.NewProgram(m, tea.WithAltScreen())
 		finalModel, err := p.Run()

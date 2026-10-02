@@ -1,11 +1,14 @@
 package prefix
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // PreserveOptions defines parameters for preserving player data during prefix operations.
@@ -26,27 +29,19 @@ func PreserveSaves(opts PreserveOptions) (string, error) {
 		return "", nil // No prefix users directory, nothing to preserve
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	home := pathutil.UserHomeDir()
+	if home == "" {
+		return "", fmt.Errorf("could not determine user home directory")
 	}
 
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
-	safeGameName := strings.Map(func(r rune) rune {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-			return r
-		}
-		return '_'
-	}, opts.GameName)
+	safeGameName := pathutil.Slugify(opts.GameName)
 
 	destDir := opts.DestDir
 	if destDir == "" {
 		destDir = filepath.Join(home, "Games", "Backups", safeGameName, timestamp)
 	} else {
-		if strings.HasPrefix(destDir, "~/") {
-			destDir = filepath.Join(home, destDir[2:])
-		}
-		destDir = filepath.Join(destDir, safeGameName, timestamp)
+		destDir = filepath.Join(pathutil.Expand(destDir), safeGameName, timestamp)
 	}
 
 	var backedUpFiles int

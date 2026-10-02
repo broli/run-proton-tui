@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/broli/run-proton-tui/internal/config"
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // SessionRecord represents an anonymized, local-only snapshot of a single game session.
@@ -27,17 +27,9 @@ type SessionRecord struct {
 	HardwareSummary string    `json:"hardware_summary"`
 }
 
-// SanitizePath scrubs absolute paths containing the user's home directory,
-// replacing "/home/username/..." with "~/..." to guarantee total privacy.
+// SanitizePath scrubs absolute paths containing the user's home directory.
 func SanitizePath(p string) string {
-	if p == "" {
-		return ""
-	}
-	home, err := os.UserHomeDir()
-	if err == nil && home != "" && strings.HasPrefix(p, home) {
-		return "~" + strings.TrimPrefix(p, home)
-	}
-	return p
+	return pathutil.Sanitize(p)
 }
 
 // GetHistoryFilePath returns the canonical local path to the per-game session history ledger.

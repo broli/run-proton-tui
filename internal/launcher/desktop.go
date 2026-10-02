@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
+
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // ShortcutLocation specifies where the .desktop shortcut should be saved.
@@ -26,17 +27,10 @@ type ShortcutOptions struct {
 	CustomIcon string
 }
 
-var slugRegex = regexp.MustCompile(`[^a-z0-9]+`)
 
 // Slugify generates a filesystem-safe identifier for desktop files.
 func Slugify(s string) string {
-	s = strings.ToLower(s)
-	s = slugRegex.ReplaceAllString(s, "-")
-	s = strings.Trim(s, "-")
-	if s == "" {
-		s = "game"
-	}
-	return s
+	return pathutil.Slugify(s)
 }
 
 // FindGameIcon looks for an icon in the game directory or returns a standard fallback.
@@ -83,10 +77,7 @@ func CreateDesktopShortcut(opts ShortcutOptions) (string, error) {
 		opts.GameTitle = filepath.Base(opts.GameDir)
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = os.Getenv("HOME")
-	}
+	home := pathutil.UserHomeDir()
 
 	slug := Slugify(opts.GameTitle)
 	desktopFileName := fmt.Sprintf("rpt-%s.desktop", slug)
@@ -115,24 +106,45 @@ func CreateDesktopShortcut(opts ShortcutOptions) (string, error) {
 		rptBin = self
 	}
 
+	cleanTitle := sanitizeDesktopValue(opts.GameTitle)
+	cleanDir := sanitizeDesktopValue(opts.GameDir)
+	cleanExe := sanitizeDesktopValue(opts.TargetExe)
 	icon := FindGameIcon(opts.GameDir, opts.CustomIcon)
+	cleanIcon := sanitizeDesktopValue(icon)
+	execCmd := fmt.Sprintf("%s --now", quoteExecArg(rptBin))
 
 	content := fmt.Sprintf(`[Desktop Entry]
 Type=Application
 Name=%s
 Comment=Launch %s via rpt (Run Proton TUI)
-Exec="%s" --now
+Exec=%s
 Path=%s
 Icon=%s
 Terminal=false
 Categories=Game;
 StartupNotify=true
 X-rpt-target-exe=%s
-`, opts.GameTitle, opts.GameTitle, rptBin, opts.GameDir, icon, opts.TargetExe)
+`, cleanTitle, cleanTitle, execCmd, cleanDir, cleanIcon, cleanExe)
 
 	if err := os.WriteFile(destPath, []byte(content), 0755); err != nil {
 		return "", fmt.Errorf("failed to write desktop file: %w", err)
 	}
 
 	return destPath, nil
+}
+
+func sanitizeDesktopValue(val string) string {
+	val = strings.ReplaceAll(val, "\r", "")
+	val = strings.ReplaceAll(val, "\n", " ")
+	return strings.TrimSpace(val)
+}
+
+func quoteExecArg(arg string) string {
+	arg = sanitizeDesktopValue(arg)
+	if strings.ContainsAny(arg, " \t\"'") {
+		arg = strings.ReplaceAll(arg, `\`, `\\`)
+		arg = strings.ReplaceAll(arg, `"`, `\"`)
+		return `"` + arg + `"`
+	}
+	return arg
 }

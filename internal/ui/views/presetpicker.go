@@ -51,13 +51,7 @@ func (v *PresetPickerView) Update(msg tea.Msg) (applied bool, cleared bool, canc
 
 // View renders the preset review dialog.
 func (v *PresetPickerView) View() string {
-	contentWidth := v.Width - 10
-	if contentWidth < 60 {
-		contentWidth = 60
-	}
-	if contentWidth > 90 {
-		contentWidth = 90
-	}
+	contentWidth := style.ClampWidth(v.Width, 10, 60, 90)
 
 	header := lipgloss.NewStyle().
 		Bold(true).
@@ -169,7 +163,7 @@ func (v *PresetPickerView) View() string {
 	if len(p.Profiles) > 0 {
 		b.WriteString(fmt.Sprintf("  • %s:\n", lipgloss.NewStyle().Bold(true).Render("Dual Multi-Executable Profiles")))
 		for exeKey := range p.Profiles {
-			b.WriteString(fmt.Sprintf("      [%s] -> 2D Utility Mode (Host iGPU, No Gamescope)\n",
+			b.WriteString(fmt.Sprintf("      [%s] -> 2D Utility Mode (Default GPU, No Gamescope)\n",
 				lipgloss.NewStyle().Foreground(style.ColorHighlight).Render(exeKey),
 			))
 		}

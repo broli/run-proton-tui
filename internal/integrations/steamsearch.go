@@ -62,7 +62,7 @@ func SearchSteamAppID(ctx context.Context, query string) (string, string, error)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("Steam search returned HTTP status %d", resp.StatusCode)
+		return "", "", fmt.Errorf("steam search returned HTTP status %d", resp.StatusCode)
 	}
 
 	var searchResp steamSearchResponse
@@ -161,7 +161,7 @@ func FetchSteamAppTitle(ctx context.Context, appID string) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Steam API returned HTTP %d", resp.StatusCode)
+		return "", fmt.Errorf("steam API returned HTTP %d", resp.StatusCode)
 	}
 
 	var raw map[string]struct {

@@ -318,13 +318,7 @@ func (v *GamescopeView) cycleFPSLimit(dir int) {
 
 // View renders the gamescope options dialog.
 func (v *GamescopeView) View() string {
-	contentWidth := v.Width - 10
-	if contentWidth < 70 {
-		contentWidth = 70
-	}
-	if contentWidth > 96 {
-		contentWidth = 96
-	}
+	contentWidth := style.ClampWidth(v.Width, 10, 70, 96)
 
 	header := lipgloss.NewStyle().
 		Bold(true).
@@ -383,7 +377,7 @@ func (v *GamescopeView) View() string {
 		filterVal = "NVIDIA Image Scaling (NIS)"
 	}
 
-	scaleVal := strings.Title(v.Config.GamescopeScaling)
+	scaleVal := style.Capitalize(v.Config.GamescopeScaling)
 	if scaleVal == "" {
 		scaleVal = "Fit"
 	}

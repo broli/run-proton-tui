@@ -2,8 +2,10 @@ package hardware
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -98,22 +100,44 @@ func DetectCPUTopology() (*CPUTopology, error) {
 	return topo, nil
 }
 
-// formatCoreRange formats a slice of integers into a taskset range string (e.g., "0-11")
+// formatCoreRange formats a slice of integers into a taskset range string (e.g., "0-3,8-11")
 func formatCoreRange(cores []int) string {
 	if len(cores) == 0 {
 		return ""
 	}
-	min, max := cores[0], cores[0]
+
+	coreSet := make(map[int]bool, len(cores))
 	for _, c := range cores {
-		if c < min {
-			min = c
-		}
-		if c > max {
-			max = c
+		coreSet[c] = true
+	}
+	sorted := make([]int, 0, len(coreSet))
+	for c := range coreSet {
+		sorted = append(sorted, c)
+	}
+	sort.Ints(sorted)
+
+	var ranges []string
+	start := sorted[0]
+	end := sorted[0]
+
+	for i := 1; i < len(sorted); i++ {
+		if sorted[i] == end+1 {
+			end = sorted[i]
+		} else {
+			if start == end {
+				ranges = append(ranges, strconv.Itoa(start))
+			} else {
+				ranges = append(ranges, fmt.Sprintf("%d-%d", start, end))
+			}
+			start = sorted[i]
+			end = sorted[i]
 		}
 	}
-	if min == max {
-		return strconv.Itoa(min)
+	if start == end {
+		ranges = append(ranges, strconv.Itoa(start))
+	} else {
+		ranges = append(ranges, fmt.Sprintf("%d-%d", start, end))
 	}
-	return strconv.Itoa(min) + "-" + strconv.Itoa(max)
+
+	return strings.Join(ranges, ",")
 }

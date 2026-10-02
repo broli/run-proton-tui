@@ -45,13 +45,7 @@ func (v *CleanConfirmView) Update(msg tea.Msg) (confirmed bool, done bool) {
 
 // View renders the warning dialog.
 func (v *CleanConfirmView) View() string {
-	contentWidth := v.Width - 14
-	if contentWidth < 55 {
-		contentWidth = 55
-	}
-	if contentWidth > 75 {
-		contentWidth = 75
-	}
+	contentWidth := style.ClampWidth(v.Width, 14, 55, 75)
 
 	header := lipgloss.NewStyle().
 		Bold(true).

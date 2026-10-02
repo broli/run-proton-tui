@@ -55,22 +55,28 @@ func GetStandardDLLPresets() []DLLPreset {
 	}
 }
 
+var wineDefaultPrefixes = []string{
+	"msvc", "vcomp", "vcrunt", "vccor", "concrt", "atl", "api-ms-win",
+}
+
+var wineDefaultExact = map[string]struct{}{
+	"ucrtbase":     {},
+	"nvcuda":       {},
+	"atiadlxx":     {},
+	"lsteamclient": {},
+}
+
 // IsWineDefaultDLL returns true if a DLL is an internal Wine/Proton system default
 // (such as Visual C++ runtimes, UCRT, Windows API sets, or driver stubs).
 func IsWineDefaultDLL(dll string) bool {
 	lower := strings.ToLower(strings.TrimSpace(dll))
-	if strings.HasPrefix(lower, "msvc") ||
-		strings.HasPrefix(lower, "vcomp") ||
-		strings.HasPrefix(lower, "vcrunt") ||
-		strings.HasPrefix(lower, "vccor") ||
-		strings.HasPrefix(lower, "concrt") ||
-		strings.HasPrefix(lower, "atl") ||
-		strings.HasPrefix(lower, "api-ms-win") ||
-		lower == "ucrtbase" ||
-		lower == "nvcuda" ||
-		lower == "atiadlxx" ||
-		lower == "lsteamclient" {
+	if _, ok := wineDefaultExact[lower]; ok {
 		return true
+	}
+	for _, pfx := range wineDefaultPrefixes {
+		if strings.HasPrefix(lower, pfx) {
+			return true
+		}
 	}
 	return false
 }

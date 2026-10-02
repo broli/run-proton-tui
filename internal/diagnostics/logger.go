@@ -1,11 +1,14 @@
 package diagnostics
 
 import (
+	"bufio"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // LogFileInfo provides metadata for a discovered log file.
@@ -81,4 +84,32 @@ func FindRecentLogs(gameDir string, prefixDir string) []LogFileInfo {
 	})
 
 	return logs
+}
+
+// SanitizePath scrubs absolute paths containing the user's home directory,
+// replacing "/home/username/..." with "~/..." to guarantee total privacy in diagnostics.
+func SanitizePath(p string) string {
+	return pathutil.Sanitize(p)
+}
+
+// ReadLogTail reads the last n lines of a file safely.
+func ReadLogTail(logPath string, n int) []string {
+	f, err := os.Open(logPath)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(f)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+		if len(lines) > n {
+			lines = lines[1:]
+		}
+	}
+	_ = scanner.Err()
+	return lines
 }

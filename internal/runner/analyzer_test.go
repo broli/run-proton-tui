@@ -86,17 +86,32 @@ func TestFormatDiagnosticReport(t *testing.T) {
 	}
 
 	report := FormatDiagnosticReport(result, cfg, insights, "/tmp/ask-ai-help.txt")
-	if !strings.Contains(report, "We believe the game crashed") {
-		t.Errorf("expected report to contain explanation quote, got:\n%s", report)
+	if strings.Contains(report, "We believe") {
+		t.Errorf("expected report not to contain speculative 'We believe', got:\n%s", report)
 	}
-	if !strings.Contains(report, "Splash Screen") && !strings.Contains(report, "Bink Video") {
-		t.Errorf("expected report to contain insight category")
+	if strings.Contains(report, "Automated Root-Cause Insights:") {
+		t.Errorf("expected report not to contain automated RCA guessing")
+	}
+	if !strings.Contains(report, "SESSION TERMINATED BY USER (Ctrl+C)") {
+		t.Errorf("expected report to contain session termination title")
 	}
 	if !strings.Contains(report, "Proposed Solution:") {
-		t.Errorf("expected report to contain 'Proposed Solution:' instead of 'Fix:', got:\n%s", report)
+		t.Errorf("expected report to contain 'Proposed Solution:' section, got:\n%s", report)
 	}
-	if strings.Contains(report, "Fix:") {
-		t.Errorf("report should use humble 'Proposed Solution:' instead of assertive 'Fix:'")
+	if !strings.Contains(report, "Troubleshooting Suggestions:") {
+		t.Errorf("expected report to contain 'Troubleshooting Suggestions:' section")
+	}
+	if !strings.Contains(report, "Search Google:") {
+		t.Errorf("expected report to contain Google search suggestion")
+	}
+	if !strings.Contains(report, "Search Reddit:") {
+		t.Errorf("expected report to contain Reddit search suggestion")
+	}
+	if !strings.Contains(report, "Clean Zero Baseline:") {
+		t.Errorf("expected report to contain Clean Zero Baseline suggestion")
+	}
+	if !strings.Contains(report, "Ask AI to Analyze Logs:") {
+		t.Errorf("expected report to contain AI helper section")
 	}
 	if !strings.Contains(report, "Copy the contents of the file above.") {
 		t.Errorf("expected report to instruct copying the file above")
@@ -183,7 +198,7 @@ func TestExplainExitCode(t *testing.T) {
 		{134, "Process Aborted (SIGABRT / Exit Code 134)"},
 		{137, "Terminated by Out-Of-Memory Killer (SIGKILL / Exit Code 137)"},
 		{139, "Segmentation Fault (SIGSEGV / Exit Code 139)"},
-		{222, "Tencent CrashSight Exception Caught (Exit Code 222)"},
+		{222, "Application Crash Handler Trapped Fatal Exception (Exit Code 222)"},
 	}
 
 	for _, tt := range tests {
@@ -209,15 +224,15 @@ func TestAnalyzeSessionLog_ExitCode222(t *testing.T) {
 	insights := AnalyzeSessionLog(logFile, cfg, 222)
 	found := false
 	for _, ins := range insights {
-		if strings.Contains(ins.Category, "CrashSight") || strings.Contains(ins.Category, "222") {
+		if strings.Contains(ins.Category, "Crash Handler") || strings.Contains(ins.Category, "222") {
 			found = true
-			if !strings.Contains(ins.Recommendation, "ntoskrnl.exe") {
-				t.Errorf("expected recommendation to mention ntoskrnl.exe")
+			if !strings.Contains(ins.Recommendation, "analyze the log") {
+				t.Errorf("expected recommendation to mention analyzing the log")
 			}
 		}
 	}
 	if !found {
-		t.Errorf("expected CrashSight insight when exit code 222 is provided")
+		t.Errorf("expected Crash Handler insight when exit code 222 is provided")
 	}
 }
 

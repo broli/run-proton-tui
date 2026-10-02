@@ -11,7 +11,7 @@ import (
 
 	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/launcher"
-	"github.com/broli/run-proton-tui/internal/runner"
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // MITConsentNotice is the mandatory licensing notice displayed to contributors.
@@ -70,7 +70,7 @@ func GenerateQuirkRecipe(gameDir string, cfg *config.GameConfig) (string, string
 	hookPath := filepath.Join(gameDir, "hooks", "pre_launch.sh")
 	if data, err := os.ReadFile(hookPath); err == nil && len(data) > 0 {
 		sb.WriteString("\n### Lifecycle Hook (`hooks/pre_launch.sh`)\n```bash\n")
-		sb.WriteString(runner.SanitizePath(string(data)))
+		sb.WriteString(pathutil.Sanitize(string(data)))
 		sb.WriteString("\n```\n")
 	}
 

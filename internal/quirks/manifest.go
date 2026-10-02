@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
+	"github.com/broli/run-proton-tui/internal/pathutil"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -47,7 +48,7 @@ func DiscoverManifestPaths(gameDir string) []string {
 	}
 
 	// 2. User global config manifests (~/.config/rpt/quirks/*.toml)
-	if home, err := os.UserHomeDir(); err == nil {
+	if home := pathutil.UserHomeDir(); home != "" {
 		paths = append(paths, filepath.Join(home, ".config", "rpt", "quirks.toml"))
 		userQuirksDir := filepath.Join(home, ".config", "rpt", "quirks")
 		if entries, err := os.ReadDir(userQuirksDir); err == nil {
