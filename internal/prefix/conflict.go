@@ -107,8 +107,7 @@ func KillOtherWineProcesses(currentPrefix string) (int, error) {
 	killedCount := 0
 	for _, c := range conflicts {
 		proc, err := os.FindProcess(c.PID)
-		if err == nil {
-			_ = proc.Signal(syscall.SIGKILL)
+		if err == nil && proc.Signal(syscall.SIGKILL) == nil {
 			killedCount++
 		}
 	}
@@ -160,8 +159,7 @@ func KillPrefixOrphans(targetPrefix string) (int, error) {
 					pfxMatch = realPfx
 				}
 				if pfxMatch == canonicalTarget {
-					if proc, err := os.FindProcess(pid); err == nil {
-						_ = proc.Signal(syscall.SIGKILL)
+					if proc, err := os.FindProcess(pid); err == nil && proc.Signal(syscall.SIGKILL) == nil {
 						killed++
 					}
 				}

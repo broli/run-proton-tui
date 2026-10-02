@@ -114,3 +114,18 @@ func SafeCleanPrefixCustom(prefixDir string, protonPath string, gameDir string, 
 	result.Success = true
 	return result, nil
 }
+
+// DefaultPrefixDir returns the standard isolated prefix path for a game directory.
+func DefaultPrefixDir(gameDir string) string {
+	return filepath.Join(gameDir, "proton-prefix")
+}
+
+// IsInitialized returns true if the Wine prefix contains an initialized drive_c directory.
+func IsInitialized(prefixDir string) bool {
+	if prefixDir == "" {
+		return false
+	}
+	pfxDriveC := filepath.Join(GetCanonicalPfx(prefixDir), "drive_c")
+	fi, err := os.Stat(pfxDriveC)
+	return err == nil && fi.IsDir()
+}
