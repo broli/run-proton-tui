@@ -16,11 +16,17 @@ type SubMenuType int
 
 const (
 	MenuNone SubMenuType = iota
-	MenuProton
-	MenuPerformance
+	MenuTarget
+	MenuDisplay
+	MenuHardware
 	MenuPrefix
-	MenuLogs
-	MenuSettings
+	MenuDiagnostics
+
+	// Aliases for compatibility with existing tests
+	MenuProton      = MenuTarget
+	MenuPerformance = MenuHardware
+	MenuLogs        = MenuDiagnostics
+	MenuSettings    = MenuDiagnostics
 )
 
 // SubMenuAction represents what action the controller model should execute.
@@ -38,6 +44,8 @@ const (
 	ActionTogglePrimeRun
 	ActionToggleXalia
 	ActionCycleDisplayOutput
+	ActionDetectMonitor
+	ActionOpenGamescopeSettings
 	ActionOpenOverrides
 	ActionCleanPrefix
 	ActionOpenDiagnostics
@@ -48,6 +56,7 @@ const (
 	ActionQuit
 	ActionOpenHooks
 	ActionOpenTelemetry
+	ActionCreateDesktopShortcut
 )
 
 // SubMenuData contains current state needed to display sub-menu options accurately.
@@ -86,37 +95,45 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 		k := keyMsg.String()
 		switch k {
 		case "esc", "q", "backspace":
-			if v.Type == MenuSettings && k == "q" {
-				return ActionQuit
-			}
 			return ActionClose
 		}
 
 		switch v.Type {
-		case MenuProton:
+		case MenuTarget:
 			switch k {
-			case "1", "r", "R":
-				return ActionOpenProtonPicker
-			case "2", "e", "E":
+			case "1", "e", "E":
 				return ActionOpenExePicker
+			case "2", "r", "R":
+				return ActionOpenProtonPicker
 			case "3", "d", "D":
 				return ActionOpenQuirks
 			case "4", "a", "A":
 				return ActionOpenProtonDB
 			}
 
-		case MenuPerformance:
+		case MenuDisplay:
 			switch k {
 			case "1", "g", "G":
 				return ActionToggleGamescope
+			case "2", "m", "M":
+				return ActionCycleDisplayOutput
+			case "3", "d", "D":
+				return ActionDetectMonitor
+			case "4", "s", "S":
+				return ActionOpenGamescopeSettings
+			}
+
+		case MenuHardware:
+			switch k {
+			case "1", "v", "V":
+				return ActionTogglePrimeRun
 			case "2", "p", "P":
 				return ActionTogglePCores
-			case "3", "v", "V":
-				return ActionTogglePrimeRun
-			case "4", "x", "X":
+			case "3", "x", "X":
 				return ActionToggleXalia
-			case "5", "m", "M":
-				return ActionCycleDisplayOutput
+			case "g", "G":
+				// Forwarding for test / muscle memory
+				return ActionToggleGamescope
 			}
 
 		case MenuPrefix:
@@ -129,28 +146,24 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 				return ActionOpenDiagnostics
 			}
 
-		case MenuLogs:
+		case MenuDiagnostics:
 			switch k {
 			case "1", "L":
 				return ActionToggleLogging
 			case "2", "l":
 				return ActionOpenLogs
-			case "3", "d", "D":
+			case "3", "k", "K", "d", "D":
 				return ActionOpenDiagnostics
 			case "4", "h", "H":
 				return ActionOpenHooks
 			case "5", "t", "T":
 				return ActionOpenTelemetry
-			}
-
-		case MenuSettings:
-			switch k {
-			case "1", "b", "B":
+			case "6", "s", "S":
+				return ActionCreateDesktopShortcut
+			case "7", "b", "B":
 				return ActionToggleBackdrop
-			case "2", "?", "f1":
+			case "8", "?", "f1":
 				return ActionOpenHelp
-			case "3", "q", "Q":
-				return ActionQuit
 			}
 		}
 	}
@@ -163,8 +176,8 @@ func (v *SubMenuView) View() string {
 	if contentWidth < 60 {
 		contentWidth = 60
 	}
-	if contentWidth > 85 {
-		contentWidth = 85
+	if contentWidth > 88 {
+		contentWidth = 88
 	}
 
 	var title, desc string
@@ -177,9 +190,9 @@ func (v *SubMenuView) View() string {
 	cfg := v.Data.Config
 
 	switch v.Type {
-	case MenuProton:
-		title = "🎮 PROTON & GAME TARGETS"
-		desc = "Select Proton runner version, target binary, and compatibility profiles"
+	case MenuTarget:
+		title = "🎯 TARGET & RUNNER COMPATIBILITY"
+		desc = "Select target binary, Proton runner version, quirks preset, and ProtonDB ratings"
 
 		pfxPreset := "Standard Defaults"
 		if cfg.PresetName != "" {
@@ -200,20 +213,47 @@ func (v *SubMenuView) View() string {
 			label string
 			state string
 		}{
-			{"[r / 1]", "Select Proton Runner", v.Data.ProtonName},
-			{"[e / 2]", "Select Target Executable", cfg.TargetExe},
+			{"[e / 1]", "Select Target Executable", cfg.TargetExe},
+			{"[r / 2]", "Select Proton Runner", v.Data.ProtonName},
 			{"[d / 3]", "Game Quirks & Presets", pfxPreset},
 			{"[a / 4]", "ProtonDB Community Report", pdbStatus},
 		}
 
-	case MenuPerformance:
-		title = "⚡ PERFORMANCE & SANDBOX"
-		desc = "Hardware execution flags, display sandboxing, and CPU thread pinning"
+	case MenuDisplay:
+		title = "📺 DISPLAY & GAMESCOPE SANDBOX"
+		desc = "Configure display outputs, monitor size detection, and Gamescope scaling"
 
 		gsStatus := style.BadgeMuted.Render("OFF (Native Window)")
 		if cfg.UseGamescope {
-			gsStatus = style.BadgeSuccess.Render(fmt.Sprintf("ON (1080p @ %dHz -> %s)", cfg.GamescopeRefresh, cfg.GamescopeOutput))
+			refStr := "Native"
+			if cfg.GamescopeRefresh > 0 {
+				refStr = fmt.Sprintf("%dHz", cfg.GamescopeRefresh)
+			}
+			gsStatus = style.BadgeSuccess.Render(fmt.Sprintf("ON (%dx%d @ %s -> %s)", cfg.GamescopeWidth, cfg.GamescopeHeight, refStr, cfg.GamescopeOutput))
 		}
+
+		dispStatus := style.BadgeSuccess.Render(cfg.GamescopeOutput)
+		if cfg.GamescopeOutput == "" || strings.EqualFold(cfg.GamescopeOutput, "auto") {
+			dispStatus = style.BadgeMuted.Render("Auto (External Preferred)")
+		}
+
+		detectDesc := "Detect native size & keep refresh untouched"
+		optSummary := fmt.Sprintf("%dx%d (%s, %s)", cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeWindowMode, cfg.GamescopeFilter)
+
+		items = []struct {
+			keys  string
+			label string
+			state string
+		}{
+			{"[g / 1]", "Toggle Gamescope Sandboxing", gsStatus},
+			{"[m / 2]", "Target Display Monitor", dispStatus},
+			{"[d / 3]", "Detect Monitor Size & Native Hz", detectDesc},
+			{"[s / 4]", "Gamescope Advanced Options", optSummary},
+		}
+
+	case MenuHardware:
+		title = "⚡ HARDWARE & ENGINE PERFORMANCE"
+		desc = "GPU offloading, CPU thread affinity, and accessibility bridge"
 
 		pcoreStatus := style.BadgeMuted.Render("OFF (All Threads)")
 		if cfg.UsePCores {
@@ -222,7 +262,7 @@ func (v *SubMenuView) View() string {
 
 		gpuStatus := style.BadgeMuted.Render("Host iGPU")
 		if cfg.UsePrimeRun && v.Data.HasPrimeRun {
-			gpuStatus = style.BadgeSuccess.Render("prime-run (NVIDIA RTX)")
+			gpuStatus = style.BadgeSuccess.Render("prime-run (Dedicated GPU)")
 		}
 
 		xaliaStatus := style.BadgeSuccess.Render("OFF (Clean DXVK)")
@@ -230,26 +270,19 @@ func (v *SubMenuView) View() string {
 			xaliaStatus = style.BadgeWarning.Render("ON (Accessibility Bridge)")
 		}
 
-		dispStatus := style.BadgeSuccess.Render(cfg.GamescopeOutput)
-		if cfg.GamescopeOutput == "" || strings.EqualFold(cfg.GamescopeOutput, "auto") {
-			dispStatus = style.BadgeMuted.Render("Auto (External Preferred)")
-		}
-
 		items = []struct {
 			keys  string
 			label string
 			state string
 		}{
-			{"[g / 1]", "Toggle Gamescope Sandboxing", gsStatus},
+			{"[v / 1]", "Toggle GPU Runner (prime-run)", gpuStatus},
 			{"[p / 2]", "Toggle CPU P-Core Pinning", pcoreStatus},
-			{"[v / 3]", "Toggle GPU Runner (prime-run)", gpuStatus},
-			{"[x / 4]", "Toggle Proton Xalia Bridge", xaliaStatus},
-			{"[m / 5]", "Cycle Target Display Output", dispStatus},
+			{"[x / 3]", "Toggle Proton Xalia Bridge", xaliaStatus},
 		}
 
 	case MenuPrefix:
-		title = "🍷 WINE PREFIX & COMPATIBILITY"
-		desc = "Manage isolated prefix environment, DLL overrides, and filesystem health"
+		title = "🍷 WINE PREFIX & DLL OVERRIDES"
+		desc = "Manage isolated prefix environment, DLL overrides, and filesystem reset"
 
 		ovStatus := style.BadgeMuted.Render("None Active")
 		if len(v.Data.ActiveOverrides) > 0 {
@@ -274,9 +307,9 @@ func (v *SubMenuView) View() string {
 			{"[h / 3]", "Pre-flight Health & Diagnostics", "Checks +x bits and prefix paths"},
 		}
 
-	case MenuLogs:
-		title = "📜 LOGS & DIAGNOSTICS"
-		desc = "Manage runtime execution logs, DXVK dumps, and lifecycle hooks"
+	case MenuDiagnostics:
+		title = "🔧 SYSTEM, LOGS & DIAGNOSTICS"
+		desc = "Runtime execution logs, pre-flight diagnostics, lifecycle hooks, and tools"
 
 		logStatus := style.BadgeMuted.Render("Disabled")
 		if cfg.EnableLogging {
@@ -288,22 +321,6 @@ func (v *SubMenuView) View() string {
 			telemStatus = style.BadgeSuccess.Render("ACTIVE (Local-Only)")
 		}
 
-		items = []struct {
-			keys  string
-			label string
-			state string
-		}{
-			{"[L / 1]", "Toggle Session Logging", logStatus},
-			{"[l / 2]", "View Session Logs & Crash Dumps", "Browse recent logs in .logs/"},
-			{"[d / 3]", "Pre-flight System Diagnostics", "Check permissions and driver state"},
-			{"[h / 4]", "Inspect Lifecycle Hooks", "Resolution checklist, env vars & pager"},
-			{"[t / 5]", "Local Telemetry & Privacy Hub", telemStatus},
-		}
-
-	case MenuSettings:
-		title = "⚙️ SETTINGS & DOCUMENTATION"
-		desc = "Configure visual interface preferences and browse offline manual"
-
 		bdStatus := style.BadgeSuccess.Render("Solid Dark")
 		if !v.Data.OpaqueBackdrop {
 			bdStatus = style.BadgeMuted.Render("Transparent")
@@ -314,9 +331,14 @@ func (v *SubMenuView) View() string {
 			label string
 			state string
 		}{
-			{"[b / 1]", "Terminal Backdrop Style", bdStatus},
-			{"[? / 2]", "In-Depth Help & Troubleshooting", "Comprehensive offline guide"},
-			{"[q / 3]", "Quit rpt Launcher", "Exit back to terminal"},
+			{"[L / 1]", "Toggle Session Logging", logStatus},
+			{"[l / 2]", "View Session Logs & Crash Dumps", "Browse recent logs in .logs/"},
+			{"[k / 3]", "Pre-flight System Diagnostics", "Check permissions and driver state"},
+			{"[h / 4]", "Inspect Lifecycle Hooks", "Resolution checklist, env vars & pager"},
+			{"[t / 5]", "Local Telemetry & Privacy Hub", telemStatus},
+			{"[s / 6]", "Create Desktop Application Icon", "Install .desktop application launcher"},
+			{"[b / 7]", "Terminal Backdrop Style", bdStatus},
+			{"[? / 8]", "In-Depth Help & Documentation", "Comprehensive offline manual"},
 		}
 	}
 

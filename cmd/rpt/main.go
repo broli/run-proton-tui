@@ -433,8 +433,12 @@ func main() {
 		fmt.Printf("%s CPU affinity pinned to P-Cores (Threads %s)\n", okStyle.Render("[ OK ]"), cfg.PCoresMask)
 	}
 	if cfg.UseGamescope {
-		fmt.Printf("%s Gamescope sandboxing active (%dx%d @ %dHz -> %s)\n",
-			okStyle.Render("[ OK ]"), cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeRefresh, cfg.GamescopeOutput)
+		refStr := "Native"
+		if cfg.GamescopeRefresh > 0 {
+			refStr = fmt.Sprintf("%dHz", cfg.GamescopeRefresh)
+		}
+		fmt.Printf("%s Gamescope sandboxing active (%dx%d @ %s -> %s)\n",
+			okStyle.Render("[ OK ]"), cfg.GamescopeWidth, cfg.GamescopeHeight, refStr, cfg.GamescopeOutput)
 	}
 	if cfg.UsePrimeRun {
 		fmt.Printf("%s Dedicated GPU offload active (prime-run)\n", okStyle.Render("[ OK ]"))

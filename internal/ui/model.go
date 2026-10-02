@@ -40,6 +40,7 @@ const (
 	StateHooks
 	StateTelemetry
 	StateCleanConfirm
+	StateGamescopeSettings
 )
 
 // Model is the root Elm Architecture model for rpt.
@@ -75,6 +76,7 @@ type Model struct {
 	HooksView        *views.HooksView
 	TelemetryView    *views.TelemetryView
 	CleanConfirmView *views.CleanConfirmView
+	GamescopeView    *views.GamescopeView
 	DetectedPreset   *quirks.Preset
 }
 
@@ -562,6 +564,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
+		case StateGamescopeSettings:
+			if m.GamescopeView != nil {
+				done, detected := m.GamescopeView.Update(msg)
+				if detected {
+					_ = config.SaveConfig(m.GameDir, m.Config)
+					m.updateSubMenuData()
+				}
+				if done {
+					_ = config.SaveConfig(m.GameDir, m.Config)
+					m.updateSubMenuData()
+					if m.PrevState != 0 {
+						m.State = m.PrevState
+					} else {
+						m.State = StateDashboard
+					}
+					return m, nil
+				}
+			}
+			return m, nil
+
 		case StateDashboard:
 			return m.handleDashboardKeys(msg)
 		}
@@ -648,7 +670,11 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		m.Config.UseGamescope = !m.Config.UseGamescope
 		_ = config.SaveConfig(m.GameDir, m.Config)
 		if m.Config.UseGamescope {
-			m.StatusMessage = fmt.Sprintf("Gamescope ENABLED (%dx%d @ %dHz -> %s)", m.Config.GamescopeWidth, m.Config.GamescopeHeight, m.Config.GamescopeRefresh, m.Config.GamescopeOutput)
+			refStr := "Native"
+			if m.Config.GamescopeRefresh > 0 {
+				refStr = fmt.Sprintf("%dHz", m.Config.GamescopeRefresh)
+			}
+			m.StatusMessage = fmt.Sprintf("Gamescope ENABLED (%dx%d @ %s -> %s)", m.Config.GamescopeWidth, m.Config.GamescopeHeight, refStr, m.Config.GamescopeOutput)
 		} else {
 			m.StatusMessage = "Gamescope DISABLED (Native Window)"
 		}
@@ -702,6 +728,48 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		m.Config.GamescopeOutput = options[nextIdx]
 		_ = config.SaveConfig(m.GameDir, m.Config)
 		m.StatusMessage = fmt.Sprintf("Display output set to: %s", m.Config.GamescopeOutput)
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionDetectMonitor:
+		target := m.Config.GamescopeOutput
+		w, h, err := hardware.DetectOutputResolution(target)
+		m.Config.GamescopeWidth = w
+		m.Config.GamescopeHeight = h
+		m.Config.GamescopeRefresh = 0 // Untouched / Native
+		_ = config.SaveConfig(m.GameDir, m.Config)
+
+		dispName := target
+		if dispName == "" || strings.EqualFold(dispName, "auto") {
+			dispName = "Auto-detected monitor"
+		}
+		if err != nil {
+			m.StatusMessage = fmt.Sprintf("⚠️ Detection fallback (%s): %dx%d (Refresh: Untouched / Native)", dispName, w, h)
+		} else {
+			m.StatusMessage = fmt.Sprintf("✓ Detected %s: %dx%d (Refresh: Untouched / Native)", dispName, w, h)
+		}
+		m.updateSubMenuData()
+		return m, nil
+
+	case views.ActionOpenGamescopeSettings:
+		m.PrevState = m.State
+		m.GamescopeView = views.NewGamescopeView(m.Config, m.Width, m.Height)
+		m.State = StateGamescopeSettings
+		return m, nil
+
+	case views.ActionCreateDesktopShortcut:
+		opts := launcher.ShortcutOptions{
+			GameTitle: m.GameTitle,
+			GameDir:   m.GameDir,
+			TargetExe: m.Config.TargetExe,
+			Location:  launcher.LocationApplications,
+		}
+		path, err := launcher.CreateDesktopShortcut(opts)
+		if err != nil {
+			m.StatusMessage = fmt.Sprintf("Failed to create desktop shortcut: %v", err)
+		} else {
+			m.StatusMessage = fmt.Sprintf("Desktop shortcut created in Applications menu! (%s)", filepath.Base(path))
+		}
 		m.updateSubMenuData()
 		return m, nil
 
@@ -781,23 +849,50 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		_ = config.SaveConfig(m.GameDir, m.Config)
 		return m, tea.Quit
 
-	case "e", "2":
-		m.Exes = views.DiscoverExecutables(m.GameDir)
-		m.ExePickerView = views.NewExePickerView(m.Exes, m.Config.TargetExe)
-		m.State = StateExePicker
-		return m, nil
+	case "2":
+		return m.openSubMenu(views.MenuTarget)
 
 	case "3":
-		return m.openSubMenu(views.MenuProton)
+		return m.openSubMenu(views.MenuDisplay)
 
 	case "4":
-		return m.openSubMenu(views.MenuPerformance)
+		return m.openSubMenu(views.MenuHardware)
 
 	case "5":
 		return m.openSubMenu(views.MenuPrefix)
 
 	case "6":
-		return m.openSubMenu(views.MenuLogs)
+		return m.openSubMenu(views.MenuDiagnostics)
+
+	case "e":
+		m.Exes = views.DiscoverExecutables(m.GameDir)
+		m.ExePickerView = views.NewExePickerView(m.Exes, m.Config.TargetExe)
+		m.State = StateExePicker
+		return m, nil
+
+	case "G":
+		m.PrevState = StateDashboard
+		m.GamescopeView = views.NewGamescopeView(m.Config, m.Width, m.Height)
+		m.State = StateGamescopeSettings
+		return m, nil
+
+	case "D":
+		target := m.Config.GamescopeOutput
+		w, h, err := hardware.DetectOutputResolution(target)
+		m.Config.GamescopeWidth = w
+		m.Config.GamescopeHeight = h
+		m.Config.GamescopeRefresh = 0 // Untouched / Native
+		_ = config.SaveConfig(m.GameDir, m.Config)
+		dispName := target
+		if dispName == "" || strings.EqualFold(dispName, "auto") {
+			dispName = "Auto-detected monitor"
+		}
+		if err != nil {
+			m.StatusMessage = fmt.Sprintf("⚠️ Detection fallback (%s): %dx%d (Refresh: Untouched / Native)", dispName, w, h)
+		} else {
+			m.StatusMessage = fmt.Sprintf("✓ Detected %s: %dx%d (Refresh: Untouched / Native)", dispName, w, h)
+		}
+		return m, nil
 
 	case "s", "S":
 		opts := launcher.ShortcutOptions{
@@ -892,7 +987,7 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.State = StateHelp
 		return m, nil
 
-	case "d", "D":
+	case "d":
 		p := quirks.GetActiveOrDetectedPreset(m.GameDir, m.Config.TargetExe, m.Config.AppID, m.Config.ProtonPath, m.Config)
 		m.DetectedPreset = p
 		m.PresetPickerView = views.NewPresetPickerView(p, m.GameTitle, m.Config, m.Width, m.Height)
@@ -971,6 +1066,10 @@ func (m *Model) View() string {
 	case StateCleanConfirm:
 		if m.CleanConfirmView != nil {
 			return m.CleanConfirmView.View()
+		}
+	case StateGamescopeSettings:
+		if m.GamescopeView != nil {
+			return m.GamescopeView.View()
 		}
 	case StateDashboard:
 		pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))

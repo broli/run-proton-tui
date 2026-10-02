@@ -175,7 +175,11 @@ func RenderDashboard(d DashboardData) string {
 	}
 	gsStatus := style.BadgeMuted.Render("Disabled (Native Window)")
 	if d.Config.UseGamescope {
-		gsStatus = fmt.Sprintf("%s %s", style.BadgeSuccess.Render(fmt.Sprintf("ON (1080p@%dHz -> %s)", d.Config.GamescopeRefresh, gsOutput)), style.KeyStyle.Render("([m] Cycle)"))
+		refStr := "Native"
+		if d.Config.GamescopeRefresh > 0 {
+			refStr = fmt.Sprintf("%dHz", d.Config.GamescopeRefresh)
+		}
+		gsStatus = fmt.Sprintf("%s %s", style.BadgeSuccess.Render(fmt.Sprintf("ON (%dx%d@%s -> %s)", d.Config.GamescopeWidth, d.Config.GamescopeHeight, refStr, gsOutput)), style.KeyStyle.Render("([m] Cycle, [G] Edit)"))
 	}
 	renderRow("Gamescope:", gsStatus)
 
@@ -273,7 +277,7 @@ func RenderDashboard(d DashboardData) string {
 	if d.Config != nil {
 		targetExe = d.Config.TargetExe
 	}
-	sb.WriteString(renderMenuDock(contentWidth, d.OpaqueBackdrop, targetExe))
+	sb.WriteString(renderMenuDock(contentWidth, d.OpaqueBackdrop, targetExe, d.ProtonName))
 
 	return sb.String()
 }
@@ -289,13 +293,13 @@ func buildPreviewCommand(d DashboardData) string {
 
 	inner := fmt.Sprintf("%s%s waitforexitandrun ./%s", prefix, d.ProtonName, d.Config.TargetExe)
 	if d.Config.UseGamescope && d.HasGamescope {
-		return fmt.Sprintf("gamescope --prefer-output %s -W %d -H %d -r %d -f -- %s",
-			d.Config.GamescopeOutput, d.Config.GamescopeWidth, d.Config.GamescopeHeight, d.Config.GamescopeRefresh, inner)
+		gsArgs := runner.BuildGamescopeArgs(d.Config)
+		return fmt.Sprintf("gamescope %s -- %s", strings.Join(gsArgs, " "), inner)
 	}
 	return inner
 }
 
-func renderMenuDock(width int, opaque bool, targetExe string) string {
+func renderMenuDock(width int, opaque bool, targetExe, protonName string) string {
 	colW := (width - 6) / 3
 	if colW < 24 {
 		colW = 24
@@ -313,12 +317,12 @@ func renderMenuDock(width int, opaque bool, targetExe string) string {
 	}
 
 	items := []dockItem{
-		{"[Enter/1]", "Launch Game", "Run with current settings"},
-		{"[e / 2]", "Switch Executable", fmt.Sprintf("Current: %s", curExe)},
-		{"[3]", "Proton & Setup", "Runner, Quirks, ProtonDB"},
-		{"[4]", "Performance & Sandbox", "Gamescope, CPU Cores, GPU, Xalia"},
-		{"[5]", "Prefix & Overrides", "DLL Overrides, Reset, Health"},
-		{"[6]", "Logs & Diagnostics", "Session Logs, AI Helper, Hooks"},
+		{"[Enter/1]", "Launch Game", "Run with active settings"},
+		{"[2]", "Target & Runner", fmt.Sprintf("Exe: %s • %s", curExe, protonName)},
+		{"[3]", "Display & Gamescope", "Monitor, Native Size, Scaling"},
+		{"[4]", "Hardware & Cores", "prime-run, CPU P-Cores, Xalia"},
+		{"[5]", "Prefix & DLLs", "Overrides, Safe Wipe & Backup"},
+		{"[6]", "Diagnostics & Tools", "Logs, Health, Hooks, Telemetry"},
 	}
 
 	var row1, row2 []string
