@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
+	"github.com/broli/run-proton-tui/internal/proton"
 )
 
 // Preset represents a detected set of game-specific quirks and optimizations.
@@ -21,6 +22,84 @@ type Preset struct {
 	WaitProcesses []string
 	DisplayFile   string
 	Profiles      map[string]*config.ExecutableProfile
+}
+
+// ApplyToConfig hydrates a GameConfig with the settings from this Preset.
+// If overwrite is false, it only populates empty fields and merges missing env vars/profiles.
+// If overwrite is true, it replaces existing preset fields.
+func (p *Preset) ApplyToConfig(cfg *config.GameConfig, overwrite bool) {
+	if p == nil || cfg == nil {
+		return
+	}
+
+	cfg.PresetName = p.Name
+	if overwrite || cfg.UmuID == "" {
+		if p.UmuID != "" {
+			cfg.UmuID = p.UmuID
+		}
+	}
+	if overwrite || cfg.DisplayFile == "" {
+		if p.DisplayFile != "" {
+			cfg.DisplayFile = p.DisplayFile
+		}
+	}
+
+	if overwrite {
+		if len(p.ExtraArgs) > 0 {
+			cfg.ExtraArgs = make([]string, len(p.ExtraArgs))
+			copy(cfg.ExtraArgs, p.ExtraArgs)
+		}
+		if len(p.WaitProcesses) > 0 {
+			cfg.WaitProcesses = make([]string, len(p.WaitProcesses))
+			copy(cfg.WaitProcesses, p.WaitProcesses)
+		}
+	} else {
+		if len(p.ExtraArgs) > 0 && len(cfg.ExtraArgs) == 0 {
+			cfg.ExtraArgs = make([]string, len(p.ExtraArgs))
+			copy(cfg.ExtraArgs, p.ExtraArgs)
+		}
+		if len(p.WaitProcesses) > 0 && len(cfg.WaitProcesses) == 0 {
+			cfg.WaitProcesses = make([]string, len(p.WaitProcesses))
+			copy(cfg.WaitProcesses, p.WaitProcesses)
+		}
+	}
+
+	if len(p.EnvVars) > 0 {
+		if cfg.EnvVars == nil {
+			cfg.EnvVars = make(map[string]string)
+		}
+		for k, v := range p.EnvVars {
+			if overwrite {
+				cfg.EnvVars[k] = v
+			} else if _, exists := cfg.EnvVars[k]; !exists {
+				cfg.EnvVars[k] = v
+			}
+		}
+	}
+
+	if len(p.Profiles) > 0 {
+		if cfg.Profiles == nil {
+			cfg.Profiles = make(map[string]*config.ExecutableProfile)
+		}
+		for k, v := range p.Profiles {
+			if overwrite {
+				cfg.Profiles[k] = v
+			} else if _, exists := cfg.Profiles[k]; !exists {
+				cfg.Profiles[k] = v
+			}
+		}
+	}
+}
+
+// ClearPreset removes active preset metadata from the config while preserving user hardware/runner preferences.
+func ClearPreset(cfg *config.GameConfig) {
+	if cfg == nil {
+		return
+	}
+	cfg.PresetName = ""
+	cfg.UmuID = ""
+	cfg.DisplayFile = ""
+	cfg.WaitProcesses = make([]string, 0)
 }
 
 // CuratedPresets contains tested configurations for major standalone/non-Steam titles.
@@ -227,9 +306,7 @@ func findUMUDatabasePaths(protonPath string) []string {
 	}
 
 	// Standard Steam compatibilitytools.d paths
-	home, err := os.UserHomeDir()
-	if err == nil {
-		steamTools := filepath.Join(home, ".local/share/Steam/compatibilitytools.d")
+	for _, steamTools := range proton.GetCompatibilityToolDirs() {
 		if entries, err := os.ReadDir(steamTools); err == nil {
 			for _, entry := range entries {
 				if entry.IsDir() {
