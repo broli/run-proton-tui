@@ -494,3 +494,18 @@ func (c *GameConfig) GetEffectiveConfig(targetExe string) *GameConfig {
 
 	return eff
 }
+
+// IsValidAppID reports whether an AppID string is non-empty and not "0".
+func IsValidAppID(appID string) bool {
+	s := strings.TrimSpace(appID)
+	return s != "" && s != "0"
+}
+
+// HasValidAppID returns true if the game configuration has a valid Steam AppID.
+func (c *GameConfig) HasValidAppID() bool {
+	if c == nil {
+		return false
+	}
+	return IsValidAppID(c.AppID)
+}
+

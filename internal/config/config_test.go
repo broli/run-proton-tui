@@ -291,4 +291,40 @@ func TestResetToCleanZero(t *testing.T) {
 	}
 }
 
+func TestIsValidAppID(t *testing.T) {
+	tests := []struct {
+		appID    string
+		expected bool
+	}{
+		{"", false},
+		{"   ", false},
+		{"0", false},
+		{" 0 ", false},
+		{"4567", true},
+		{"225540", true},
+	}
+
+	for _, tt := range tests {
+		if got := IsValidAppID(tt.appID); got != tt.expected {
+			t.Errorf("IsValidAppID(%q) = %v, expected %v", tt.appID, got, tt.expected)
+		}
+	}
+
+	var nilCfg *GameConfig
+	if nilCfg.HasValidAppID() {
+		t.Errorf("nil GameConfig.HasValidAppID() should be false")
+	}
+
+	cfg := &GameConfig{AppID: "0"}
+	if cfg.HasValidAppID() {
+		t.Errorf("GameConfig{AppID: 0}.HasValidAppID() should be false")
+	}
+
+	cfg.AppID = "12345"
+	if !cfg.HasValidAppID() {
+		t.Errorf("GameConfig{AppID: 12345}.HasValidAppID() should be true")
+	}
+}
+
+
 
