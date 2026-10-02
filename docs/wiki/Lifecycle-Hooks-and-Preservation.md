@@ -187,6 +187,31 @@ This guarantees that even when ProtonUp-Qt or Steam updates your GE-Proton build
 
 ---
 
+## 🚫 What NOT to Put in Lifecycle Hooks: Wine Prefix Flushing & Stale Locks
+
+A common pitfall when authoring hooks (or when AI assistants generate them) is attempting to manually flush Wine prefixes or kill wineserver processes:
+
+```bash
+# ❌ NEVER DO THIS IN PRE_LAUNCH OR POST_EXIT HOOKS:
+wineserver -k
+wineserver -w
+killall -9 wine
+rm -rf /tmp/.wine-*/server-*/lock
+```
+
+### Why Manual Prefix Flushing in Hooks is Dangerous
+1. **Breaks Wine Process Isolation**: Running `wineserver -k` or `killall wine` indiscriminately terminates all Wine processes running under your Linux user account — crashing any other Steam or non-Steam games currently in session.
+2. **Kills Child Updaters & Background Daemons**: Many modern game launchers launch independent child installers, update processes, or cloud sync daemons. Hard-killing wineserver prematurely aborts these updates.
+3. **Redundant & Unnecessary**: `rpt` already implements a robust, 4-tier lifecycle that safely handles prefix state:
+   - **Tier 1 (Pre-Flight Flush)**: Prior to running `pre_launch.sh` and starting Gamescope, `rpt` calls `prefix.Flush()` to gracefully send `wineserver -k` and `wineserver -w` targeting *only* the specific prefix. It also purges per-prefix orphaned processes via `/proc/$pid/environ` inspection and runs `prefix.CleanStaleLocks()` using non-blocking `flock(LOCK_EX | LOCK_NB)` on all `/tmp/.wine-<UID>/server-*/lock` sockets.
+   - **Tier 2 (Runner Wrapper Teardown)**: As soon as the game executable and any configured `wait_processes` exit, the runner wrapper executes `wineserver -k` and `wineserver -w` for the target prefix.
+   - **Tier 3 (Post-Exit Teardown)**: A Go `defer` block triggers another complete `prefix.Flush()` and `prefix.CleanStaleLocks()` cycle.
+   - **Tier 4 (Safe Prefix Clean)**: During prefix reset operations (`rpt -c`), `rpt` verifies containment, safely backs up save files and photos to `~/Games/Backups/`, gracefully flushes wineserver, and wipes the directory.
+
+Lifecycle hooks should strictly focus on game-specific assets, environment variables, RAM caches (`/dev/shm`), and binary patches. Let `rpt` handle the Wine prefix lifecycle.
+
+---
+
 ## 🔮 Upcoming Feature: Interactive Hook Inspector & Built-in Pager
 
 As outlined in the [Project Roadmap](https://github.com/broli/run-proton-tui/blob/main/ROADMAP.md), `rpt` is gaining an interactive Hook Inspector and Pager directly within the TUI:

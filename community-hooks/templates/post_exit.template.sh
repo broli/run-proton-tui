@@ -5,6 +5,18 @@
 # This template is executed immediately AFTER the game exits.
 # Use it for cloud save backups, syncing saves with rclone, and cleanup.
 #
+# 💡 PHILOSOPHY:
+#   - Generic teardown (wineserver -k, wineserver -w, prefix process cleanup,
+#     and /tmp/.wine-<UID> stale lock removal) is handled automatically by rpt.
+#   - Only game-specific cleanup (cloud save sync, RAM cache removal, external
+#     daemons) belongs in this script!
+#
+# 🚫 WHAT NOT TO DO IN THIS HOOK:
+#   - Do NOT run 'wineserver -k', 'wineserver -w', or kill Wine processes.
+#   - Do NOT delete or tamper with /tmp/.wine-<UID> lock files.
+#   rpt automatically flushes the prefix, isolates lingering processes, and
+#   safely cleans dead socket locks in /tmp/.wine-<UID> upon game exit!
+#
 # 📦 ENVIRONMENT VARIABLES INJECTED BY rpt:
 #   $RPT_GAME_DIR           Absolute path to game root directory
 #   $RPT_PREFIX_DIR         Absolute path to Wine prefix (.prefix)

@@ -50,6 +50,7 @@ type HookSpec struct {
 	SearchOrder       []string `json:"search_order"`
 	ExportedVariables []string `json:"exported_environment_variables"`
 	SupportedHooks    []string `json:"supported_hooks"`
+	ManagedInternally []string `json:"managed_internally,omitempty"`
 }
 
 // HookRecipe provides concrete, idempotent bash hook examples for AI assistants.
@@ -139,13 +140,20 @@ func GenerateSpecDump(rptVersion string) ([]byte, error) {
 			"RPT_GAMESCOPE_DISPLAY: Nested display number (e.g. :1 or empty)",
 			"RPT_HOOK_TYPE: pre_launch or post_exit",
 		},
+		ManagedInternally: []string{
+			"Wine prefix flushing: graceful wineserver -k and -w executed automatically before launch and on process exit",
+			"Orphan process termination: target prefix processes (/proc/$pid/environ) purged without affecting other Wine games",
+			"Stale lock cleanup: non-blocking flock sweep of /tmp/.wine-<UID>/server-*/lock to safely purge dead socket locks",
+			"Save & screenshot preservation: standard user profile directories backed up during prefix clean/reset",
+		},
 	}
 
 	aiGuidelines := []string{
 		"1. PRIMARY GOAL: Configure the game's '.proton-config.toml' for graphics, runner path, Gamescope, CPU pinning, and DLL overrides.",
 		"2. '1-2 GAMES VS EVERY GAME' RULE: If a fix or tweak is game-specific (such as binary patching, Wine ntoskrnl.exe kernel patch checks, memory mapping /dev/shm, or anti-cheat workarounds), DO NOT modify the rpt binary. Write a lifecycle hook in 'hooks/pre_launch.sh'.",
 		"3. IDEMPOTENCY: All hook scripts must be strictly idempotent. Always check if a patch, directory, or symlink is already applied before modifying anything.",
-		"4. COMMUNITY CONTRIBUTION: If your generated hook or configuration resolves an issue, remind the user to submit it to ProtonDB or as an rpt community hook to help fellow Linux gamers!",
+		"4. PREFIX FLUSHING & STALE LOCKS ARE AUTOMATIC: DO NOT add wineserver -k, wineserver -w, killall wine, or /tmp/.wine-* lock cleanup to hooks. rpt automatically flushes the Wine prefix, isolates and terminates lingering prefix processes, and cleans stale socket locks via non-blocking flock before launch, inside the process wrapper, and during teardown.",
+		"5. COMMUNITY CONTRIBUTION: If your generated hook or configuration resolves an issue, remind the user to submit it to ProtonDB or as an rpt community hook to help fellow Linux gamers!",
 	}
 
 	hookRecipes := map[string]HookRecipe{
@@ -190,6 +198,7 @@ exit 0
 		"2d_utility_isolation": "2D utilities, setup installers (Setup.exe), and web launchers (Qt5/CEF/Electron) MUST have NVAPI and Steam Deck flags stripped, and run on host iGPU without Gamescope to avoid glibc double-free memory corruption.",
 		"screenshot_preservation": "Windows games save screenshots to C:\\users\\steamuser\\Pictures. Always preserve Pictures alongside Saved Games and AppData during prefix wipes.",
 		"drm_display_routing": "External HDMI/DP ports are typically hardwired to the dGPU on hybrid laptops. Query /sys/class/drm/card*-*/status without sudo to target external displays directly and eliminate PCIe double-bounce stutter.",
+		"wine_prefix_lifecycle_and_stale_locks": "Never add wineserver shutdown or prefix lock clearing to pre_launch.sh or post_exit.sh. rpt automatically performs prefix flushing (graceful wineserver -k/-w), per-prefix process isolation, and non-blocking flock stale lock cleanup (/tmp/.wine-<UID>) both immediately before launch and during post-exit teardown. Adding manual wineserver kills to hooks risks terminating concurrent Wine sessions and disrupts rpt's process supervisor.",
 	}
 
 	docLinks := map[string]string{

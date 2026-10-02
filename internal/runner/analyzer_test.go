@@ -221,3 +221,53 @@ func TestAnalyzeSessionLog_ExitCode222(t *testing.T) {
 	}
 }
 
+func TestAnalyzeSessionLog_GamescopeWSINoFalsePositive(t *testing.T) {
+	tmpDir := t.TempDir()
+	logFile := filepath.Join(tmpDir, "gamescope_wsi_test.log")
+
+	logContent := `[gamescope] [Info]  xdg_backend: Post-Initted Wayland backend
+[Gamescope WSI] Application info:
+  pApplicationName: StyxGame.exe
+  pEngineName: DXVK
+[Gamescope WSI] Made gamescope surface for xid: 0x1200086
+[Gamescope WSI] Created swapchain for xid: 0x1200086 swapchain: 0x7fd93c0b1170 - imageCount: 4
+[Gamescope WSI] Swapchain received new refresh cycle: 13.33ms
+`
+	if err := os.WriteFile(logFile, []byte(logContent), 0644); err != nil {
+		t.Fatalf("failed to write test log: %v", err)
+	}
+
+	cfg := &config.GameConfig{
+		TargetExe:    "StyxGame.exe",
+		AppID:        "242640",
+		UseGamescope: true,
+	}
+
+	insights := AnalyzeSessionLog(logFile, cfg)
+	for _, ins := range insights {
+		if ins.Category == "Display Initialization" {
+			t.Errorf("expected no false-positive 'Display Initialization' insight when Gamescope WSI swapchain was created, got: %+v", ins)
+		}
+	}
+}
+
+func TestGenerateAIHelperPackage_PrefixFlushInstruction(t *testing.T) {
+	result := &SessionResult{
+		ExitCode:      1,
+		Duration:      10 * time.Second,
+		CrashDetected: true,
+		LogFile:       "/tmp/test.log",
+	}
+	cfg := &config.GameConfig{
+		TargetExe:  "Game.exe",
+		ProtonPath: "/path/to/proton",
+		AppID:      "12345",
+	}
+
+	pkg := GenerateAIHelperPackage(result, cfg, nil, []string{"log line 1"}, "/tmp/test.log")
+	if !strings.Contains(pkg, "DO NOT add Wine prefix flushing or wineserver kill/lock cleanup to hooks") {
+		t.Errorf("Expected instructions to caution against adding wine prefix flushing to hooks, got:\n%s", pkg)
+	}
+}
+
+

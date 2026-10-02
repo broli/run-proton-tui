@@ -11,6 +11,12 @@
 #   - Quirks needed by only 1 or 2 games (anti-cheat shims, binary patches, RAM
 #     caches, mod managers) belong in this script!
 #
+# 🚫 WHAT NOT TO DO IN THIS HOOK:
+#   - Do NOT run 'wineserver -k', 'wineserver -w', or kill Wine processes.
+#   - Do NOT delete or tamper with /tmp/.wine-<UID> lock files.
+#   rpt automatically flushes the prefix, isolates lingering processes, and
+#   cleans stale socket locks via non-blocking flock before executing this hook!
+#
 # ⚠️ RULE OF IDEMPOTENCY:
 #   This hook runs every single time the game launches. It MUST be idempotent:
 #   executing it once or 100 times must produce the exact same safe outcome!
