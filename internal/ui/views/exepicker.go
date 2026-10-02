@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/broli/run-proton-tui/internal/pathutil"
 	"github.com/broli/run-proton-tui/internal/runner"
 	"github.com/broli/run-proton-tui/internal/ui/style"
 	tea "github.com/charmbracelet/bubbletea"
@@ -40,7 +41,7 @@ func DiscoverExecutables(gameDir string) []ExeItem {
 		}
 		if info.IsDir() {
 			name := info.Name()
-			if name == "proton-prefix" || name == ".logs" || name == ".git" {
+			if pathutil.IsIgnoredDir(name) {
 				return filepath.SkipDir
 			}
 			if strings.Count(path, string(os.PathSeparator))-baseDepth > 4 {

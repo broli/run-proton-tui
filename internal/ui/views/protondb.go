@@ -84,13 +84,7 @@ func (v *ProtonDBView) Update(msg tea.Msg) (customQuery string, refresh bool, co
 
 // View renders the ProtonDB report card.
 func (v *ProtonDBView) View() string {
-	contentWidth := v.Width - 10
-	if contentWidth < 60 {
-		contentWidth = 60
-	}
-	if contentWidth > 85 {
-		contentWidth = 85
-	}
+	contentWidth := style.ClampWidth(v.Width, 10, 60, 85)
 
 	header := lipgloss.NewStyle().
 		Bold(true).
@@ -179,7 +173,7 @@ func (v *ProtonDBView) View() string {
 		Value string
 	}{
 		{"Total Community Reports:", fmt.Sprintf("%d user reports", r.Total)},
-		{"Community Confidence:", strings.Title(r.Confidence)},
+		{"Community Confidence:", style.Capitalize(r.Confidence)},
 		{"Trending Recent Tier:", strings.ToUpper(r.TrendingTier)},
 		{"Best Reported Tier:", strings.ToUpper(r.BestReportedTier)},
 	}

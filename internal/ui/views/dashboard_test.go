@@ -113,4 +113,31 @@ func TestRenderDashboardProtonDBTitle(t *testing.T) {
 	}
 }
 
+func TestRenderDashboardGPUOffloadStatus(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.TargetExe = "game.exe"
+	cfg.UsePrimeRun = false
 
+	data := DashboardData{
+		Config:      cfg,
+		HasPrimeRun: true,
+		Width:       120,
+		Height:      35,
+	}
+
+	// 1. Unset state
+	out := RenderDashboard(data)
+	if !strings.Contains(out, "Unset (System Default)") {
+		t.Errorf("Expected 'Unset (System Default)' for unforced GPU offload, got output: %s", out)
+	}
+	if strings.Contains(out, "Host iGPU") {
+		t.Errorf("Did not expect 'Host iGPU' when GPU is not forced, got output: %s", out)
+	}
+
+	// 2. Active prime-run state
+	cfg.UsePrimeRun = true
+	outActive := RenderDashboard(data)
+	if !strings.Contains(outActive, "prime-run (Dedicated GPU)") {
+		t.Errorf("Expected 'prime-run (Dedicated GPU)' when prime-run is active, got output: %s", outActive)
+	}
+}

@@ -77,6 +77,12 @@ func TestSubMenuView(t *testing.T) {
 	if !strings.Contains(hwView, "HARDWARE & ENGINE PERFORMANCE") {
 		t.Errorf("Expected 'HARDWARE & ENGINE PERFORMANCE' title in view")
 	}
+	if !strings.Contains(hwView, "Unset (System Default)") {
+		t.Errorf("Expected 'Unset (System Default)' in Hardware menu, got: %s", hwView)
+	}
+	if strings.Contains(hwView, "Host iGPU") {
+		t.Errorf("Did not expect 'Host iGPU' in Hardware menu, got: %s", hwView)
+	}
 	if act := mvHw.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}); act != ActionTogglePrimeRun {
 		t.Errorf("Expected ActionTogglePrimeRun on 'v', got %v", act)
 	}
@@ -130,6 +136,12 @@ func TestSubMenuView(t *testing.T) {
 	}
 	if act := mvDiag.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}); act != ActionOpenHelp {
 		t.Errorf("Expected ActionOpenHelp on '?', got %v", act)
+	}
+	if act := mvDiag.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'0'}}); act != ActionGenerateBugReport {
+		t.Errorf("Expected ActionGenerateBugReport on '0', got %v", act)
+	}
+	if act := mvDiag.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'B'}}); act != ActionGenerateBugReport {
+		t.Errorf("Expected ActionGenerateBugReport on 'B', got %v", act)
 	}
 
 	// 6. Test Escape returns ActionClose

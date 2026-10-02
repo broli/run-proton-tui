@@ -70,13 +70,7 @@ func (v *TelemetryView) Update(msg tea.Msg) (TelemetryAction, tea.Cmd) {
 
 // View renders the dedicated full-screen transparency audit.
 func (v *TelemetryView) View() string {
-	contentWidth := v.Width - 10
-	if contentWidth < 68 {
-		contentWidth = 68
-	}
-	if contentWidth > 96 {
-		contentWidth = 96
-	}
+	contentWidth := style.ClampWidth(v.Width, 10, 68, 96)
 
 	header := lipgloss.NewStyle().
 		Bold(true).

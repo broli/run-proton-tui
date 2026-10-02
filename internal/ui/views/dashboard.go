@@ -2,13 +2,13 @@ package views
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/hardware"
 	"github.com/broli/run-proton-tui/internal/integrations"
+	"github.com/broli/run-proton-tui/internal/prefix"
 	"github.com/broli/run-proton-tui/internal/runner"
 	"github.com/broli/run-proton-tui/internal/ui/style"
 	"github.com/charmbracelet/lipgloss"
@@ -94,7 +94,7 @@ func RenderDashboard(d DashboardData) string {
 
 	profileDesc := style.BadgeHighlight.Render("3D Game Engine (Dedicated GPU + Gamescope)")
 	if d.Classification.Type == runner.ExeType2DUtility {
-		profileDesc = style.BadgeWarning.Render("2D Utility / Launcher (Host iGPU Mode)")
+		profileDesc = style.BadgeWarning.Render("2D Utility / Launcher (Standard Mode)")
 	}
 	if _, ok := d.Config.Profiles[d.Config.TargetExe]; ok {
 		profileDesc = style.BadgeSuccess.Render("Custom Profile (.proton-config.toml)")
@@ -125,9 +125,8 @@ func RenderDashboard(d DashboardData) string {
 	}
 
 	// Wine Prefix Status
-	pfxDriveC := filepath.Join(d.GameDir, "proton-prefix", "pfx", "drive_c")
 	pfxInfo := "Not Initialized (Created on launch)"
-	if _, err := os.Stat(pfxDriveC); err == nil {
+	if prefix.IsInitialized(prefix.DefaultPrefixDir(d.GameDir)) {
 		if d.PrefixSize != "" {
 			pfxInfo = fmt.Sprintf("Active (%s)", d.PrefixSize)
 		} else {
@@ -191,9 +190,9 @@ func RenderDashboard(d DashboardData) string {
 	renderRow("CPU Topology:", pcoreStatus)
 
 	// GPU Offload
-	gpuStatus := style.BadgeMuted.Render("Host iGPU")
+	gpuStatus := style.BadgeMuted.Render("Unset (System Default)")
 	if d.Config.UsePrimeRun && d.HasPrimeRun {
-		gpuStatus = style.BadgeSuccess.Render("prime-run (NVIDIA RTX 4060)")
+		gpuStatus = style.BadgeSuccess.Render("prime-run (Dedicated GPU)")
 	}
 	renderRow("GPU Offload:", gpuStatus)
 

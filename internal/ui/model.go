@@ -64,6 +64,7 @@ type Model struct {
 	Width           int
 	Height          int
 	ShouldLaunch    bool
+	Version         string
 
 	// Sub-views
 	HelpView         *views.HelpView
@@ -110,35 +111,7 @@ func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 	// Auto-detect known non-standard quirks preset on initial run if not already set
 	if cfg.PresetName == "" {
 		if p := quirks.DetectQuirks(gameDir, cfg.TargetExe, cfg.AppID, cfg.ProtonPath); p != nil {
-			cfg.PresetName = p.Name
-			if p.UmuID != "" && cfg.UmuID == "" {
-				cfg.UmuID = p.UmuID
-			}
-			if p.DisplayFile != "" && cfg.DisplayFile == "" {
-				cfg.DisplayFile = p.DisplayFile
-			}
-			if len(p.ExtraArgs) > 0 && len(cfg.ExtraArgs) == 0 {
-				cfg.ExtraArgs = p.ExtraArgs
-			}
-			if len(p.WaitProcesses) > 0 && len(cfg.WaitProcesses) == 0 {
-				cfg.WaitProcesses = p.WaitProcesses
-			}
-			for k, v := range p.EnvVars {
-				if cfg.EnvVars == nil {
-					cfg.EnvVars = make(map[string]string)
-				}
-				if _, ok := cfg.EnvVars[k]; !ok {
-					cfg.EnvVars[k] = v
-				}
-			}
-			for k, v := range p.Profiles {
-				if cfg.Profiles == nil {
-					cfg.Profiles = make(map[string]*config.ExecutableProfile)
-				}
-				if _, ok := cfg.Profiles[k]; !ok {
-					cfg.Profiles[k] = v
-				}
-			}
+			p.ApplyToConfig(cfg, false)
 		}
 	}
 
@@ -207,7 +180,7 @@ func (m *Model) fetchProtonDB(customQuery string) tea.Cmd {
 				aid, name, err := integrations.SearchSteamAppID(ctx, customQuery)
 				if err != nil {
 					return protonDBResultMsg{
-						Err: fmt.Errorf("Steam search for %q: %w", customQuery, err),
+						Err: fmt.Errorf("steam search for %q: %w", customQuery, err),
 					}
 				}
 				appID = aid
@@ -215,7 +188,7 @@ func (m *Model) fetchProtonDB(customQuery string) tea.Cmd {
 			}
 		}
 
-		if appID == "" || appID == "0" {
+		if !config.IsValidAppID(appID) {
 			aid, name, err := integrations.ResolveSteamAppID(ctx, presetName, targetExe, gameTitle)
 			if err != nil {
 				return protonDBResultMsg{
@@ -226,7 +199,7 @@ func (m *Model) fetchProtonDB(customQuery string) tea.Cmd {
 			matchedTitle = name
 		}
 
-		if matchedTitle == "" && appID != "" && appID != "0" {
+		if matchedTitle == "" && config.IsValidAppID(appID) {
 			if title, err := integrations.FetchSteamAppTitle(ctx, appID); err == nil && title != "" {
 				matchedTitle = title
 			}
@@ -252,7 +225,7 @@ func (m *Model) fetchProtonDB(customQuery string) tea.Cmd {
 
 // Init starts initial async background tasks (e.g. ProtonDB lookup).
 func (m *Model) Init() tea.Cmd {
-	if (m.Config.AppID == "" || m.Config.AppID == "0") && m.Emulator != nil && m.Emulator.AppID != "" && m.Emulator.AppID != "0" {
+	if !m.Config.HasValidAppID() && m.Emulator != nil && config.IsValidAppID(m.Emulator.AppID) {
 		m.Config.AppID = m.Emulator.AppID
 	}
 
@@ -337,28 +310,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				baseExe := strings.ToLower(filepath.Base(m.Config.TargetExe))
 				isInstaller := strings.Contains(baseExe, "setup") || strings.Contains(baseExe, "installer")
 				if strings.EqualFold(m.Config.PresetName, "Repack Installer / Setup") && !isInstaller {
-					m.Config.PresetName = ""
-					// Check if the newly selected game executable matches another preset
+					quirks.ClearPreset(m.Config)
 					if newPreset := quirks.DetectQuirks(m.GameDir, m.Config.TargetExe, m.Config.AppID, m.Config.ProtonPath); newPreset != nil {
-						m.Config.PresetName = newPreset.Name
-						if newPreset.UmuID != "" {
-							m.Config.UmuID = newPreset.UmuID
-						}
-						if newPreset.DisplayFile != "" {
-							m.Config.DisplayFile = newPreset.DisplayFile
-						}
-						if len(newPreset.ExtraArgs) > 0 {
-							m.Config.ExtraArgs = newPreset.ExtraArgs
-						}
-						if len(newPreset.WaitProcesses) > 0 {
-							m.Config.WaitProcesses = newPreset.WaitProcesses
-						}
-						if m.Config.EnvVars == nil {
-							m.Config.EnvVars = make(map[string]string)
-						}
-						for k, v := range newPreset.EnvVars {
-							m.Config.EnvVars[k] = v
-						}
+						newPreset.ApplyToConfig(m.Config, false)
 					}
 				}
 
@@ -395,41 +349,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.PresetPickerView != nil {
 				applied, cleared, cancel := m.PresetPickerView.Update(msg)
 				if applied {
-					preset := m.PresetPickerView.Preset
-					if preset != nil {
-						m.Config.PresetName = preset.Name
-						if preset.UmuID != "" {
-							m.Config.UmuID = preset.UmuID
-						}
-						if preset.DisplayFile != "" {
-							m.Config.DisplayFile = preset.DisplayFile
-						}
-						if len(preset.ExtraArgs) > 0 {
-							m.Config.ExtraArgs = preset.ExtraArgs
-						}
-						if len(preset.WaitProcesses) > 0 {
-							m.Config.WaitProcesses = preset.WaitProcesses
-						}
-						if m.Config.EnvVars == nil {
-							m.Config.EnvVars = make(map[string]string)
-						}
-						for k, v := range preset.EnvVars {
-							m.Config.EnvVars[k] = v
-						}
-						if m.Config.Profiles == nil {
-							m.Config.Profiles = make(map[string]*config.ExecutableProfile)
-						}
-						for k, v := range preset.Profiles {
-							m.Config.Profiles[k] = v
-						}
+					if preset := m.PresetPickerView.Preset; preset != nil {
+						preset.ApplyToConfig(m.Config, true)
 						_ = config.SaveConfig(m.GameDir, m.Config)
 						m.StatusMessage = fmt.Sprintf("Applied %s preset!", preset.Name)
 					}
 					m.State = StateDashboard
 				} else if cleared {
-					m.Config.PresetName = ""
-					m.Config.UmuID = ""
-					m.Config.DisplayFile = ""
+					quirks.ClearPreset(m.Config)
 					m.StatusMessage = "Quirks preset cleared; using standard defaults"
 					_ = config.SaveConfig(m.GameDir, m.Config)
 					m.State = StateDashboard
@@ -646,15 +573,13 @@ func (m *Model) openSubMenu(menuType views.SubMenuType) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) getSubMenuData() views.SubMenuData {
-	pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))
-	if pName == "." || pName == "" {
-		pName = filepath.Base(m.Config.ProtonPath)
-	}
+func (m *Model) getProtonName() string {
+	return proton.GetRunnerName(m.Config.ProtonPath)
+}
 
-	pfxDriveC := filepath.Join(m.GameDir, "proton-prefix", "pfx", "drive_c")
-	_, err := os.Stat(pfxDriveC)
-	pfxActive := err == nil
+func (m *Model) getSubMenuData() views.SubMenuData {
+	pName := m.getProtonName()
+	pfxActive := prefix.IsInitialized(prefix.DefaultPrefixDir(m.GameDir))
 
 	return views.SubMenuData{
 		Config:          m.Config,
@@ -745,9 +670,9 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		m.Config.UsePrimeRun = !m.Config.UsePrimeRun
 		_ = config.SaveConfig(m.GameDir, m.Config)
 		if m.Config.UsePrimeRun {
-			m.StatusMessage = "GPU Runner: prime-run (NVIDIA RTX Dedicated)"
+			m.StatusMessage = "GPU Runner: prime-run (Dedicated GPU)"
 		} else {
-			m.StatusMessage = "GPU Runner: Host iGPU (Power Saving)"
+			m.StatusMessage = "GPU Runner: Unset (System Default)"
 		}
 		m.updateSubMenuData()
 		return m, nil
@@ -913,13 +838,26 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		return m, nil
 
 	case views.ActionConfirmResetDefaults:
-		pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))
-		if pName == "." || pName == "" {
-			pName = filepath.Base(m.Config.ProtonPath)
-		}
+		pName := m.getProtonName()
 		m.ResetConfirmView = views.NewResetConfirmView(m.GameTitle, m.Config.TargetExe, pName, m.Width, m.Height)
 		m.PrevState = StateSubMenu
 		m.State = StateResetConfirm
+	case views.ActionGenerateBugReport:
+		ver := m.Version
+		if ver == "" {
+			ver = "0.8.0"
+		}
+		_, err := diagnostics.OpenBugReport(diagnostics.BugReportOptions{
+			Version: ver,
+			GameDir: m.GameDir,
+			Config:  m.Config,
+		})
+		if err != nil {
+			m.StatusMessage = "✓ Bug report copied to clipboard. (Could not open browser automatically)"
+		} else {
+			m.StatusMessage = "✓ Bug report copied to clipboard & GitHub opened in browser!"
+		}
+		m.updateSubMenuData()
 		return m, nil
 
 	case views.ActionQuit:
@@ -997,10 +935,7 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Direct hotkeys for fast power-user access
 	case "R":
-		pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))
-		if pName == "." || pName == "" {
-			pName = filepath.Base(m.Config.ProtonPath)
-		}
+		pName := m.getProtonName()
 		m.ResetConfirmView = views.NewResetConfirmView(m.GameTitle, m.Config.TargetExe, pName, m.Width, m.Height)
 		m.PrevState = StateDashboard
 		m.State = StateResetConfirm
@@ -1172,10 +1107,6 @@ func (m *Model) View() string {
 			return m.ResetConfirmView.View()
 		}
 	case StateDashboard:
-		pName := filepath.Base(filepath.Dir(m.Config.ProtonPath))
-		if pName == "." || pName == "" {
-			pName = filepath.Base(m.Config.ProtonPath)
-		}
 		return views.RenderDashboard(views.DashboardData{
 			GameTitle:       m.GameTitle,
 			GameDir:         m.GameDir,
@@ -1187,7 +1118,7 @@ func (m *Model) View() string {
 			HasPrimeRun:     m.GPUInfo != nil && m.GPUInfo.HasPrimeRun,
 			HasGamescope:    true,
 			ActiveOverrides: m.ActiveOverrides,
-			ProtonName:      pName,
+			ProtonName:      m.getProtonName(),
 			StatusMessage:   m.StatusMessage,
 			Width:           m.Width,
 			Height:          m.Height,
@@ -1212,7 +1143,7 @@ func (m *Model) contributeProtonDB() {
 	clipErr := launcher.CopyToClipboard(report)
 
 	targetURL := fmt.Sprintf("https://www.protondb.com/app/%s", m.Config.AppID)
-	if m.Config.AppID == "" || m.Config.AppID == "0" {
+	if !m.Config.HasValidAppID() {
 		targetURL = "https://www.protondb.com/contribute"
 	}
 	openErr := launcher.OpenURL(targetURL)

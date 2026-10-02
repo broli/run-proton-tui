@@ -61,6 +61,7 @@ const (
 	ActionResetHardware
 	ActionResetOverrides
 	ActionConfirmResetDefaults
+	ActionGenerateBugReport
 )
 
 // SubMenuData contains current state needed to display sub-menu options accurately.
@@ -170,12 +171,14 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 				return ActionOpenTelemetry
 			case "6", "s", "S":
 				return ActionCreateDesktopShortcut
-			case "7", "b", "B":
+			case "7", "b":
 				return ActionToggleBackdrop
 			case "8", "?", "f1":
 				return ActionOpenHelp
 			case "9", "R":
 				return ActionConfirmResetDefaults
+			case "0", "B":
+				return ActionGenerateBugReport
 			}
 		}
 	}
@@ -184,13 +187,7 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 
 // View renders the sub-menu dialog card.
 func (v *SubMenuView) View() string {
-	contentWidth := v.Data.Width - 10
-	if contentWidth < 60 {
-		contentWidth = 60
-	}
-	if contentWidth > 88 {
-		contentWidth = 88
-	}
+	contentWidth := style.ClampWidth(v.Data.Width, 10, 60, 88)
 
 	var title, desc string
 	var items []struct {
@@ -273,7 +270,7 @@ func (v *SubMenuView) View() string {
 			pcoreStatus = style.BadgeSuccess.Render(fmt.Sprintf("PINNED (Threads %s)", cfg.PCoresMask))
 		}
 
-		gpuStatus := style.BadgeMuted.Render("Host iGPU")
+		gpuStatus := style.BadgeMuted.Render("Unset (System Default)")
 		if cfg.UsePrimeRun && v.Data.HasPrimeRun {
 			gpuStatus = style.BadgeSuccess.Render("prime-run (Dedicated GPU)")
 		}
@@ -355,6 +352,7 @@ func (v *SubMenuView) View() string {
 			{"[b / 7]", "Terminal Backdrop Style", bdStatus},
 			{"[? / 8]", "In-Depth Help & Documentation", "Comprehensive offline manual"},
 			{"[R / 9]", "Revert Entire Config to Safe Defaults", "Preserves target exe & runner, resets all tweaks"},
+			{"[B / 0]", "Generate GitHub Bug Report", "Sanitizes system specs & opens GitHub issue"},
 		}
 	}
 

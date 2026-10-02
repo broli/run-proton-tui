@@ -28,7 +28,7 @@ func TestProtonDBView(t *testing.T) {
 
 	// 3. Test typing and submitting custom query
 	pv.SearchInput.SetValue("Endfield")
-	query, refresh, contribute, done, _ = pv.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	query, refresh, _, _, _ = pv.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if pv.SearchMode {
 		t.Errorf("Expected SearchMode to be false after pressing Enter")
 	}

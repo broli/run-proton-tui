@@ -1,6 +1,20 @@
 package style
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"unicode"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+// Capitalize returns the string with the first letter upper-cased.
+func Capitalize(s string) string {
+	if s == "" {
+		return ""
+	}
+	r := []rune(s)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
+}
 
 var (
 	// Palette (Tokyo Night / Catppuccin inspired)
@@ -136,3 +150,16 @@ func GetHeaderBarStyle(opaque bool) lipgloss.Style {
 	}
 	return s
 }
+
+// ClampWidth calculates a clamped dialog or content width based on total terminal width, margin, and bounds.
+func ClampWidth(totalWidth, margin, minWidth, maxWidth int) int {
+	w := totalWidth - margin
+	if w < minWidth {
+		return minWidth
+	}
+	if w > maxWidth {
+		return maxWidth
+	}
+	return w
+}
+
