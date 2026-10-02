@@ -130,7 +130,9 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 		if strings.Contains(line, "backtrace") || strings.Contains(line, "page fault") || strings.Contains(line, "SIGSEGV") {
 			hasWineServerCrash = true
 		}
-		if strings.Contains(line, "info:   DXVK:") || strings.Contains(line, "info:   D3D9:") {
+		if strings.Contains(line, "info:   DXVK:") || strings.Contains(line, "info:   D3D9:") ||
+			strings.Contains(line, "[Gamescope WSI] Made gamescope surface") ||
+			strings.Contains(line, "[Gamescope WSI] Created swapchain") {
 			hasDXVKInit = true
 		}
 		if strings.Contains(line, "VK_ERROR") || (strings.Contains(line, "vulkan") && strings.Contains(line, "failed")) {
@@ -318,8 +320,9 @@ func GenerateAIHelperPackage(result *SessionResult, cfg *config.GameConfig, insi
 	sb.WriteString("\n#### Instructions for the AI Assistant\n")
 	sb.WriteString("1. First, check if the issue can be resolved with standard settings in `.proton-config.toml` (e.g. changing Proton runner, toggling Gamescope, adding environment variables, or configuring DLL overrides).\n")
 	sb.WriteString("2. If the game requires custom fixes (such as binary patching, checking or patching Wine `ntoskrnl.exe`, memory mapping `/dev/shm`, or anti-cheat workarounds), **DO NOT tell the user to modify the rpt binary**. Instead, write a clean, idempotent bash script to be saved in `hooks/pre_launch.sh` (or `hooks/post_exit.sh`).\n")
-	sb.WriteString("3. Provide step-by-step instructions so the user can just copy-paste your solution and run `rpt`!\n")
-	sb.WriteString("4. If your solution works, remind the user that they can submit it to ProtonDB or as an `rpt` community hook to help other players!\n")
+	sb.WriteString("3. **DO NOT add Wine prefix flushing or wineserver kill/lock cleanup to hooks**: `rpt` already runs `wineserver -k`, `wineserver -w`, per-prefix orphan cleanup, and non-blocking stale socket lock sweeps (`/tmp/.wine-<UID>`) automatically BEFORE launch, inside the process wrapper, and AFTER exit. Hooks should NEVER call `wineserver -k` or delete Wine locks.\n")
+	sb.WriteString("4. Provide step-by-step instructions so the user can just copy-paste your solution and run `rpt`!\n")
+	sb.WriteString("5. If your solution works, remind the user that they can submit it to ProtonDB or as an `rpt` community hook to help other players!\n")
 
 	sb.WriteString("\n#### Question for Agent\n")
 	sb.WriteString("Why did this game hang or fail to load with these settings, and what exact configuration or command should I use in Linux / Proton to get it running smoothly?\n")

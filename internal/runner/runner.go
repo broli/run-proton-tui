@@ -188,6 +188,18 @@ fi
 		displayCleanup += fmt.Sprintf("\nrm -f %s 2>/dev/null", cfg.DisplayFile)
 	}
 
+	// Locate wineserver binary for immediate cleanup of lingering prefix processes
+	wsBin := prefix.GetWineserverBin(cfg.ProtonPath)
+	wsTeardown := ""
+	if wsBin != "" {
+		wsTeardown = fmt.Sprintf(`
+if [ -x "%s" ]; then
+    WINEPREFIX="%s" "%s" -k 2>/dev/null
+    WINEPREFIX="%s" "%s" -w 2>/dev/null
+fi
+`, wsBin, pfxSubDir, wsBin, pfxSubDir, wsBin)
+	}
+
 	wrapperContent := fmt.Sprintf(`#!/bin/bash
 cd "%s"
 %s
@@ -201,9 +213,10 @@ if [ -n "$CLIP_BRIDGE_PID" ]; then
     kill "$CLIP_BRIDGE_PID" 2>/dev/null
 fi
 %s
+%s
 
 exit $EXIT_CODE
-`, exeDir, displayExport, bridgeSnippet, cmdPrefix, cfg.ProtonPath, exeName, childExitFile, waitSnippet, displayCleanup)
+`, exeDir, displayExport, bridgeSnippet, cmdPrefix, cfg.ProtonPath, exeName, childExitFile, waitSnippet, wsTeardown, displayCleanup)
 
 	if err := os.WriteFile(wrapperScript, []byte(wrapperContent), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create runner wrapper: %w", err)
