@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -370,9 +371,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.StatusMessage = fmt.Sprintf("Switched to %s profile!", m.Config.TargetExe)
 				} else {
 					class := runner.ClassifyExecutable(m.Config.TargetExe)
-					m.Config.UseGamescope = class.RecommendGamescope
-					m.Config.UsePrimeRun = class.RecommendPrimeRun
-					m.Config.UsePCores = class.RecommendPCores
+					_, gsErr := exec.LookPath("gamescope")
+					hasGamescope := gsErr == nil
+					isWayland := os.Getenv("WAYLAND_DISPLAY") != "" || os.Getenv("XDG_SESSION_TYPE") == "wayland"
+					hasPrimeRun := m.GPUInfo != nil && m.GPUInfo.HasPrimeRun
+					isHybrid := m.CPUTopo != nil && m.CPUTopo.IsHybrid
+
+					m.Config.UseGamescope = class.RecommendGamescope && hasGamescope && isWayland
+					m.Config.UsePrimeRun = class.RecommendPrimeRun && hasPrimeRun
+					m.Config.UsePCores = class.RecommendPCores && isHybrid
+					if isHybrid && m.Config.PCoresMask == "" && m.CPUTopo != nil {
+						m.Config.PCoresMask = m.CPUTopo.PCoresMask
+					}
 				}
 				_ = config.SaveConfig(m.GameDir, m.Config)
 				m.State = StateDashboard
