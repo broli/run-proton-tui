@@ -57,6 +57,7 @@ const (
 	FieldMangoApp
 	FieldHDR
 	FieldFPSLimit
+	FieldResetDefaults
 	fieldCount
 )
 
@@ -106,6 +107,11 @@ func (v *GamescopeView) Update(msg tea.Msg) (done bool, detected bool) {
 			v.DetectMonitorSize()
 			return false, true
 
+		case "r", "R":
+			v.Config.ResetGamescopeToDefaults()
+			v.StatusMessage = "✓ Gamescope reset to safe defaults (1080p, Linear, SDR, Untouched Hz)"
+			return false, false
+
 		case "enter", "space", " ", "right", "l":
 			switch GamescopeField(v.Cursor) {
 			case FieldOutput:
@@ -133,6 +139,9 @@ func (v *GamescopeView) Update(msg tea.Msg) (done bool, detected bool) {
 				v.Config.GamescopeHDR = !v.Config.GamescopeHDR
 			case FieldFPSLimit:
 				v.cycleFPSLimit(1)
+			case FieldResetDefaults:
+				v.Config.ResetGamescopeToDefaults()
+				v.StatusMessage = "✓ Gamescope reset to safe defaults (1080p, Linear, SDR, Untouched Hz)"
 			}
 
 		case "left", "h":
@@ -413,6 +422,7 @@ func (v *GamescopeView) View() string {
 		{FieldMangoApp, "MangoHud Overlay (--mangoapp)", boolBadge(v.Config.GamescopeMangoApp)},
 		{FieldHDR, "HDR Output (--hdr-enabled)", boolBadge(v.Config.GamescopeHDR)},
 		{FieldFPSLimit, "Framerate Limit (--framerate-limit)", fpsVal},
+		{FieldResetDefaults, "[🔄 Reset to Safe Defaults]", "Restore safe 1080p, Untouched Hz, Linear, SDR defaults"},
 	}
 
 	for i, it := range items {
@@ -427,10 +437,11 @@ func (v *GamescopeView) View() string {
 	}
 
 	b.WriteString("\n" + divider + "\n")
-	navHelp := fmt.Sprintf("%s    %s    %s",
+	navHelp := fmt.Sprintf("%s    %s    %s    %s",
 		lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[↑/↓] Navigate"),
 		lipgloss.NewStyle().Foreground(style.ColorSecondary).Render("[Enter/Space/←/→] Change Value"),
 		lipgloss.NewStyle().Foreground(style.ColorSuccess).Render("[d] Detect Size"),
+		lipgloss.NewStyle().Foreground(style.ColorWarning).Render("[r] Safe Defaults"),
 	)
 	exitHelp := lipgloss.NewStyle().Foreground(style.ColorMuted).Render("    [Esc/q] Save & Return")
 	b.WriteString(navHelp + exitHelp)

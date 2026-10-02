@@ -116,6 +116,18 @@ func TestSubMenuView(t *testing.T) {
 	if act := mvDiag.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}}); act != ActionToggleBackdrop {
 		t.Errorf("Expected ActionToggleBackdrop on 'b', got %v", act)
 	}
+	if act := mvDisplay.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}); act != ActionResetGamescope {
+		t.Errorf("Expected ActionResetGamescope on 'r', got %v", act)
+	}
+	if act := mvHw.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}); act != ActionResetHardware {
+		t.Errorf("Expected ActionResetHardware on 'r', got %v", act)
+	}
+	if act := mvPrefix.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}); act != ActionResetOverrides {
+		t.Errorf("Expected ActionResetOverrides on 'r', got %v", act)
+	}
+	if act := mvDiag.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}}); act != ActionConfirmResetDefaults {
+		t.Errorf("Expected ActionConfirmResetDefaults on 'R', got %v", act)
+	}
 	if act := mvDiag.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}); act != ActionOpenHelp {
 		t.Errorf("Expected ActionOpenHelp on '?', got %v", act)
 	}

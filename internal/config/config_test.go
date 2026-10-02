@@ -178,3 +178,63 @@ func TestGamescopeConfiguration(t *testing.T) {
 	}
 }
 
+func TestResetToSafeDefaults(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.TargetExe = "Game.exe"
+	cfg.ProtonPath = "/path/to/proton"
+	cfg.AppID = "12345"
+
+	// Modify settings to non-default complex values
+	cfg.GamescopeWidth = 3840
+	cfg.GamescopeHeight = 2160
+	cfg.GamescopeRefresh = 144
+	cfg.GamescopeFilter = "fsr"
+	cfg.GamescopeSharpness = 9
+	cfg.GamescopeHDR = true
+	cfg.GamescopeMangoApp = true
+	cfg.UseXalia = true
+	cfg.EnableLogging = true
+	cfg.DLLOverrides["d3d11"] = "native"
+	cfg.ExtraArgs = []string{"-novid"}
+	cfg.EnvVars["CUSTOM"] = "1"
+
+	// Perform reset to safe defaults
+	cfg.ResetToSafeDefaults(true, "0-7")
+
+	// TargetExe, ProtonPath, and AppID must be preserved
+	if cfg.TargetExe != "Game.exe" {
+		t.Errorf("Expected TargetExe preserved as Game.exe, got %s", cfg.TargetExe)
+	}
+	if cfg.ProtonPath != "/path/to/proton" {
+		t.Errorf("Expected ProtonPath preserved, got %s", cfg.ProtonPath)
+	}
+	if cfg.AppID != "12345" {
+		t.Errorf("Expected AppID preserved as 12345, got %s", cfg.AppID)
+	}
+
+	// Gamescope must be reset to standard safe 1080p, SDR, Linear, Untouched Hz
+	if cfg.GamescopeWidth != 1920 || cfg.GamescopeHeight != 1080 {
+		t.Errorf("Expected Gamescope 1920x1080, got %dx%d", cfg.GamescopeWidth, cfg.GamescopeHeight)
+	}
+	if cfg.GamescopeRefresh != 0 {
+		t.Errorf("Expected GamescopeRefresh 0, got %d", cfg.GamescopeRefresh)
+	}
+	if cfg.GamescopeFilter != "linear" {
+		t.Errorf("Expected GamescopeFilter linear, got %s", cfg.GamescopeFilter)
+	}
+	if cfg.GamescopeHDR || cfg.GamescopeMangoApp {
+		t.Errorf("Expected HDR and MangoApp to be false")
+	}
+
+	// Tweaks must be cleared
+	if cfg.UseXalia || cfg.EnableLogging {
+		t.Errorf("Expected UseXalia and EnableLogging to be false")
+	}
+	if len(cfg.DLLOverrides) != 0 {
+		t.Errorf("Expected DLLOverrides to be empty, got %v", cfg.DLLOverrides)
+	}
+	if len(cfg.ExtraArgs) != 0 || len(cfg.EnvVars) != 0 {
+		t.Errorf("Expected ExtraArgs and EnvVars to be empty")
+	}
+}
+

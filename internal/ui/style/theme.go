@@ -68,6 +68,18 @@ var (
 			Background(ColorHighlight).
 			Padding(0, 1)
 
+	BadgePrimary = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#1a1b26")).
+			Background(ColorPrimary).
+			Padding(0, 1)
+
+	BadgeSecondary = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#1a1b26")).
+			Background(ColorSecondary).
+			Padding(0, 1)
+
 	// Hotkeys & Navigation
 	KeyStyle = lipgloss.NewStyle().
 			Bold(true).
