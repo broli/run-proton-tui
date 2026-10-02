@@ -69,22 +69,48 @@ func TestGenerateSpecDump(t *testing.T) {
 		t.Fatalf("Failed to unmarshal SpecDump JSON: %v", err)
 	}
 
-	foundPrefixGuideline := false
-	for _, g := range dump.AIAssistantGuidelines {
-		if strings.Contains(g, "PREFIX FLUSHING & STALE LOCKS ARE AUTOMATIC") {
-			foundPrefixGuideline = true
-			break
-		}
+	requiredGuidelines := []string{
+		"PREFIX FLUSHING & STALE LOCKS ARE AUTOMATIC",
+		"CLEAN ZERO",
+		"SINGLE-VARIABLE ISOLATION",
+		"VERIFY EXCEPTION CAUSALITY",
+		"COMPOSITOR SANDBOXING OVER ENGINE FLAGS",
+		"ESCALATION & DEEP DOCUMENTATION",
 	}
-	if !foundPrefixGuideline {
-		t.Errorf("Expected PREFIX FLUSHING & STALE LOCKS ARE AUTOMATIC in ai_assistant_guidelines")
+
+	for _, req := range requiredGuidelines {
+		found := false
+		for _, g := range dump.AIAssistantGuidelines {
+			if strings.Contains(g, req) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected %q in ai_assistant_guidelines", req)
+		}
 	}
 
 	if len(dump.LifecycleHooks.ManagedInternally) == 0 {
 		t.Errorf("Expected ManagedInternally to be populated in lifecycle_hooks")
 	}
 
-	if _, ok := dump.BestPractices["wine_prefix_lifecycle_and_stale_locks"]; !ok {
-		t.Errorf("Expected wine_prefix_lifecycle_and_stale_locks in best_practices")
+	requiredBestPractices := []string{
+		"clean_zero_vs_safe_defaults",
+		"clean_zero_baseline",
+		"single_variable_delta_isolation",
+		"verify_exception_causality",
+		"compositor_sandboxing_wayland",
+		"wine_prefix_lifecycle_and_stale_locks",
+	}
+
+	for _, bp := range requiredBestPractices {
+		if _, ok := dump.BestPractices[bp]; !ok {
+			t.Errorf("Expected %q in best_practices", bp)
+		}
+	}
+
+	if _, ok := dump.DocumentationLinks["troubleshooting_methodology"]; !ok {
+		t.Errorf("Expected troubleshooting_methodology in documentation_links")
 	}
 }
