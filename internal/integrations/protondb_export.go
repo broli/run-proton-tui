@@ -167,7 +167,11 @@ func GenerateProtonDBReport(opts ExportOptions) string {
 
 	sb.WriteString("#### ⚙️ Configuration & Tweaks Applied\n")
 	if cfg.UseGamescope {
-		sb.WriteString(fmt.Sprintf("- **Gamescope**: %s (%dx%d@%dHz)\n", cfg.GamescopeOutput, cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeRefresh))
+		refStr := "Native"
+		if cfg.GamescopeRefresh > 0 {
+			refStr = fmt.Sprintf("%dHz", cfg.GamescopeRefresh)
+		}
+		sb.WriteString(fmt.Sprintf("- **Gamescope**: %s (%dx%d@%s)\n", cfg.GamescopeOutput, cfg.GamescopeWidth, cfg.GamescopeHeight, refStr))
 	}
 	if cfg.UsePrimeRun {
 		sb.WriteString("- **GPU Offload**: prime-run enabled\n")

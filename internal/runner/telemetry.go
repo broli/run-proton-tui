@@ -72,7 +72,11 @@ func RecordSession(gameDir string, cfg *config.GameConfig, result *SessionResult
 	// Identify quirks applied
 	quirks := make([]string, 0)
 	if cfg.UseGamescope {
-		quirks = append(quirks, fmt.Sprintf("gamescope (%s, %dx%d@%dHz)", cfg.GamescopeOutput, cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeRefresh))
+		refStr := "Native"
+		if cfg.GamescopeRefresh > 0 {
+			refStr = fmt.Sprintf("%dHz", cfg.GamescopeRefresh)
+		}
+		quirks = append(quirks, fmt.Sprintf("gamescope (%s, %dx%d@%s)", cfg.GamescopeOutput, cfg.GamescopeWidth, cfg.GamescopeHeight, refStr))
 	}
 	if cfg.UsePCores {
 		quirks = append(quirks, fmt.Sprintf("p-cores (%s)", cfg.PCoresMask))

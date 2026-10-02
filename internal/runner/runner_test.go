@@ -236,3 +236,84 @@ func TestRunGame_ExtraArgsPreserved(t *testing.T) {
 	})
 }
 
+func TestBuildGamescopeArgs(t *testing.T) {
+	t.Run("omits -r when GamescopeRefresh is 0", func(t *testing.T) {
+		cfg := config.NewDefaultConfig()
+		cfg.GamescopeRefresh = 0
+		cfg.GamescopeWidth = 2560
+		cfg.GamescopeHeight = 1440
+		cfg.GamescopeOutput = "DP-1"
+
+		args := BuildGamescopeArgs(cfg)
+		for _, a := range args {
+			if a == "-r" {
+				t.Errorf("Expected -r to be omitted when GamescopeRefresh is 0, got args: %v", args)
+			}
+		}
+
+		joined := strings.Join(args, " ")
+		if !strings.Contains(joined, "-W 2560 -H 1440") {
+			t.Errorf("Expected -W 2560 -H 1440 in args, got: %s", joined)
+		}
+		if !strings.Contains(joined, "--prefer-output DP-1") {
+			t.Errorf("Expected --prefer-output DP-1 in args, got: %s", joined)
+		}
+	})
+
+	t.Run("includes -r when GamescopeRefresh > 0", func(t *testing.T) {
+		cfg := config.NewDefaultConfig()
+		cfg.GamescopeRefresh = 144
+		args := BuildGamescopeArgs(cfg)
+		joined := strings.Join(args, " ")
+		if !strings.Contains(joined, "-r 144") {
+			t.Errorf("Expected -r 144 in args, got: %s", joined)
+		}
+	})
+
+	t.Run("supports upscaling, window mode, and features", func(t *testing.T) {
+		cfg := config.NewDefaultConfig()
+		cfg.GamescopeWindowMode = "borderless"
+		cfg.GamescopeFilter = "fsr"
+		cfg.GamescopeSharpness = 8
+		cfg.GamescopeAdaptiveSync = true
+		cfg.GamescopeMangoApp = true
+		cfg.GamescopeHDR = true
+		cfg.GamescopeFPSLimit = 60
+
+		args := BuildGamescopeArgs(cfg)
+		joined := strings.Join(args, " ")
+
+		if !strings.Contains(joined, "-b") {
+			t.Errorf("Expected -b for borderless mode, got: %s", joined)
+		}
+		hasF := false
+		for _, a := range args {
+			if a == "-f" {
+				hasF = true
+			}
+		}
+		if hasF {
+			t.Errorf("Did not expect -f in borderless mode, got args: %v", args)
+		}
+		if !strings.Contains(joined, "-F fsr") {
+			t.Errorf("Expected -F fsr, got: %s", joined)
+		}
+		if !strings.Contains(joined, "--sharpness 8") {
+			t.Errorf("Expected --sharpness 8, got: %s", joined)
+		}
+		if !strings.Contains(joined, "--adaptive-sync") {
+			t.Errorf("Expected --adaptive-sync, got: %s", joined)
+		}
+		if !strings.Contains(joined, "--mangoapp") {
+			t.Errorf("Expected --mangoapp, got: %s", joined)
+		}
+		if !strings.Contains(joined, "--hdr-enabled") {
+			t.Errorf("Expected --hdr-enabled, got: %s", joined)
+		}
+		if !strings.Contains(joined, "--framerate-limit 60") {
+			t.Errorf("Expected --framerate-limit 60, got: %s", joined)
+		}
+	})
+}
+
+

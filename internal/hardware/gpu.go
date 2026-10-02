@@ -1,9 +1,11 @@
 package hardware
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -121,4 +123,51 @@ func GetConnectedDisplayOutputs() []string {
 		}
 	}
 	return outputs
+}
+
+// DetectOutputResolution scans /sys/class/drm/card*-<connector>/modes and returns
+// the primary native resolution of the specified connector.
+// If connector is "auto" or empty, it resolves the preferred connected connector first.
+// If no valid modes file or resolution is found, it returns (1920, 1080, err).
+func DetectOutputResolution(connector string) (int, int, error) {
+	if connector == "" || strings.EqualFold(connector, "auto") {
+		info, _ := DetectGPU()
+		if info != nil && info.PreferredOutput != "" {
+			connector = info.PreferredOutput
+		} else {
+			outputs := GetConnectedDisplayOutputs()
+			if len(outputs) > 0 {
+				connector = outputs[0]
+			}
+		}
+	}
+
+	if connector == "" || strings.EqualFold(connector, "auto") {
+		return 1920, 1080, fmt.Errorf("no connected display found")
+	}
+
+	modeFiles, _ := filepath.Glob("/sys/class/drm/card*-" + connector + "/modes")
+	for _, mf := range modeFiles {
+		content, err := os.ReadFile(mf)
+		if err != nil {
+			continue
+		}
+		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			parts := strings.Split(line, "x")
+			if len(parts) == 2 {
+				w, errW := strconv.Atoi(parts[0])
+				h, errH := strconv.Atoi(parts[1])
+				if errW == nil && errH == nil && w > 0 && h > 0 {
+					return w, h, nil
+				}
+			}
+		}
+	}
+
+	return 1920, 1080, fmt.Errorf("could not read modes for connector %s", connector)
 }

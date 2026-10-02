@@ -248,18 +248,7 @@ exit $EXIT_CODE
 	if cfg.UseGamescope && hasGamescope {
 		// Output to preferred monitor (HDMI-A-1 by default, or auto)
 		// Gamescope runs on host iGPU (no prime-run on gamescope itself to prevent KWin crash!)
-		gsArgs := []string{
-			"-W", strconv.Itoa(cfg.GamescopeWidth),
-			"-H", strconv.Itoa(cfg.GamescopeHeight),
-			"-w", strconv.Itoa(cfg.GamescopeWidth),
-			"-h", strconv.Itoa(cfg.GamescopeHeight),
-			"-r", strconv.Itoa(cfg.GamescopeRefresh),
-			"--force-windows-fullscreen",
-			"-f",
-		}
-		if cfg.GamescopeOutput != "" && !strings.EqualFold(cfg.GamescopeOutput, "auto") {
-			gsArgs = append(gsArgs, "--prefer-output", cfg.GamescopeOutput)
-		}
+		gsArgs := BuildGamescopeArgs(cfg)
 		gsArgs = append(gsArgs, "--", "/bin/bash")
 		gsArgs = append(gsArgs, combinedArgs...)
 
@@ -382,4 +371,58 @@ func processFilesystemDirectives(gameDir, prefixDir string, fs config.Filesystem
 		}
 		_ = os.Symlink(src, dst)
 	}
+}
+
+// BuildGamescopeArgs constructs the CLI flags for Gamescope based on GameConfig.
+// It omits -r when GamescopeRefresh <= 0 (allowing gamescope to run at native/untouched refresh rate).
+func BuildGamescopeArgs(cfg *config.GameConfig) []string {
+	gsArgs := []string{
+		"-W", strconv.Itoa(cfg.GamescopeWidth),
+		"-H", strconv.Itoa(cfg.GamescopeHeight),
+		"-w", strconv.Itoa(cfg.GamescopeWidth),
+		"-h", strconv.Itoa(cfg.GamescopeHeight),
+	}
+
+	if cfg.GamescopeRefresh > 0 {
+		gsArgs = append(gsArgs, "-r", strconv.Itoa(cfg.GamescopeRefresh))
+	}
+
+	switch strings.ToLower(cfg.GamescopeWindowMode) {
+	case "borderless":
+		gsArgs = append(gsArgs, "-b")
+	case "windowed":
+		// no -f or -b
+	default: // fullscreen
+		gsArgs = append(gsArgs, "-f", "--force-windows-fullscreen")
+	}
+
+	if cfg.GamescopeFilter != "" && cfg.GamescopeFilter != "linear" {
+		gsArgs = append(gsArgs, "-F", cfg.GamescopeFilter)
+	}
+	if cfg.GamescopeScaling != "" && cfg.GamescopeScaling != "auto" && cfg.GamescopeScaling != "fit" {
+		gsArgs = append(gsArgs, "-S", cfg.GamescopeScaling)
+	}
+	if cfg.GamescopeSharpness > 0 {
+		gsArgs = append(gsArgs, "--sharpness", strconv.Itoa(cfg.GamescopeSharpness))
+	}
+	if cfg.GamescopeAdaptiveSync {
+		gsArgs = append(gsArgs, "--adaptive-sync")
+	}
+	if cfg.GamescopeMangoApp {
+		gsArgs = append(gsArgs, "--mangoapp")
+	}
+	if cfg.GamescopeHDR {
+		gsArgs = append(gsArgs, "--hdr-enabled")
+	}
+	if cfg.GamescopeFPSLimit > 0 {
+		gsArgs = append(gsArgs, "--framerate-limit", strconv.Itoa(cfg.GamescopeFPSLimit))
+	}
+	if cfg.GamescopeOutput != "" && !strings.EqualFold(cfg.GamescopeOutput, "auto") {
+		gsArgs = append(gsArgs, "--prefer-output", cfg.GamescopeOutput)
+	}
+	if len(cfg.GamescopeExtraArgs) > 0 {
+		gsArgs = append(gsArgs, cfg.GamescopeExtraArgs...)
+	}
+
+	return gsArgs
 }
