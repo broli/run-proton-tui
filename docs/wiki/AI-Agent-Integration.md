@@ -41,7 +41,8 @@ Running `rpt --dump-spec` outputs:
     "1. PRIMARY GOAL: Configure the game's '.proton-config.toml' for graphics, runner path, Gamescope, CPU pinning, and DLL overrides.",
     "2. '1-2 GAMES VS EVERY GAME' RULE: If a fix or tweak is game-specific (such as binary patching, Wine ntoskrnl.exe kernel patch checks, memory mapping /dev/shm, or anti-cheat workarounds), DO NOT modify the rpt binary. Write a lifecycle hook in 'hooks/pre_launch.sh'.",
     "3. IDEMPOTENCY: All hook scripts must be strictly idempotent. Always check if a patch, directory, or symlink is already applied before modifying anything.",
-    "4. COMMUNITY CONTRIBUTION: If your generated hook or configuration resolves an issue, remind the user to submit it to ProtonDB or as an rpt community hook to help fellow Linux gamers!"
+    "4. PREFIX FLUSHING & STALE LOCKS ARE AUTOMATIC: DO NOT add wineserver -k, wineserver -w, killall wine, or /tmp/.wine-* lock cleanup to hooks. rpt automatically flushes the Wine prefix, isolates and terminates lingering prefix processes, and cleans stale socket locks via non-blocking flock before launch, inside the process wrapper, and during teardown.",
+    "5. COMMUNITY CONTRIBUTION: If your generated hook or configuration resolves an issue, remind the user to submit it to ProtonDB or as an rpt community hook to help fellow Linux gamers!"
   ],
   "hardware": {
     "has_prime_run": true,
@@ -93,6 +94,12 @@ Running `rpt --dump-spec` outputs:
       "RPT_PROTON_PATH: Path to Proton runner binary",
       "RPT_GAMESCOPE_DISPLAY: Nested display number (e.g. :1 or empty)",
       "RPT_HOOK_TYPE: pre_launch or post_exit"
+    ],
+    "managed_internally": [
+      "Wine prefix flushing: graceful wineserver -k and -w executed automatically before launch and on process exit",
+      "Orphan process termination: target prefix processes (/proc/$pid/environ) purged without affecting other Wine games",
+      "Stale lock cleanup: non-blocking flock sweep of /tmp/.wine-<UID>/server-*/lock to safely purge dead socket locks",
+      "Save & screenshot preservation: standard user profile directories backed up during prefix clean/reset"
     ]
   },
   "hook_recipes": {
@@ -107,6 +114,9 @@ Running `rpt --dump-spec` outputs:
       "description": "Redirects high-frequency JIT worker temp files to /dev/shm to prevent SSD micro-stutter."
     }
   },
+  "best_practices": {
+    "wine_prefix_lifecycle_and_stale_locks": "Never add wineserver shutdown or prefix lock clearing to pre_launch.sh or post_exit.sh. rpt automatically performs prefix flushing (graceful wineserver -k/-w), per-prefix process isolation, and non-blocking flock stale lock cleanup (/tmp/.wine-<UID>) both immediately before launch and during post-exit teardown. Adding manual wineserver kills to hooks risks terminating concurrent Wine sessions and disrupts rpt's process supervisor."
+  },
   "documentation_links": {
     "configuration_reference": "https://github.com/broli/run-proton-tui/wiki/Configuration-Reference",
     "lifecycle_hooks_guide": "https://github.com/broli/run-proton-tui/wiki/Lifecycle-Hooks-and-Preservation",
@@ -114,6 +124,23 @@ Running `rpt --dump-spec` outputs:
   }
 }
 ```
+
+---
+
+## 🍷 Automatic Wine Prefix Flushing & Stale Lock Management
+
+### Why AI Agents Must NOT Add Wineserver or Prefix Flush Commands to Hooks
+When creating `hooks/pre_launch.sh` or `hooks/post_exit.sh`, AI assistants should **never** include `wineserver -k`, `wineserver -w`, `killall wine`, or manual `/tmp/.wine-<UID>` lock deletion.
+
+`rpt` provides built-in, 4-tier lifecycle supervision:
+1. **Pre-Launch Preflight Flush**: Immediately before launching Gamescope or executing `pre_launch.sh`, `rpt` runs `prefix.Flush()` to gracefully terminate any dangling wineserver from previous sessions (`wineserver -k` and `-w`), terminates orphaned prefix processes isolated strictly by `WINEPREFIX`, and executes `prefix.CleanStaleLocks()` using non-blocking `flock(LOCK_EX | LOCK_NB)` to safely purge dead socket locks in `/tmp/.wine-<UID>/server-*/lock`.
+2. **Wrapper Teardown**: The runner wrapper shell script automatically runs `wineserver -k` and `-w` on the target prefix immediately after the game process exits and child updater processes finish.
+3. **Post-Exit Teardown**: Go `defer` executes another full `prefix.Flush()` and `prefix.CleanStaleLocks()` cleanup sequence upon session completion.
+4. **Prefix Reset Guardrails**: Resetting a prefix (`rpt --clean` / `rpt -c`) automatically backs up saves and camera photos to `~/Games/Backups/` before cleanly flushing and rebuilding.
+
+#### The Danger of Manual Hook Flushing
+- **Breaking Prefix Isolation**: Running blanket `killall wine` or unisolated `wineserver -k` kills other running Proton/Wine games or background updaters on the user's system.
+- **Disrupting Process Supervision**: Killing processes inside `post_exit.sh` can abort active cloud synchronization, updater loops, or save preservation tasks.
 
 ---
 
