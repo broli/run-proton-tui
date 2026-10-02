@@ -38,6 +38,8 @@ func main() {
 	flagYes := flag.Bool("y", false, "Alias for --now")
 	flagClean := flag.Bool("clean", false, "Clean / reset Wine prefix before launch (with automatic save backup)")
 	flagCleanShort := flag.Bool("c", false, "Alias for --clean")
+	flagCleanZero := flag.Bool("clean-zero", false, "Launch in pure upstream Proton baseline with zero extra flags or wrappers (Gate 1)")
+	flagVanilla := flag.Bool("vanilla", false, "Alias for --clean-zero")
 	flagLog := flag.Bool("log", false, "Enable verbose Proton & DXVK logging to .logs/")
 	flagLogShort := flag.Bool("v", false, "Alias for --log")
 	flagDiagnostics := flag.Bool("diagnostics", false, "Run pre-flight health & permissions check and exit")
@@ -73,6 +75,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  cd ~/Games/Endfield && rpt      # Interactive TUI in game directory (recommended)\n")
 		fmt.Fprintf(os.Stderr, "  rpt --now                       # Quick launch with saved/auto-detected settings\n")
 		fmt.Fprintf(os.Stderr, "  rpt Setup.exe                   # Switch to specific installer/tool and open TUI\n")
+		fmt.Fprintf(os.Stderr, "  rpt --clean-zero --now          # Test pure upstream Proton baseline (zero extra flags)\n")
 		fmt.Fprintf(os.Stderr, "  rpt --clean --now               # Safe prefix reset followed by instant launch\n")
 		fmt.Fprintf(os.Stderr, "  rpt --create-desktop            # Create 1-click desktop/applications menu shortcut\n")
 		fmt.Fprintf(os.Stderr, "  rpt --dump-spec                 # Output system details and hook guidance for AI assistants\n")
@@ -296,6 +299,9 @@ func main() {
 		}
 	}
 
+	if *flagCleanZero || *flagVanilla {
+		cfg.ResetToCleanZero()
+	}
 	if *flagLog || *flagLogShort {
 		cfg.EnableLogging = true
 	}
