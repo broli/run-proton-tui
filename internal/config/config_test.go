@@ -150,3 +150,31 @@ func TestCloudSyncConfig(t *testing.T) {
 	}
 }
 
+func TestGamescopeConfiguration(t *testing.T) {
+	cfg := NewDefaultConfig()
+	if cfg.GamescopeRefresh != 0 {
+		t.Errorf("Expected default GamescopeRefresh to be 0 (Native/Untouched), got %d", cfg.GamescopeRefresh)
+	}
+	if cfg.GamescopeScaling != "fit" {
+		t.Errorf("Expected default scaling 'fit', got '%s'", cfg.GamescopeScaling)
+	}
+	if cfg.GamescopeFilter != "linear" {
+		t.Errorf("Expected default filter 'linear', got '%s'", cfg.GamescopeFilter)
+	}
+
+	cfg.GamescopeAdaptiveSync = true
+	cfg.GamescopeMangoApp = true
+	cfg.GamescopeFilter = "fsr"
+	cfg.GamescopeSharpness = 7
+	cfg.GamescopeWindowMode = "borderless"
+	cfg.GamescopeExtraArgs = []string{"--cursor-scale-height", "1080"}
+
+	cpy := cfg.Clone()
+	if !cpy.GamescopeAdaptiveSync || !cpy.GamescopeMangoApp || cpy.GamescopeFilter != "fsr" || cpy.GamescopeSharpness != 7 || cpy.GamescopeWindowMode != "borderless" {
+		t.Errorf("Clone failed to preserve Gamescope fields")
+	}
+	if len(cpy.GamescopeExtraArgs) != 2 || cpy.GamescopeExtraArgs[0] != "--cursor-scale-height" {
+		t.Errorf("Clone failed to copy GamescopeExtraArgs correctly")
+	}
+}
+
