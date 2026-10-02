@@ -22,38 +22,31 @@ type ClassificationResult struct {
 	RecommendPCores    bool
 }
 
+var utilityKeywords = []string{
+	"launcher", "update", "setup", "patch", "installer", "unins",
+	"repair", "redist", "dxsetup", "vcredist", "crashreport",
+	"crashhandler", "config", "service", "helper", "anticheat",
+	"ace-", "cef", "webengine", "platformprocess", "games.exe",
+}
+
+func is2DUtility(baseName string) bool {
+	for _, kw := range utilityKeywords {
+		if strings.Contains(baseName, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 // ClassifyExecutable analyzes the filename and path of an executable to suggest optimal execution settings.
 // Crucially, it preserves user agency: these are recommendations that the user can freely toggle.
 func ClassifyExecutable(exePath string) ClassificationResult {
 	base := strings.ToLower(filepath.Base(exePath))
 
-	// 2D utilities, launchers, installers, updaters, and crash reporters
-	is2D := strings.Contains(base, "launcher") ||
-		strings.Contains(base, "update") ||
-		strings.Contains(base, "setup") ||
-		strings.Contains(base, "patch") ||
-		strings.Contains(base, "installer") ||
-		strings.Contains(base, "unins") ||
-		strings.Contains(base, "repair") ||
-		strings.Contains(base, "redist") ||
-		strings.Contains(base, "dxsetup") ||
-		strings.Contains(base, "vcredist") ||
-		strings.Contains(base, "crashreport") ||
-		strings.Contains(base, "crashhandler") ||
-		strings.Contains(base, "config") ||
-		strings.Contains(base, "service") ||
-		strings.Contains(base, "helper") ||
-		strings.Contains(base, "anticheat") ||
-		strings.Contains(base, "ace-") ||
-		strings.Contains(base, "cef") ||
-		strings.Contains(base, "webengine") ||
-		strings.Contains(base, "platformprocess") ||
-		base == "games.exe"
-
-	if is2D {
+	if is2DUtility(base) {
 		return ClassificationResult{
 			Type:               ExeType2DUtility,
-			Rationale:          "Detected 2D launcher / setup utility (often Qt5/CEF WebEngine). Recommended: run on host iGPU without Gamescope to prevent NVAPI double-free crashes.",
+			Rationale:          "Detected 2D launcher / setup utility (often Qt5/CEF WebEngine). Recommended: run with system default GPU (no offload) and without Gamescope to prevent NVAPI double-free crashes.",
 			RecommendGamescope: false,
 			RecommendPrimeRun:  false,
 			RecommendPCores:    false,

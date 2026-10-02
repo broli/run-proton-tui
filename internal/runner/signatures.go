@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/broli/run-proton-tui/internal/pathutil"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -49,10 +50,10 @@ func GetDefaultSignatures() []SignatureDefinition {
 			Recommendation: "If running older 32-bit D3D9 titles, testing with Gamescope disabled ('rpt --gamescope false --now') may help isolate whether nested Xwayland presentation is stalling.",
 		},
 		{
-			Category: "Tencent CrashSight / Anti-Cheat Exception",
-			Keywords: []string{"pc.crashsight.wetest.net", "crashsight", "crashsightlog", "suspendthread loop failed"},
-			Observation: "Tencent WeTest CrashSight caught an unhandled fatal exception or anti-cheat driver abort during startup.",
-			Recommendation: "Verify Wine kernel patches (ntoskrnl.exe ProbeForWrite) in your Proton runner via hooks/pre_launch.sh, and ensure AppData/LocalLow exists. Inspect CrashSightLog/ for stack traces.",
+			Category: "Crash Handler / Fatal Exception Trap",
+			Keywords: []string{"crashsight", "crashsightlog", "suspendthread loop failed"},
+			Observation: "An internal crash handler caught an unhandled fatal exception or driver abort during startup.",
+			Recommendation: "Inspect runtime logs and crash dumps in .logs/ for detailed stack traces, or ask an AI assistant to analyze the logs.",
 		},
 	}
 }
@@ -66,7 +67,7 @@ func LoadSignatures(gameDir string) []SignatureDefinition {
 		filepath.Join(gameDir, "signatures.toml"),
 	}
 
-	if home, err := os.UserHomeDir(); err == nil {
+	if home := pathutil.UserHomeDir(); home != "" {
 		candidates = append(candidates, filepath.Join(home, ".config", "rpt", "signatures.toml"))
 	}
 

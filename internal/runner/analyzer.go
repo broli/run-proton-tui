@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/broli/run-proton-tui/internal/config"
+	"github.com/broli/run-proton-tui/internal/diagnostics"
 	"github.com/broli/run-proton-tui/internal/ui/style"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -76,8 +77,8 @@ func ExplainExitCode(code int) ExitCodeExplanation {
 		}
 	case 222:
 		return ExitCodeExplanation{
-			Title:       "Tencent CrashSight Exception Caught (Exit Code 222)",
-			Description: "Tencent WeTest CrashSight trapped an unhandled fatal exception in the game or anti-cheat service and generated an error dump before exiting.",
+			Title:       "Application Crash Handler Trapped Fatal Exception (Exit Code 222)",
+			Description: "An internal crash handler or runtime watchdog caught an unhandled fatal exception in the game or anti-cheat service and generated an error dump before exiting.",
 		}
 	default:
 		if code > 128 && code <= 165 {
@@ -223,11 +224,11 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 	// 7. Process Exit Code Insights
 	if len(exitCodes) > 0 {
 		code := exitCodes[0]
-		if code == 222 && !matchedSigCategories["Tencent CrashSight / Anti-Cheat Exception"] {
+		if code == 222 && !matchedSigCategories["Crash Handler / Fatal Exception Trap"] {
 			insights = append(insights, DiagnosticInsight{
-				Category:       "Tencent CrashSight Exception (Exit Code 222)",
-				Observation:    "Tencent WeTest CrashSight caught an unhandled fatal exception during game or anti-cheat startup and wrote a crash dump.",
-				Recommendation: "Verify Wine kernel patches (ntoskrnl.exe ProbeForWrite) in your Proton runner via hooks/pre_launch.sh, and ensure AppData/LocalLow exists. Inspect CrashSightLog/ for detailed stack traces.",
+				Category:       "Crash Handler Exception (Exit Code 222)",
+				Observation:    "An internal crash handler caught an unhandled fatal exception during game startup and wrote a crash dump.",
+				Recommendation: "Inspect runtime logs and crash dumps for stack traces, or ask an AI assistant to analyze the log.",
 			})
 		} else if code == 139 && !hasWineServerCrash {
 			insights = append(insights, DiagnosticInsight{
@@ -247,26 +248,9 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 	return insights
 }
 
-// ReadLogTail reads the last n lines of a file.
+// ReadLogTail reads the last n lines of a file safely.
 func ReadLogTail(logPath string, n int) []string {
-	f, err := os.Open(logPath)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(f)
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 1024*1024) // Allow lines up to 1MB
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-		if len(lines) > n {
-			lines = lines[1:]
-		}
-	}
-	_ = scanner.Err()
-	return lines
+	return diagnostics.ReadLogTail(logPath, n)
 }
 
 // GenerateAIHelperPackage formats a complete, self-contained diagnostic prompt for AI assistants (like ChatGPT, Claude, etc.).
@@ -347,12 +331,6 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 		Italic(true).
 		Foreground(style.ColorHighlight)
 
-	badgeStyle := lipgloss.NewStyle().
-		Bold(true).
-		Background(style.ColorWarning).
-		Foreground(lipgloss.Color("#1a1b26")).
-		Padding(0, 1)
-
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(style.ColorPrimary)
@@ -363,10 +341,6 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 	mutedStyle := lipgloss.NewStyle().
 		Foreground(style.ColorMuted)
 
-	solutionStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(style.ColorPrimary)
-
 	fixStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(style.ColorSuccess)
@@ -375,11 +349,11 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 	exp := ExplainExitCode(result.ExitCode)
 
 	if result.AbortedByUser {
-		lines = append(lines, titleStyle.Render("⚠️  SESSION TERMINATED BY USER (Ctrl+C) / GAME HANG DETECTED"))
-		lines = append(lines, quoteStyle.Render(fmt.Sprintf("“We believe the game crashed, stalled, or was interrupted: %s”", exp.Description)))
+		lines = append(lines, titleStyle.Render("⚠️  SESSION TERMINATED BY USER (Ctrl+C)"))
+		lines = append(lines, quoteStyle.Render(fmt.Sprintf("Status: %s", exp.Description)))
 	} else {
-		lines = append(lines, titleStyle.Render(fmt.Sprintf("💥 GAME CRASH / EARLY EXIT (Exit Code: %d after %v)", result.ExitCode, result.Duration.Round(100*time.Millisecond))))
-		lines = append(lines, quoteStyle.Render(fmt.Sprintf("“We believe the game crashed or closed early: %s”", exp.Description)))
+		lines = append(lines, titleStyle.Render(fmt.Sprintf("💥 PROCESS TERMINATED UNEXPECTEDLY (Exit Code: %d after %v)", result.ExitCode, result.Duration.Round(100*time.Millisecond))))
+		lines = append(lines, quoteStyle.Render(fmt.Sprintf("Status: %s", exp.Description)))
 	}
 	lines = append(lines, "")
 
@@ -393,34 +367,51 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 	}
 	lines = append(lines, "")
 
-	// Diagnostic Insights
-	if len(insights) > 0 {
-		lines = append(lines, headerStyle.Render("Automated Root-Cause Insights:"))
-		for _, ins := range insights {
-			lines = append(lines, fmt.Sprintf("  %s %s", badgeStyle.Render(ins.Category), textStyle.Render(ins.Observation)))
-			lines = append(lines, fmt.Sprintf("    %s %s", solutionStyle.Render("Proposed Solution:"), textStyle.Render(ins.Recommendation)))
-		}
-		lines = append(lines, "")
+	// Proposed Solution
+	lines = append(lines, headerStyle.Render("Proposed Solution:"))
+	if result.LogFile != "" {
+		lines = append(lines, textStyle.Render(fmt.Sprintf("  1. Analyze session logs directly (%s) for the fatal error or assertion.", result.LogFile)))
 	} else {
-		lines = append(lines, headerStyle.Render("Analysis:"))
-		lines = append(lines, textStyle.Render("  No standard failure signatures matched in the log."))
-		lines = append(lines, "")
+		lines = append(lines, textStyle.Render("  1. Analyze runtime logs in .logs/ for the fatal error or assertion."))
 	}
+	if absHelpFilePath != "" {
+		lines = append(lines, textStyle.Render(fmt.Sprintf("  2. Or ask an AI assistant to analyze the logs using the pre-formatted report in %s.", absHelpFilePath)))
+	} else {
+		lines = append(lines, textStyle.Render("  2. Or ask an AI assistant to analyze the logs."))
+	}
+	lines = append(lines, "")
 
 	// Troubleshooting Suggestions
 	lines = append(lines, headerStyle.Render("Troubleshooting Suggestions:"))
-	lines = append(lines, textStyle.Render("  • Run health check: 'rpt --diagnostics' to verify prefix permissions and file integrity."))
-	lines = append(lines, textStyle.Render("  • Review runtime logs in .logs/ for detailed driver faults, kernel stubs, or crash dumps."))
-	lines = append(lines, textStyle.Render("  • Consider testing with an alternate Proton runner (e.g. Proton Experimental vs GE-Proton)."))
+	lines = append(lines, textStyle.Render("  • Check Logs: Review runtime logs in .logs/ for driver faults, missing DLLs, or memory errors."))
+
+	searchQuery := cfg.PresetName
+	if searchQuery == "" {
+		searchQuery = strings.TrimSuffix(cfg.TargetExe, ".exe")
+		if searchQuery == "" {
+			searchQuery = filepath.Base(filepath.Dir(cfg.TargetExe))
+		}
+	}
+	lines = append(lines, textStyle.Render(fmt.Sprintf("  • Search Google: Look up '%s proton crash' or '%s exit code %d' for known community fixes.", searchQuery, searchQuery, result.ExitCode)))
+	lines = append(lines, textStyle.Render("  • Search Reddit: Ask or search in r/linux_gaming and r/SteamDeck with your game title and log snippet."))
+
+	if cfg.HasValidAppID() {
+		lines = append(lines, textStyle.Render(fmt.Sprintf("  • Check ProtonDB: https://www.protondb.com/app/%s for community ratings, tiers, and launch options.", cfg.AppID)))
+	} else {
+		lines = append(lines, textStyle.Render("  • Check ProtonDB: https://www.protondb.com to check if this title requires specific runner tweaks."))
+	}
+	lines = append(lines, textStyle.Render("  • Clean Zero Baseline: Run 'rpt --clean-zero --now' to test with pure upstream defaults and zero extra flags."))
+	lines = append(lines, textStyle.Render("  • Run Health Check: 'rpt --diagnostics' to verify prefix permissions and file integrity."))
+	lines = append(lines, textStyle.Render("  • Test Alternate Runner: Switch between GE-Proton, Proton Experimental, or Proton 9.0."))
 	lines = append(lines, "")
 
 	// AI Assistant Helper file instructions with absolute path
 	if absHelpFilePath != "" {
-		lines = append(lines, headerStyle.Render("📋 Need Help Getting This Running? Ask Your Favorite AI Assistant:"))
+		lines = append(lines, headerStyle.Render("📋 Ask AI to Analyze Logs:"))
 		lines = append(lines, fixStyle.Render(fmt.Sprintf("  📄 Diagnostic file created at: %s", absHelpFilePath)))
 		lines = append(lines, mutedStyle.Render("  1. Copy the contents of the file above."))
 		lines = append(lines, mutedStyle.Render("  2. Paste it into your favorite AI assistant (like ChatGPT, Claude, etc.)."))
-		lines = append(lines, quoteStyle.Render("  The AI assistant will do its best to diagnose the issue and suggest settings or launch scripts 😉"))
+		lines = append(lines, quoteStyle.Render("  The AI assistant will analyze the logs and environment to propose targeted fixes."))
 	}
 
 	content := strings.Join(lines, "\n")

@@ -16,6 +16,7 @@ import (
 	"github.com/broli/run-proton-tui/internal/diagnostics"
 	"github.com/broli/run-proton-tui/internal/hardware"
 	"github.com/broli/run-proton-tui/internal/hooks"
+	"github.com/broli/run-proton-tui/internal/pathutil"
 	"github.com/broli/run-proton-tui/internal/prefix"
 	"github.com/broli/run-proton-tui/internal/proton"
 )
@@ -159,7 +160,7 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 	uid := os.Getuid()
 
 	// Locate clipboard bridge if available
-	home, _ := os.UserHomeDir()
+	home := pathutil.UserHomeDir()
 	bridgeBin := filepath.Join(home, "bin", "gamescope-clip-bridge")
 	bridgeSnippet := ""
 	if _, err := os.Stat(bridgeBin); err == nil {
@@ -328,28 +329,16 @@ exit $EXIT_CODE
 
 // processFilesystemDirectives creates required directories and declarative symlinks.
 func processFilesystemDirectives(gameDir, prefixDir string, fs config.FilesystemConfig, logWriter io.Writer) {
-	home, _ := os.UserHomeDir()
-	resolvePath := func(p string) string {
-		p = strings.ReplaceAll(p, "{PREFIX}", prefixDir)
-		p = strings.ReplaceAll(p, "{GAME_DIR}", gameDir)
-		p = strings.ReplaceAll(p, "{HOST_HOME}", home)
-		p = strings.ReplaceAll(p, "{HOST_PICTURES}", filepath.Join(home, "Pictures"))
-		if strings.HasPrefix(p, "~/") {
-			p = filepath.Join(home, p[2:])
-		}
-		return p
-	}
-
 	for _, dir := range fs.EnsureDirs {
-		target := resolvePath(dir)
+		target := pathutil.ResolveTemplate(dir, gameDir, prefixDir)
 		if target != "" {
 			_ = os.MkdirAll(target, 0755)
 		}
 	}
 
 	for _, sym := range fs.Symlinks {
-		src := resolvePath(sym.Source)
-		dst := resolvePath(sym.Target)
+		src := pathutil.ResolveTemplate(sym.Source, gameDir, prefixDir)
+		dst := pathutil.ResolveTemplate(sym.Target, gameDir, prefixDir)
 		if src == "" || dst == "" {
 			continue
 		}
