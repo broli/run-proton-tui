@@ -141,7 +141,7 @@ func (v *GamescopeView) Update(msg tea.Msg) (done bool, detected bool) {
 				v.cycleFPSLimit(1)
 			case FieldResetDefaults:
 				v.Config.ResetGamescopeToDefaults()
-				v.StatusMessage = "✓ Gamescope reset to safe defaults (1080p, Linear, SDR, Untouched Hz)"
+				v.StatusMessage = "✓ Gamescope reset to safe defaults (Auto Geometry, Linear, SDR, Untouched Hz)"
 			}
 
 		case "left", "h":

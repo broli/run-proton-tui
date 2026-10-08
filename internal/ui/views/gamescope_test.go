@@ -91,8 +91,8 @@ func TestGamescopeView(t *testing.T) {
 	cfg.GamescopeHeight = 2160
 	cfg.GamescopeHDR = true
 	gv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	if cfg.GamescopeWidth != 1920 || cfg.GamescopeHeight != 1080 || cfg.GamescopeHDR {
-		t.Errorf("Expected 'r' to reset Gamescope to 1080p SDR, got %dx%d HDR=%v", cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeHDR)
+	if cfg.GamescopeWidth != 0 || cfg.GamescopeHeight != 0 || cfg.GamescopeHDR {
+		t.Errorf("Expected 'r' to reset Gamescope to Auto geometry (0x0) SDR, got %dx%d HDR=%v", cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeHDR)
 	}
 
 	// 9. Test Esc returns done=true

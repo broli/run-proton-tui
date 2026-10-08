@@ -43,6 +43,7 @@ const (
 	StateCleanConfirm
 	StateGamescopeSettings
 	StateResetConfirm
+	StateProfiles
 )
 
 // Model is the root Elm Architecture model for rpt.
@@ -52,6 +53,7 @@ type Model struct {
 	GameDir         string
 	GameTitle       string
 	Config          *config.GameConfig
+	ConfigFile      *config.GameConfigFile
 	Runners         []proton.Runner
 	Exes            []views.ExeItem
 	Emulator        *integrations.EmulatorInfo
@@ -81,6 +83,7 @@ type Model struct {
 	CleanConfirmView *views.CleanConfirmView
 	GamescopeView    *views.GamescopeView
 	ResetConfirmView *views.ResetConfirmView
+	ProfilesView     *views.ProfilesView
 	DetectedPreset   *quirks.Preset
 }
 
@@ -92,6 +95,17 @@ type protonDBResultMsg struct {
 
 // NewModel constructs the root application state.
 func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
+	fileCfg, err := config.LoadConfigFile(gameDir)
+	if err != nil {
+		fileCfg = config.NewConfigFileWithDefault()
+		if cfg != nil {
+			fileCfg.Profiles["default"] = cfg.Clone()
+		}
+	} else if cfg != nil {
+		fileCfg.Profiles[fileCfg.ActiveProfile] = cfg.Clone()
+	}
+	cfg = fileCfg.GetActiveProfile()
+
 	runners, _ := proton.DiscoverRunners()
 	exes := views.DiscoverExecutables(gameDir)
 	emuInfo, _ := integrations.ScanEmulators(gameDir)
@@ -138,6 +152,7 @@ func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 		GameDir:         gameDir,
 		GameTitle:       filepath.Base(gameDir),
 		Config:          cfg,
+		ConfigFile:      fileCfg,
 		Runners:         runners,
 		Exes:            exes,
 		Emulator:        emuInfo,
@@ -559,6 +574,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
+		case StateProfiles:
+			if m.ProfilesView != nil {
+				activeChanged, configModified, returnToDash := m.ProfilesView.Update(msg)
+				if configModified {
+					_ = config.SaveConfigFile(m.GameDir, m.ConfigFile)
+				}
+				if activeChanged {
+					m.Config = m.ConfigFile.GetActiveProfile()
+					m.updateSubMenuData()
+				}
+				if returnToDash {
+					if m.PrevState != 0 {
+						m.State = m.PrevState
+					} else {
+						m.State = StateDashboard
+					}
+				}
+				return m, nil
+			}
+			return m, nil
+
 		case StateDashboard:
 			return m.handleDashboardKeys(msg)
 		}
@@ -638,6 +674,12 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		if m.ProtonDB == nil {
 			return m, m.fetchProtonDB("")
 		}
+		return m, nil
+
+	case views.ActionOpenProfiles:
+		m.PrevState = StateSubMenu
+		m.ProfilesView = views.NewProfilesView(m.ConfigFile, m.Width, m.Height)
+		m.State = StateProfiles
 		return m, nil
 
 	case views.ActionToggleGamescope:
@@ -900,6 +942,12 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.State = StateGamescopeSettings
 		return m, nil
 
+	case "P":
+		m.PrevState = StateDashboard
+		m.ProfilesView = views.NewProfilesView(m.ConfigFile, m.Width, m.Height)
+		m.State = StateProfiles
+		return m, nil
+
 	case "D":
 		target := m.Config.GamescopeOutput
 		w, h, err := hardware.DetectOutputResolution(target)
@@ -1106,23 +1154,29 @@ func (m *Model) View() string {
 		if m.ResetConfirmView != nil {
 			return m.ResetConfirmView.View()
 		}
+	case StateProfiles:
+		if m.ProfilesView != nil {
+			return m.ProfilesView.View()
+		}
 	case StateDashboard:
 		return views.RenderDashboard(views.DashboardData{
-			GameTitle:       m.GameTitle,
-			GameDir:         m.GameDir,
-			Config:          m.Config,
-			Emulator:        m.Emulator,
-			ProtonDB:        m.ProtonDB,
-			Classification:  runner.ClassifyExecutable(m.Config.TargetExe),
-			HasNTSync:       hardware.HasNTSync(),
-			HasPrimeRun:     m.GPUInfo != nil && m.GPUInfo.HasPrimeRun,
-			HasGamescope:    true,
-			ActiveOverrides: m.ActiveOverrides,
-			ProtonName:      m.getProtonName(),
-			StatusMessage:   m.StatusMessage,
-			Width:           m.Width,
-			Height:          m.Height,
-			OpaqueBackdrop:  m.Config.OpaqueBackdrop,
+			GameTitle:         m.GameTitle,
+			GameDir:           m.GameDir,
+			Config:            m.Config,
+			Emulator:          m.Emulator,
+			ProtonDB:          m.ProtonDB,
+			Classification:    runner.ClassifyExecutable(m.Config.TargetExe),
+			HasNTSync:         hardware.HasNTSync(),
+			HasPrimeRun:       m.GPUInfo != nil && m.GPUInfo.HasPrimeRun,
+			HasGamescope:      true,
+			ActiveOverrides:   m.ActiveOverrides,
+			ProtonName:        m.getProtonName(),
+			ActiveProfileName: m.ConfigFile.ActiveProfile,
+			ProfileCount:      len(m.ConfigFile.Profiles),
+			StatusMessage:     m.StatusMessage,
+			Width:             m.Width,
+			Height:            m.Height,
+			OpaqueBackdrop:    m.Config.OpaqueBackdrop,
 		})
 	}
 	return ""

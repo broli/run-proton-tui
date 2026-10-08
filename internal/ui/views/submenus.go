@@ -62,6 +62,7 @@ const (
 	ActionResetOverrides
 	ActionConfirmResetDefaults
 	ActionGenerateBugReport
+	ActionOpenProfiles
 )
 
 // SubMenuData contains current state needed to display sub-menu options accurately.
@@ -114,6 +115,8 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 				return ActionOpenQuirks
 			case "4", "a", "A":
 				return ActionOpenProtonDB
+			case "5", "p", "P":
+				return ActionOpenProfiles
 			}
 
 		case MenuDisplay:
@@ -226,6 +229,7 @@ func (v *SubMenuView) View() string {
 			{"[r / 2]", "Select Proton Runner", v.Data.ProtonName},
 			{"[d / 3]", "Game Quirks & Presets", pfxPreset},
 			{"[a / 4]", "ProtonDB Community Report", pdbStatus},
+			{"[p / 5]", "Manage Profiles (rpt.toml)", "Switch, Clone, or Delete Profiles"},
 		}
 
 	case MenuDisplay:

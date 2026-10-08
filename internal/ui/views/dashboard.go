@@ -28,6 +28,8 @@ type DashboardData struct {
 	ActiveOverrides map[string]string
 	PrefixSize      string
 	ProtonName      string
+	ActiveProfileName string
+	ProfileCount      int
 	StatusMessage   string
 	Width           int
 	Height          int
@@ -92,14 +94,12 @@ func RenderDashboard(d DashboardData) string {
 	}
 	leftSb.WriteString(fmt.Sprintf("%s %s %s\n", lbl("Executable:"), style.KeyStyle.Render(d.Config.TargetExe), exeTag))
 
-	profileDesc := style.BadgeHighlight.Render("3D Game Engine (Dedicated GPU + Gamescope)")
-	if d.Classification.Type == runner.ExeType2DUtility {
-		profileDesc = style.BadgeWarning.Render("2D Utility / Launcher (Standard Mode)")
+	profName := d.ActiveProfileName
+	if profName == "" {
+		profName = "default"
 	}
-	if _, ok := d.Config.Profiles[d.Config.TargetExe]; ok {
-		profileDesc = style.BadgeSuccess.Render("Custom Profile (.proton-config.toml)")
-	}
-	leftSb.WriteString(fmt.Sprintf("%s %s\n\n", lbl("Target Profile:"), profileDesc))
+	profileDesc := style.BadgeSuccess.Render(fmt.Sprintf("%s (rpt.toml)", profName))
+	leftSb.WriteString(fmt.Sprintf("%s %s %s\n\n", lbl("Active Profile:"), profileDesc, style.KeyStyle.Render("([P] Profiles)")))
 
 	// Proton Version
 	leftSb.WriteString(fmt.Sprintf("%s %s\n", lbl("Proton Runner:"), style.KeyStyle.Render(d.ProtonName)))
@@ -344,7 +344,7 @@ func renderMenuDock(width int, opaque bool, targetExe, protonName string) string
 	r2 := lipgloss.JoinHorizontal(lipgloss.Top, row2...)
 	grid := r1 + "\n\n" + r2
 
-	quickTips := style.SubheaderStyle.Render("Quick Hotkeys: [e] Select Exe • [g] Toggle Gamescope • [v] Toggle GPU • [R] Revert to Safe Defaults • [?] Help")
+	quickTips := style.SubheaderStyle.Render("Quick Hotkeys: [P] Profiles • [e] Select Exe • [g] Toggle Gamescope • [v] Toggle GPU • [R] Revert to Safe Defaults • [?] Help")
 	dockContent := style.SectionTitle.Render("📂 Main Menu & Categories (Press key to open sub-menu):") + "\n\n" + grid + "\n\n" + quickTips
 
 	return style.GetPanelStyle(opaque).Width(width).Render(dockContent)
