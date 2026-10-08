@@ -1,6 +1,8 @@
-# Configuration Reference (.proton-config.toml)
+# Configuration Reference (rpt.toml)
 
-Every game directory managed by `rpt` stores its configuration in a clean, human-readable `.proton-config.toml` file.
+Every game directory managed by `rpt` stores its configuration in a clean, human-readable `rpt.toml` (or hidden `.rpt.toml`) file.
+
+`rpt` organizes configurations into **named, self-contained profiles** under the `[profiles.<name>]` table, with an `active_profile` pointer at the root.
 
 ---
 
@@ -8,25 +10,29 @@ Every game directory managed by `rpt` stores its configuration in a clean, human
 
 ```toml
 # ==============================================================================
-# rpt Configuration Specification (.proton-config.toml)
+# rpt Configuration Specification (rpt.toml)
 # ==============================================================================
 
+# Currently active profile name
+active_profile = "default"
+
 # ------------------------------------------------------------------------------
-# 1. Core Execution Settings
+# Profile: "default" (Self-Contained Configuration)
 # ------------------------------------------------------------------------------
+[profiles.default]
+
+# --- 1. Core Execution Settings ---
 target_exe = "Game.exe"               # Target Windows binary (relative to game dir)
 proton_path = "/path/to/proton"       # Absolute path to proton runner executable
 app_id = "0"                          # Steam AppID for UMU fixes and ProtonDB queries
 extra_args = ["-vulkan"]              # Extra CLI flags passed directly to game executable
 
-# ------------------------------------------------------------------------------
-# 2. Hardware, Sandbox & Performance Controls
-# ------------------------------------------------------------------------------
+# --- 2. Hardware, Sandbox & Performance Controls ---
 use_gamescope = true                  # Run inside Gamescope nested micro-compositor
-gamescope_output = "HDMI-A-1"         # Target DRM display (or "auto" for external preferred)
-gamescope_width = 1920                # Resolution canvas width
-gamescope_height = 1080               # Resolution canvas height
-gamescope_refresh = 75                # Refresh rate in Hz
+gamescope_output = "auto"             # Target DRM display ("auto" lets host compositor decide)
+gamescope_width = 0                   # Resolution canvas width (0 = auto/native)
+gamescope_height = 0                  # Resolution canvas height (0 = auto/native)
+gamescope_refresh = 0                 # Refresh rate in Hz (0 = native/untouched)
 use_prime_run = true                  # Offload 3D rendering to NVIDIA dGPU via prime-run
 use_pcores = true                     # Pin execution to Intel Performance cores (taskset)
 pcores_mask = "0-11"                  # Thread affinity mask for Performance cores
@@ -35,96 +41,92 @@ use_xalia = false                     # Enable Proton Xalia UI accessibility bri
 enable_logging = false                # Capture verbose Proton, DXVK, and VKD3D logs (.logs/)
 opaque_backdrop = true                # TUI visual styling: opaque or transparent
 
-# ------------------------------------------------------------------------------
-# 3. Save Game & Screenshot Preservation
-# ------------------------------------------------------------------------------
-# Destination directory for preserved files during prefix resets/cleanups.
-# Standard Windows folders (Saved Games, Documents, AppData, Pictures) are preserved.
-backup_dir = "~/winegames/saves"
+# --- 3. Save Game & Screenshot Preservation ---
+backup_dir = "~/winegames/saves"      # Preservation destination for prefix resets/cleanups
 
-# ------------------------------------------------------------------------------
-# 4. Multi-Stage Process Supervision
-# ------------------------------------------------------------------------------
-# When a game launcher delegates to a patcher/updater and exits, rpt supervises
-# these process patterns, preventing premature prefix teardown.
+# --- 4. Multi-Stage Process Supervision ---
+# When a launcher delegates to a patcher/updater, rpt supervises these binaries
 wait_processes = ["Updater.exe", "7zg.exe", "Patch.exe"]
 
-# ------------------------------------------------------------------------------
-# 5. External Socket & Display Export
-# ------------------------------------------------------------------------------
-# Path where Gamescope nested display number is written (e.g. for companion tools)
+# --- 5. External Socket & Display Export ---
 display_file = "/tmp/gamescope-game-display"
 
-# ------------------------------------------------------------------------------
-# 6. Custom Environment Variables
-# ------------------------------------------------------------------------------
-[env]
+# --- 6. Custom Environment Variables ---
+[profiles.default.env_vars]
 WINE_CANONICAL_HOLE = "skip_volatile_check" # Prevents anti-cheat page fault crashes
 VKD3D_CONFIG = "no_upload_hvv"              # Prevents 8GB VRAM thrashing
 UMU_ID = "umu-custom"                       # Optional UMU game database identifier
 
-# ------------------------------------------------------------------------------
-# 7. WINEDLLOVERRIDES Mappings
-# ------------------------------------------------------------------------------
-[dll_overrides]
+# --- 7. WINEDLLOVERRIDES Mappings ---
+[profiles.default.dll_overrides]
 dxgi = "n,b"
 d3d11 = "n,b"
 version = "n,b"
 
-# ------------------------------------------------------------------------------
-# 8. Declarative Filesystem Directives
-# ------------------------------------------------------------------------------
-[filesystem]
-# Directories that must exist before launch
+# --- 8. Declarative Filesystem Directives ---
+[profiles.default.filesystem]
 ensure_dirs = [
   "{PREFIX}/pfx/drive_c/users/steamuser/AppData/LocalLow",
   "{PREFIX}/pfx/drive_c/users/steamuser/Pictures"
 ]
 
-# Persistent symlinks established prior to launch
-# Supports {PREFIX}, {GAME_DIR}, and ~
 symlinks = [
   { source = "~/Pictures/MyGame", target = "{PREFIX}/pfx/drive_c/users/steamuser/Pictures/MyGame" }
 ]
 
-# Additional non-standard paths preserved during prefix resets
 extra_backup_paths = ["drive_c/GameData/Saves"]
 
-# ------------------------------------------------------------------------------
-# 9. Lifecycle Shell Hooks (Explicit Paths)
-# ------------------------------------------------------------------------------
-# Optional: explicitly specify hook scripts (overrides auto-discovery)
+# --- 9. Lifecycle Shell Hooks (Explicit Paths) ---
 pre_launch_hook = "./hooks/pre_launch.sh"
 post_exit_hook = "./hooks/post_exit.sh"
 hook_dirs = ["./custom_scripts"]
 
 # ------------------------------------------------------------------------------
-# 10. Per-Executable Profile Overrides
+# Profile: "launcher" (Independent 2D Web Launcher Profile)
 # ------------------------------------------------------------------------------
-# When the active target matches a profile key (by full path or basename),
-# these settings dynamically override the global config while sharing the prefix.
-[profiles."Launcher.exe"]
+[profiles.launcher]
 target_exe = "launcher/Launcher.exe"
+proton_path = "/path/to/proton"
+app_id = "0"
 use_gamescope = false                 # 2D web launcher runs natively on host desktop
+gamescope_output = "auto"
 use_prime_run = false                 # Runs on host iGPU (prevents Qt5/CEF NVAPI crash)
 use_pcores = false
+manage_power = false
+use_xalia = false
+enable_logging = false
+opaque_backdrop = true
 extra_args = []
 ```
 
 ---
 
-## 🔍 How Profile Matching Works
+## 🔍 Profile Management & Switching
 
-Games frequently package a 2D web updater/installer (`Launcher.exe`, `Setup.exe`) and the actual 3D game (`Game.exe`, `Shipping.exe`) in the same root folder or inside subdirectories.
+Every profile in `rpt.toml` is **completely self-contained**. This means there are no mysterious hidden inheritances or conflicting partial overrides: what you see in the profile table is exactly what runs.
 
-When you switch executables in `rpt` (using `[3]` or passing `rpt Setup.exe`):
-1. `rpt` checks if an exact match exists in `[profiles."..."]`.
-2. If not found, it compares by **basename** (e.g., target `launcher/Launcher.exe` matches profile `Launcher.exe`).
-3. If matched, the profile's flags (`use_gamescope`, `use_prime_run`, `extra_args`, etc.) automatically override the defaults.
-4. When you switch back to `Game.exe`, the 3D performance settings are restored automatically!
+### Managing Profiles in the TUI:
+- Press **`[P]`** on the dashboard to open the **Profile Manager**.
+- View all profiles, see which one is active, inspect its target executable and runner.
+- Press **`[Enter]`** to switch the active profile.
+- Press **`[n]`** to create or clone a profile under a new name.
+- Press **`[x]`** to delete a profile (cannot delete the last profile).
+
+### Managing Profiles via CLI:
+- Run with a specific profile:
+  ```bash
+  rpt --profile launcher
+  ```
+- Run headless directly with a chosen profile:
+  ```bash
+  rpt --profile game --now
+  ```
+- Inspect execution command without running:
+  ```bash
+  rpt --profile game --print-cmd
+  ```
 
 ---
 
 ## 🎮 Real-World Case Studies & Examples
 - [Arknights: Endfield Production Configuration](Example-Config-Arknights-Endfield): Complete setup with decoupled Gamescope, persistent screenshot symlinking, and Tencent Anti-Cheat Expert parameters.
-

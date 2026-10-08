@@ -43,7 +43,7 @@ Modern Windows PC gaming on Linux has evolved rapidly, but hybrid hardware setup
 - Multi-executable games (e.g. a 2D updater `Launcher.exe` vs a 3D game `Game.exe`) have conflicting hardware requirements while needing to share the exact same Wine prefix.
 
 **`rpt` solves these problems with a 100% game-agnostic architecture:**
-- **Zero hardcoded game logic**: All game-specific behaviors are declared in `.proton-config.toml` or handled via user shell hooks.
+- **Zero hardcoded game logic**: All game-specific behaviors are declared in `rpt.toml` or handled via user shell hooks.
 - **Decoupled Gamescope**: Gamescope runs natively on the host compositor's iGPU; `prime-run` runs strictly inside the sandbox on the Windows binary.
 - **World-Readable Display Detection**: Queries Linux DRM sysfs directly without `sudo`, `kscreendoctor`, or external tools.
 - **AI-Agent Ready**: Includes `--dump-spec` to output machine-readable runtime capabilities for autonomous AI pair programmers.
@@ -77,6 +77,9 @@ rpt --now
 # Clean/reset prefix safely with automatic save & screenshot preservation
 rpt --clean --now
 
+# Switch to a specific profile
+rpt --profile launcher
+
 # Switch to a specific setup/installer tool
 rpt Setup.exe
 
@@ -88,7 +91,7 @@ rpt --dump-spec
 
 ## Wiki Documentation Links
 
-- **[Configuration Reference](Configuration-Reference)**: Complete documentation of `.proton-config.toml` fields, profiles, and environment overrides.
+- **[Configuration Reference](Configuration-Reference)**: Complete documentation of `rpt.toml` fields, profiles, and environment overrides.
 - **[Real-World Case Study: Arknights: Endfield](Example-Config-Arknights-Endfield)**: Complete production configuration with screenshot symlinking, Gamescope, and anti-cheat settings.
 - **[Lifecycle Hooks & Preservation](Lifecycle-Hooks-and-Preservation)**: How to write `pre_launch.sh` scripts, hook search paths, and save/screenshot preservation.
 - **[Hardware & Wayland Architecture](Hardware-and-Wayland-Architecture)**: Decoupled Gamescope sandboxing, DRM sysfs discovery, P-Core CPU pinning, and Wayland stability.
@@ -102,6 +105,7 @@ rpt --dump-spec
 | Hotkey | Action | Scope |
 | :--- | :--- | :--- |
 | **`Enter` / `1`** | **Launch Game** with active settings | Dashboard |
+| **`P`** | **Profile Manager** (view, clone, delete, switch profiles) | Dashboard |
 | **`2`** | **Proton & Game Setup** sub-menu (Runner, Target Exe, Quirks, ProtonDB) | Dashboard |
 | **`3`** | **Performance & Sandbox** sub-menu (Gamescope, P-Cores, GPU, Displays) | Dashboard |
 | **`4`** | **Prefix & Overrides** sub-menu (DLL overrides, Reset, Health) | Dashboard |

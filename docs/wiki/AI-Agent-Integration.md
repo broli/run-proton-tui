@@ -21,7 +21,7 @@ The AI typically doesn't know:
 2. Which external monitors are currently plugged in.
 3. Which CPU P-core threads exist on your processor.
 4. Which Proton runners (GE-Proton, Proton Experimental) exist on your disk.
-5. The exact supported configuration schema of `.proton-config.toml`.
+5. The exact supported configuration schema of `rpt.toml`.
 
 By running `rpt --dump-spec`, you can copy and paste a single JSON document directly into ChatGPT or Claude. The AI immediately understands your complete system and can write the exact files you need without guessing.
 
@@ -34,11 +34,11 @@ Running `rpt --dump-spec` outputs:
 ```json
 {
   "schema_version": "rpt-spec-v2",
-  "rpt_version": "0.7.0",
+  "rpt_version": "0.9.0",
   "title": "AI Assistant Game Setup Helper",
   "description": "System and launcher specification for AI assistants (like ChatGPT, Claude, etc.) to configure games and write launch hooks under run-proton-tui.",
   "ai_assistant_guidelines": [
-    "1. PRIMARY GOAL: Configure the game's '.proton-config.toml' for graphics, runner path, Gamescope, CPU pinning, and DLL overrides.",
+    "1. PRIMARY GOAL: Configure the game's 'rpt.toml' using self-contained profiles under [profiles.<name>] (with active_profile pointing to the active profile name) for graphics, runner path, Gamescope, CPU pinning, and DLL overrides.",
     "2. 'CLEAN ZERO' BASELINE GATE: Before diagnosing deep issues, writing custom patches, or adding workarounds, verify baseline behavior with pure upstream defaults and zero extra flags.",
     "3. SINGLE-VARIABLE ISOLATION (STRICT DELTA TESTING): Never stack workarounds or arguments (A + B + C + D). Test each variable in isolation; if variable A does not resolve the issue, revert it before testing B.",
     "4. VERIFY EXCEPTION CAUSALITY: Never assume a logged exception, Wine 'fixme:', or stub warning caused a process exit. Correlate timestamps, thread IDs, and parent process termination before attempting to patch or stub an error.",
@@ -59,7 +59,7 @@ Running `rpt --dump-spec` outputs:
       "HDMI-A-1",
       "eDP-1"
     ],
-    "preferred_output": "HDMI-A-1",
+    "preferred_output": "auto",
     "pcores_mask": "0-11"
   },
   "installed_runners": [
@@ -70,21 +70,55 @@ Running `rpt --dump-spec` outputs:
   ],
   "config_fields": [
     {
+      "key": "active_profile",
+      "type": "string",
+      "default": "default",
+      "description": "Name of the currently active configuration profile at root of rpt.toml"
+    },
+    {
       "key": "target_exe",
       "type": "string",
       "description": "Relative path to target Windows executable"
     },
     {
+      "key": "proton_path",
+      "type": "string",
+      "description": "Absolute path to Proton runner executable"
+    },
+    {
       "key": "use_gamescope",
       "type": "bool",
-      "default": "true",
+      "default": "false (Clean Zero) / auto (Wayland)",
       "description": "Run inside Gamescope nested micro-compositor"
+    },
+    {
+      "key": "gamescope_output",
+      "type": "string",
+      "default": "auto",
+      "description": "Target DRM display output connector (e.g. HDMI-A-1, eDP-1, or auto)"
+    },
+    {
+      "key": "gamescope_width",
+      "type": "int",
+      "default": "0 (auto/native)",
+      "description": "Gamescope virtual canvas width (0 = auto)"
+    },
+    {
+      "key": "gamescope_height",
+      "type": "int",
+      "default": "0 (auto/native)",
+      "description": "Gamescope virtual canvas height (0 = auto)"
+    },
+    {
+      "key": "profiles.<name>",
+      "type": "table",
+      "description": "Self-contained configuration profile table (e.g. default, launcher, game)"
     }
   ],
   "lifecycle_hooks": {
     "supported_hooks": ["pre_launch.sh", "post_exit.sh"],
     "search_order": [
-      "1. Explicitly configured path in .proton-config.toml (pre_launch_hook, post_exit_hook)",
+      "1. Explicitly configured path in rpt.toml (pre_launch_hook, post_exit_hook)",
       "2. Unpacked game directory root: $PWD/hooks/<type>.sh",
       "3. Unpacked game directory root: $PWD/.rpt/hooks/<type>.sh",
       "4. Unpacked game directory root: $PWD/<type>.sh",
@@ -125,6 +159,7 @@ Running `rpt --dump-spec` outputs:
     "single_variable_delta_isolation": "Never combine multiple unverified arguments or workarounds at once (A + B + C + D). Test each variable strictly in isolation. If introducing variable A does not fix the issue or produces a different symptom, revert A completely before testing variable B. Stacking workarounds creates compounding failure states and obscures the true root cause.",
     "verify_exception_causality": "Never assume a logged Wine exception, 'fixme:' stub, or console warning caused a game exit. Wine routinely outputs benign warnings during normal execution. Always correlate exact log timestamps, thread IDs, and parent/child process exit signals before attempting to patch a binary or stub an error.",
     "compositor_sandboxing_wayland": "When encountering display resolution mismatches, aspect ratio distortion, or mouse cursor trapping issues under Wayland fractional scaling, prefer external compositor isolation via Gamescope (e.g. gamescope_width, gamescope_height, gamescope_output) over passing internal engine render flags (like -vulkan, -force-d3d11, -screen-width). Engine-level flag overrides often destabilize DXVK/VKD3D or trigger anti-cheat driver checks.",
+    "profile_architecture": "rpt organizes configurations into self-contained profiles under [profiles.<name>], with active_profile pointing to the active profile name at the root of rpt.toml. Each profile is completely self-contained (no inheritance chain or partial override ambiguity). When generating or modifying configurations, declare settings inside the target profile table.",
     "wine_prefix_lifecycle_and_stale_locks": "Never add wineserver shutdown or prefix lock clearing to pre_launch.sh or post_exit.sh. rpt automatically performs prefix flushing (graceful wineserver -k/-w), per-prefix process isolation, and non-blocking flock stale lock cleanup (/tmp/.wine-<UID>) both immediately before launch and during post-exit teardown. Adding manual wineserver kills to hooks risks terminating concurrent Wine sessions and disrupts rpt's process supervisor."
   },
   "documentation_links": {
@@ -188,8 +223,11 @@ To avoid this, all AI assistants pair-programming with `rpt` MUST observe the fo
      ```bash
      rpt --clean-zero --now
      ```
-     Or configure a pristine baseline `.proton-config.toml`:
+     Or configure a pristine baseline `rpt.toml`:
      ```toml
+     active_profile = "default"
+
+     [profiles.default]
      target_exe = "Game.exe"
      proton_path = "/path/to/proton"
      use_gamescope = false
@@ -221,11 +259,12 @@ To avoid this, all AI assistants pair-programming with `rpt` MUST observe the fo
 * **Anti-Pattern**: A Unity or Unreal game renders at 150% scaling or has black bars. The AI injects `-force-d3d11 -screen-fullscreen 0` into the engine arguments. This bypasses DXVK's Vulkan swapchain, breaks anti-cheat hooks, or introduces rendering corruption.
 * **Disciplined Workflow**:
   - Keep internal game arguments stock.
-  - Enable Gamescope in `.proton-config.toml`:
+  - Enable Gamescope in `rpt.toml`:
     ```toml
+    [profiles.default]
     use_gamescope = true
-    gamescope_width = 1920
-    gamescope_height = 1080
+    gamescope_width = 0
+    gamescope_height = 0
     gamescope_output = "auto"
     ```
   - Gamescope provides a pristine virtual X11 canvas for the Windows game while letting your Wayland compositor scale the surface cleanly.
@@ -234,7 +273,7 @@ To avoid this, all AI assistants pair-programming with `rpt` MUST observe the fo
 
 ## 📚 Escalation Path: When Simple Fixes Don't Work
 
-If baseline verification, single-variable delta tuning, and standard `.proton-config.toml` options fail to launch the title, do not guess random registry hacks. Follow this structured escalation path:
+If baseline verification, single-variable delta tuning, and standard `rpt.toml` options fail to launch the title, do not guess random registry hacks. Follow this structured escalation path:
 
 1. **Check System Journal & Core Dumps**:
    Run `journalctl -b 0 -e` or `coredumpctl list` to check whether the process was aborted by `SIGSEGV`, `SIGABRT`, `kwin_wayland` GPU memory exhaustion (`ENOMEM`), or an anti-cheat driver fault.
@@ -271,6 +310,6 @@ When you ask an AI assistant to set up a game:
 1. Run `rpt --dump-spec`.
 2. Paste the output into ChatGPT, Claude, or your assistant.
 3. The AI follows the **4 Discipline Gates**: establishes a clean baseline, isolates variables, verifies causality, and avoids speculative engine hacks.
-4. The AI reads your installed Proton runners, picks the best candidate, and creates `.proton-config.toml`.
+4. The AI reads your installed Proton runners, picks the best candidate, and creates `rpt.toml`.
 5. If the game needs custom binary patching, anti-cheat kernel verification, or RAM caches, the AI writes an idempotent `./hooks/pre_launch.sh`.
 6. Run `rpt` or `rpt --create-desktop` — your game is ready to play!

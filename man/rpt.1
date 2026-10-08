@@ -111,23 +111,30 @@ Trigger safe prefix clean with automatic save preservation.
 .BR R
 Revert all configuration settings to safe, rock-solid defaults (prompts with safety confirmation dialog). Preserves target executable, AppID, and selected Proton runner.
 .TP
+.BR P
+Open interactive Profile Manager to view, clone, delete, and switch configuration profiles.
+.TP
 .BR ? " or " F1
 Open interactive manual.
 .TP
 .BR q " or " Esc
 Return from sub-menu, or exit \fBrpt\fR.
-.SH CONFIGURATION FILE (.proton-config.toml)
-Each game directory maintains its own declarative configuration in \fI.proton-config.toml\fR.
+.SH CONFIGURATION FILE (rpt.toml)
+Each game directory maintains its own declarative configuration in \fIrpt.toml\fR organized into self-contained profiles under \fI[profiles.<name>]\fR.
 .PP
 .B Example Configuration:
 .PP
 .nf
+active_profile = "game"
+
+[profiles.game]
 target_exe = "Game.exe"
 proton_path = "/home/user/.local/share/Steam/compatibilitytools.d/GE-Proton11-6/proton"
+app_id = "0"
 use_gamescope = true
-gamescope_output = "HDMI-A-1" # Or "auto" for external preferred
-gamescope_width = 1920
-gamescope_height = 1080
+gamescope_output = "auto"
+gamescope_width = 0
+gamescope_height = 0
 gamescope_refresh = 75
 use_prime_run = true
 use_pcores = true
@@ -140,25 +147,27 @@ wait_processes = ["Updater.exe", "7zg.exe", "Patch.exe"]
 backup_dir = "~/winegames/saves"
 
 # Custom environment variables
-[env]
+[profiles.game.env_vars]
 WINE_CANONICAL_HOLE = "skip_volatile_check"
 VKD3D_CONFIG = "no_upload_hvv"
 
 # DLL Overrides
-[dll_overrides]
+[profiles.game.dll_overrides]
 dxgi = "n,b"
 
 # Declarative filesystem directives
-[filesystem]
+[profiles.game.filesystem]
 ensure_dirs = ["{PREFIX}/pfx/drive_c/users/steamuser/AppData/LocalLow"]
 symlinks = [
   { source = "~/Pictures/MyGame", target = "{PREFIX}/pfx/drive_c/users/steamuser/Pictures/MyGame" }
 ]
 
-# Per-executable profile overrides (e.g. 2D launcher sharing prefix with 3D game)
-[profiles."Launcher.exe"]
+# Separate launcher profile sharing the same prefix
+[profiles.launcher]
 target_exe = "Launcher.exe"
+proton_path = "/home/user/.local/share/Steam/compatibilitytools.d/GE-Proton11-6/proton"
 use_gamescope = false
+gamescope_output = "auto"
 use_prime_run = false
 use_pcores = false
 extra_args = []
@@ -174,7 +183,7 @@ For advanced interventions (mounting ISOs, running companion clipboard daemons, 
 .PP
 \fBrpt\fR searches for lifecycle scripts in the following order:
 .IP 1. 4
-Explicitly configured path in \fI.proton-config.toml\fR (\fIpre_launch_hook\fR, \fIpost_exit_hook\fR).
+Explicitly configured path in \fIrpt.toml\fR (\fIpre_launch_hook\fR, \fIpost_exit_hook\fR).
 .IP 2. 4
 Local unpacked game directory: \fI./hooks/<type>.sh\fR.
 .IP 3. 4
@@ -221,7 +230,7 @@ On hybrid graphics laptops (e.g. Intel Iris Xe + NVIDIA RTX), running \fBprime-r
 \fBrpt\fR queries \fI/sys/class/drm/card*-*/status\fR directly. These sysfs nodes are world-readable (\fB0444\fR) in Linux, requiring zero root, sudo, polkit, or external tools (\fBkscreendoctor\fR, \fBxrandr\fR) to enumerate plugged-in monitors.
 .SH FILES
 .TP
-.I ./.proton-config.toml
+.I ./rpt.toml
 Per-game configuration manifest.
 .TP
 .I ./proton-prefix/
