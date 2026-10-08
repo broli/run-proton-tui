@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	version = "0.10.0"
+	version = "0.10.1"
 )
 
 func main() {
@@ -539,12 +539,19 @@ func main() {
 		fmt.Printf("%s CPU affinity pinned to P-Cores (Threads %s)\n", okStyle.Render("[ OK ]"), cfg.PCoresMask)
 	}
 	if cfg.UseGamescope {
-		refStr := "Native"
-		if cfg.GamescopeRefresh > 0 {
-			refStr = fmt.Sprintf("%dHz", cfg.GamescopeRefresh)
+		geomStr := "Native"
+		if cfg.GamescopeWidth > 0 && cfg.GamescopeHeight > 0 {
+			geomStr = fmt.Sprintf("%dx%d", cfg.GamescopeWidth, cfg.GamescopeHeight)
 		}
-		fmt.Printf("%s Gamescope sandboxing active (%dx%d @ %s -> %s)\n",
-			okStyle.Render("[ OK ]"), cfg.GamescopeWidth, cfg.GamescopeHeight, refStr, cfg.GamescopeOutput)
+		if cfg.GamescopeRefresh > 0 {
+			geomStr = fmt.Sprintf("%s@%dHz", geomStr, cfg.GamescopeRefresh)
+		}
+		gsOut := cfg.GamescopeOutput
+		if gsOut == "" || strings.EqualFold(gsOut, "auto") {
+			gsOut = "Auto"
+		}
+		fmt.Printf("%s Gamescope sandboxing active (%s -> %s)\n",
+			okStyle.Render("[ OK ]"), geomStr, gsOut)
 	}
 	if cfg.UsePrimeRun {
 		fmt.Printf("%s Dedicated GPU offload active (prime-run)\n", okStyle.Render("[ OK ]"))

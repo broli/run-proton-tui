@@ -58,6 +58,15 @@ func TestSubMenuView(t *testing.T) {
 	if !strings.Contains(dView, "DISPLAY & GAMESCOPE SANDBOX") {
 		t.Errorf("Expected 'DISPLAY & GAMESCOPE SANDBOX' title in view")
 	}
+	if strings.Contains(dView, "External Preferred") {
+		t.Errorf("Did not expect 'External Preferred' in Display menu, got: %s", dView)
+	}
+	if strings.Contains(dView, "0x0") {
+		t.Errorf("Did not expect '0x0' in Display menu summary, got: %s", dView)
+	}
+	if !strings.Contains(dView, "Auto (Native)") {
+		t.Errorf("Expected 'Auto (Native)' in Display menu summary, got: %s", dView)
+	}
 	if act := mvDisplay.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}}); act != ActionToggleGamescope {
 		t.Errorf("Expected ActionToggleGamescope on 'g', got %v", act)
 	}
