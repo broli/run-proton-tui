@@ -90,7 +90,7 @@ func GenerateBugReport(opts BugReportOptions) (string, string) {
 
 	// Active Configuration
 	if opts.Config != nil {
-		sb.WriteString("### Active Game Configuration (`.proton-config.toml`)\n\n")
+		sb.WriteString("### Active Game Configuration (`rpt.toml`)\n\n")
 		sb.WriteString("```toml\n")
 		sb.WriteString(fmt.Sprintf("target_exe = %q\n", SanitizePath(opts.Config.TargetExe)))
 		sb.WriteString(fmt.Sprintf("proton_path = %q\n", SanitizePath(opts.Config.ProtonPath)))

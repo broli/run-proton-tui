@@ -44,7 +44,7 @@ type HookResult struct {
 }
 
 // ResolveHook cascades through potential hook locations in order:
-// 1. Explicitly configured path from .proton-config.toml (or profile)
+// 1. Explicitly configured path from rpt.toml (or profile)
 // 2. Local game directory (unpacked root, ./hooks/, or ./.rpt/hooks/)
 // 3. Custom extra hook directories specified by user/config
 // 4. User global config directory ($HOME/.config/rpt/hooks/<type>.sh)

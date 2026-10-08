@@ -338,7 +338,7 @@ func GetActiveOrDetectedPreset(gameDir, exePath, appID, protonPath string, cfg *
 		// Return synthetic preset representing the saved active config
 		return &Preset{
 			Name:          cfg.PresetName,
-			MatchedSource: "Saved Configuration (.proton-config.toml)",
+			MatchedSource: "Saved Configuration (rpt.toml)",
 			SummaryNotes:  "Active quirks preset saved in game configuration.",
 			UmuID:         cfg.UmuID,
 			EnvVars:       cfg.EnvVars,
