@@ -61,6 +61,9 @@ func main() {
 	flagGamescope := flag.String("gamescope", "", "Force Gamescope on/off (true/false)")
 	flagPCores := flag.String("pcores", "", "Force CPU P-Core pinning on/off (true/false)")
 	flagXalia := flag.String("xalia", "", "Force Proton Xalia on/off (true/false)")
+	flagProfile := flag.String("profile", "", "Select specific game profile from rpt.toml (e.g. game, launcher)")
+	flagDryRun := flag.Bool("dry-run", false, "Print resolved launch command without executing")
+	flagPrintCmd := flag.Bool("print-cmd", false, "Alias for --dry-run")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "rpt (Run Proton TUI) v%s — Modular Linux Game Launcher Helper\n\n", version)
@@ -77,6 +80,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  cd ~/Games/Endfield && rpt      # Interactive TUI in game directory (recommended)\n")
 		fmt.Fprintf(os.Stderr, "  rpt --now                       # Quick launch with saved/auto-detected settings\n")
 		fmt.Fprintf(os.Stderr, "  rpt Setup.exe                   # Switch to specific installer/tool and open TUI\n")
+		fmt.Fprintf(os.Stderr, "  rpt --profile launcher --now    # Launch specific profile headlessly\n")
+		fmt.Fprintf(os.Stderr, "  rpt --dry-run                   # Inspect resolved launch command without executing\n")
 		fmt.Fprintf(os.Stderr, "  rpt --clean-zero --now          # Test pure upstream Proton baseline (zero extra flags)\n")
 		fmt.Fprintf(os.Stderr, "  rpt --clean --now               # Safe prefix reset followed by instant launch\n")
 		fmt.Fprintf(os.Stderr, "  rpt --create-desktop            # Create 1-click desktop/applications menu shortcut\n")
@@ -109,12 +114,59 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 1. Load or migrate configuration
-	cfg, err := config.LoadConfig(gameDir)
+	skipTUI := *flagNow || *flagNoTUI || *flagYes || !isatty.IsTerminal(os.Stdin.Fd())
+
+	// 1. Load configuration from rpt.toml
+	cfgFile, err := config.LoadConfigFile(gameDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading configuration: %v\n", err)
-		os.Exit(1)
+		if os.IsNotExist(err) {
+			if skipTUI && !(*flagDryRun || *flagPrintCmd) {
+				// User attempted headless launch without an rpt.toml config
+				errBox := lipgloss.NewStyle().
+					BorderStyle(lipgloss.DoubleBorder()).
+					BorderForeground(style.ColorDanger).
+					Padding(1, 2).
+					Width(78)
+
+				titleStyle := lipgloss.NewStyle().Bold(true).Foreground(style.ColorDanger)
+				bodyStyle := lipgloss.NewStyle().Foreground(style.ColorText)
+				cmdStyle := lipgloss.NewStyle().Bold(true).Foreground(style.ColorPrimary)
+				subStyle := lipgloss.NewStyle().Foreground(style.ColorMuted)
+
+				msg := fmt.Sprintf(
+					"%s\n\n"+
+						"%s\n\n"+
+						"To configure this game, run interactive mode in this directory:\n"+
+						"  %s\n\n"+
+						"%s\n\n"+
+						"This allows rpt to detect executables, select your Proton runner,\n"+
+						"and save a tailored 'rpt.toml' profile before running headlessly.\n",
+					titleStyle.Render("No Configuration Found (rpt.toml)"),
+					bodyStyle.Render("Headless launch (--now) requires an existing game profile in rpt.toml."),
+					cmdStyle.Render(fmt.Sprintf("$ cd %q && rpt", gameDir)),
+					subStyle.Render("(Generic syntax: cd /path/to/game/folder && rpt)"),
+				)
+
+				fmt.Fprintln(os.Stderr, errBox.Render(msg))
+				os.Exit(1)
+			}
+			cfgFile = config.NewConfigFileWithDefault()
+			config.ApplyHardwareSafeStandards(cfgFile.GetActiveProfile())
+		} else {
+			fmt.Fprintf(os.Stderr, "Error loading configuration: %v\n", err)
+			os.Exit(1)
+		}
 	}
+
+	if *flagProfile != "" {
+		if err := cfgFile.SetActiveProfile(*flagProfile); err != nil {
+			fmt.Fprintf(os.Stderr, "Error selecting profile %q: %v\n", *flagProfile, err)
+			fmt.Fprintf(os.Stderr, "Available profiles in rpt.toml: %s\n", strings.Join(cfgFile.ProfileNames(), ", "))
+			os.Exit(1)
+		}
+	}
+
+	cfg := cfgFile.GetActiveProfile()
 
 	// Positional arguments: check for custom executable
 	args := flag.Args()
@@ -147,6 +199,63 @@ func main() {
 		if p := quirks.DetectQuirks(gameDir, cfg.TargetExe, cfg.AppID, cfg.ProtonPath); p != nil {
 			p.ApplyToConfig(cfg, false)
 		}
+	}
+
+	if *flagDryRun || *flagPrintCmd {
+		fmt.Println("================================================================================")
+		fmt.Printf("🚀 rpt Launch Command Dry-Run (Profile: %s)\n", cfgFile.ActiveProfile)
+		fmt.Println("================================================================================")
+		fmt.Printf("• Game Directory:   %s\n", gameDir)
+		fmt.Printf("• Target Binary:    %s\n", cfg.TargetExe)
+		fmt.Printf("• Proton Runner:    %s (%s)\n", filepath.Base(cfg.ProtonPath), cfg.ProtonPath)
+		if cfg.UseGamescope {
+			refStr := "Native"
+			if cfg.GamescopeRefresh > 0 {
+				refStr = fmt.Sprintf("%dHz", cfg.GamescopeRefresh)
+			}
+			geomStr := "Auto (Host Native)"
+			if cfg.GamescopeWidth > 0 && cfg.GamescopeHeight > 0 {
+				geomStr = fmt.Sprintf("%dx%d", cfg.GamescopeWidth, cfg.GamescopeHeight)
+			}
+			fmt.Printf("• Gamescope Mode:   Active (Output: %s, Geometry: %s, Refresh: %s, Window: %s)\n",
+				cfg.GamescopeOutput, geomStr, refStr, cfg.GamescopeWindowMode)
+		} else {
+			fmt.Println("• Gamescope Mode:   Disabled (Native Window)")
+		}
+		if cfg.UsePCores {
+			fmt.Printf("• CPU Affinity:     Pinned to P-Cores (%s)\n", cfg.PCoresMask)
+		}
+		if cfg.UsePrimeRun {
+			fmt.Println("• GPU Offload:      prime-run (Dedicated GPU)")
+		}
+		fmt.Println("\n--- Injected Environment Overrides ---")
+		if len(cfg.EnvVars) > 0 {
+			for k, v := range cfg.EnvVars {
+				fmt.Printf("  export %s=%q\n", k, v)
+			}
+		} else {
+			fmt.Println("  (None)")
+		}
+
+		prefixCmd := ""
+		if cfg.UsePrimeRun {
+			prefixCmd = "prime-run "
+		}
+		if cfg.UsePCores && cfg.PCoresMask != "" {
+			prefixCmd = fmt.Sprintf("taskset -c %s %s", cfg.PCoresMask, prefixCmd)
+		}
+		innerCmd := fmt.Sprintf("%s%q waitforexitandrun ./%q", prefixCmd, cfg.ProtonPath, cfg.TargetExe)
+		if cfg.UseGamescope {
+			gsArgs := runner.BuildGamescopeArgs(cfg)
+			if len(gsArgs) > 0 {
+				fmt.Printf("\n--- Resolved Execution Command ---\ngamescope %s -- %s\n\n", strings.Join(gsArgs, " "), innerCmd)
+			} else {
+				fmt.Printf("\n--- Resolved Execution Command ---\ngamescope -- %s\n\n", innerCmd)
+			}
+		} else {
+			fmt.Printf("\n--- Resolved Execution Command ---\n%s\n\n", innerCmd)
+		}
+		os.Exit(0)
 	}
 
 	if *flagBugReport || *flagBug {
@@ -368,8 +477,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	skipTUI := *flagNow || *flagNoTUI || *flagYes || !isatty.IsTerminal(os.Stdin.Fd())
-
 	if !skipTUI {
 		// Run Interactive TUI
 		m, err := ui.NewModel(gameDir, cfg)
@@ -392,6 +499,8 @@ func main() {
 			os.Exit(0)
 		}
 		cfg = appModel.Config
+		cfgFile = appModel.ConfigFile
+		_ = config.SaveConfigFile(gameDir, cfgFile)
 	}
 
 	// Guardrail: Verify TargetExe exists in gameDir before launching
