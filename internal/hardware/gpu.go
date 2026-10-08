@@ -74,25 +74,8 @@ func DetectGPU() (*GPUInfo, error) {
 		}
 	}
 
-	// 4. Select preferred display output:
-	// Prioritize external displays (HDMI-A-1, DP-*) over internal laptop displays (eDP-*)
-	for _, conn := range info.ConnectedOutputs {
-		if strings.HasPrefix(conn, "HDMI") {
-			info.PreferredOutput = conn
-			break
-		}
-	}
-	if info.PreferredOutput == "" {
-		for _, conn := range info.ConnectedOutputs {
-			if strings.HasPrefix(conn, "DP") {
-				info.PreferredOutput = conn
-				break
-			}
-		}
-	}
-	if info.PreferredOutput == "" && len(info.ConnectedOutputs) > 0 {
-		info.PreferredOutput = info.ConnectedOutputs[0]
-	}
+	// 4. Default display output to auto (let host compositor decide)
+	info.PreferredOutput = "auto"
 
 	return info, nil
 }
@@ -131,14 +114,9 @@ func GetConnectedDisplayOutputs() []string {
 // If no valid modes file or resolution is found, it returns (1920, 1080, err).
 func DetectOutputResolution(connector string) (int, int, error) {
 	if connector == "" || strings.EqualFold(connector, "auto") {
-		info, _ := DetectGPU()
-		if info != nil && info.PreferredOutput != "" {
-			connector = info.PreferredOutput
-		} else {
-			outputs := GetConnectedDisplayOutputs()
-			if len(outputs) > 0 {
-				connector = outputs[0]
-			}
+		outputs := GetConnectedDisplayOutputs()
+		if len(outputs) > 0 {
+			connector = outputs[0]
 		}
 	}
 

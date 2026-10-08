@@ -190,7 +190,7 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 		insights = append(insights, DiagnosticInsight{
 			Category:       "Steam AppID Mismatch",
 			Observation:    fmt.Sprintf("Configured AppID is %q (Steam ID for Just Cause 3, 2015), but this is Just Cause 1 (2006).", cfg.AppID),
-			Recommendation: "Set app_id = '6880' in .proton-config.toml so ProtonDB quirks and UMU fixes match the actual game.",
+			Recommendation: "Set app_id = '6880' in rpt.toml so ProtonDB quirks and UMU fixes match the actual game.",
 		})
 	}
 
@@ -297,12 +297,12 @@ func GenerateAIHelperPackage(result *SessionResult, cfg *config.GameConfig, insi
 	}
 
 	sb.WriteString("\n#### Official Reference Documentation for rpt\n")
-	sb.WriteString("- Configuration Reference (`.proton-config.toml`): https://github.com/broli/run-proton-tui/wiki/Configuration-Reference\n")
+	sb.WriteString("- Configuration Reference (`rpt.toml`): https://github.com/broli/run-proton-tui/wiki/Configuration-Reference\n")
 	sb.WriteString("- Lifecycle Hooks & Workarounds (`hooks/pre_launch.sh`): https://github.com/broli/run-proton-tui/wiki/Lifecycle-Hooks-and-Preservation\n")
 	sb.WriteString("- Real-World Case Study (Arknights: Endfield): https://github.com/broli/run-proton-tui/wiki/Example-Config-Arknights-Endfield\n")
 
 	sb.WriteString("\n#### Instructions for the AI Assistant\n")
-	sb.WriteString("1. First, check if the issue can be resolved with standard settings in `.proton-config.toml` (e.g. changing Proton runner, toggling Gamescope, adding environment variables, or configuring DLL overrides).\n")
+	sb.WriteString("1. First, check if the issue can be resolved with standard settings in `rpt.toml` (e.g. changing Proton runner, toggling Gamescope, adding environment variables, or configuring DLL overrides).\n")
 	sb.WriteString("2. If the game requires custom fixes (such as binary patching, checking or patching Wine `ntoskrnl.exe`, memory mapping `/dev/shm`, or anti-cheat workarounds), **DO NOT tell the user to modify the rpt binary**. Instead, write a clean, idempotent bash script to be saved in `hooks/pre_launch.sh` (or `hooks/post_exit.sh`).\n")
 	sb.WriteString("3. **DO NOT add Wine prefix flushing or wineserver kill/lock cleanup to hooks**: `rpt` already runs `wineserver -k`, `wineserver -w`, per-prefix orphan cleanup, and non-blocking stale socket lock sweeps (`/tmp/.wine-<UID>`) automatically BEFORE launch, inside the process wrapper, and AFTER exit. Hooks should NEVER call `wineserver -k` or delete Wine locks.\n")
 	sb.WriteString("4. Provide step-by-step instructions so the user can just copy-paste your solution and run `rpt`!\n")

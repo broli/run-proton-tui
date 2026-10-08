@@ -363,13 +363,19 @@ func processFilesystemDirectives(gameDir, prefixDir string, fs config.Filesystem
 }
 
 // BuildGamescopeArgs constructs the CLI flags for Gamescope based on GameConfig.
-// It omits -r when GamescopeRefresh <= 0 (allowing gamescope to run at native/untouched refresh rate).
+// When GamescopeWidth or GamescopeHeight are <= 0, geometry flags are omitted (allowing gamescope to adapt to native display geometry).
+// When GamescopeRefresh <= 0, -r is omitted.
+// When GamescopeOutput is empty or "auto", --prefer-output is omitted.
 func BuildGamescopeArgs(cfg *config.GameConfig) []string {
-	gsArgs := []string{
-		"-W", strconv.Itoa(cfg.GamescopeWidth),
-		"-H", strconv.Itoa(cfg.GamescopeHeight),
-		"-w", strconv.Itoa(cfg.GamescopeWidth),
-		"-h", strconv.Itoa(cfg.GamescopeHeight),
+	var gsArgs []string
+
+	if cfg.GamescopeWidth > 0 && cfg.GamescopeHeight > 0 {
+		gsArgs = append(gsArgs,
+			"-W", strconv.Itoa(cfg.GamescopeWidth),
+			"-H", strconv.Itoa(cfg.GamescopeHeight),
+			"-w", strconv.Itoa(cfg.GamescopeWidth),
+			"-h", strconv.Itoa(cfg.GamescopeHeight),
+		)
 	}
 
 	if cfg.GamescopeRefresh > 0 {
@@ -385,7 +391,7 @@ func BuildGamescopeArgs(cfg *config.GameConfig) []string {
 		gsArgs = append(gsArgs, "-f", "--force-windows-fullscreen")
 	}
 
-	if cfg.GamescopeFilter != "" && cfg.GamescopeFilter != "linear" {
+	if cfg.GamescopeFilter != "" && cfg.GamescopeFilter != "linear" && cfg.GamescopeFilter != "auto" {
 		gsArgs = append(gsArgs, "-F", cfg.GamescopeFilter)
 	}
 	if cfg.GamescopeScaling != "" && cfg.GamescopeScaling != "auto" && cfg.GamescopeScaling != "fit" {
