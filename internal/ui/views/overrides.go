@@ -126,7 +126,7 @@ func NewOverridesView(prefixDir, protonBin string, activeReg map[string]string, 
 		}
 	}
 
-	// 3. Incorporate custom overrides from .proton-config.toml
+	// 3. Incorporate custom overrides from rpt.toml
 	for dll, mode := range savedOverrides {
 		if dll == "" || presetDLLs[dll] || seen[dll] || proton.IsWineDefaultDLL(dll) {
 			continue

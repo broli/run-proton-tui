@@ -93,13 +93,14 @@ func GenerateSpecDump(rptVersion string) ([]byte, error) {
 	}
 
 	configFields := []ConfigFieldSpec{
+		{"active_profile", "string", "default", "Name of the currently active configuration profile at root of rpt.toml"},
 		{"target_exe", "string", "", "Relative path to target Windows executable"},
 		{"proton_path", "string", "", "Absolute path to Proton runner executable"},
 		{"app_id", "string", "0", "Steam AppID for compatibility and protonfixes lookup"},
 		{"use_gamescope", "bool", "false (Clean Zero) / auto (Wayland)", "Run inside Gamescope nested micro-compositor"},
 		{"gamescope_output", "string", "auto", "Target DRM display output connector (e.g. HDMI-A-1, eDP-1, or auto)"},
-		{"gamescope_width", "int", "1920", "Gamescope virtual canvas width"},
-		{"gamescope_height", "int", "1080", "Gamescope virtual canvas height"},
+		{"gamescope_width", "int", "0 (auto/native)", "Gamescope virtual canvas width (0 = auto)"},
+		{"gamescope_height", "int", "0 (auto/native)", "Gamescope virtual canvas height (0 = auto)"},
 		{"gamescope_refresh", "int", "0 (native)", "Gamescope target display refresh rate in Hz (0 = native/untouched)"},
 		{"use_prime_run", "bool", "false (Clean Zero) / dynamic (hybrid GPU)", "Execute game with prime-run NVIDIA GPU offloading"},
 		{"use_pcores", "bool", "false (Clean Zero) / dynamic (hybrid CPU)", "Pin execution to Intel Performance cores via taskset"},
@@ -118,13 +119,13 @@ func GenerateSpecDump(rptVersion string) ([]byte, error) {
 		{"filesystem.ensure_dirs", "[]string", "[]", "Directories to ensure exist before launch"},
 		{"filesystem.symlinks", "[]{source, target}", "[]", "Declarative persistent symlinks (supports {PREFIX}, {GAME_DIR}, ~)"},
 		{"filesystem.extra_backup_paths", "[]string", "[]", "Extra relative prefix paths to preserve during prefix resets"},
-		{"profiles.<exe_name>", "table", "", "Per-executable overrides for multi-binary game folders"},
+		{"profiles.<name>", "table", "", "Self-contained configuration profile table (e.g. default, launcher, game)"},
 	}
 
 	hookSpec := HookSpec{
 		SupportedHooks: []string{"pre_launch.sh", "post_exit.sh"},
 		SearchOrder: []string{
-			"1. Explicitly configured path in .proton-config.toml (pre_launch_hook, post_exit_hook)",
+			"1. Explicitly configured path in rpt.toml (pre_launch_hook, post_exit_hook)",
 			"2. Unpacked game directory root: $PWD/hooks/<type>.sh",
 			"3. Unpacked game directory root: $PWD/.rpt/hooks/<type>.sh",
 			"4. Unpacked game directory root: $PWD/<type>.sh",
@@ -149,7 +150,7 @@ func GenerateSpecDump(rptVersion string) ([]byte, error) {
 	}
 
 	aiGuidelines := []string{
-		"1. PRIMARY GOAL: Configure the game's '.proton-config.toml' for graphics, runner path, Gamescope, CPU pinning, and DLL overrides.",
+		"1. PRIMARY GOAL: Configure the game's 'rpt.toml' using self-contained profiles under [profiles.<name>] (with active_profile pointing to the active profile name) for graphics, runner path, Gamescope, CPU pinning, and DLL overrides.",
 		"2. 'CLEAN ZERO' BASELINE GATE: Before diagnosing deep issues, writing custom patches, or adding workarounds, verify baseline behavior with pure upstream defaults and zero extra flags.",
 		"3. SINGLE-VARIABLE ISOLATION (STRICT DELTA TESTING): Never stack workarounds or arguments (A + B + C + D). Test each variable in isolation; if variable A does not resolve the issue, revert it before testing B.",
 		"4. VERIFY EXCEPTION CAUSALITY: Never assume a logged exception, Wine 'fixme:', or stub warning caused a process exit. Correlate timestamps, thread IDs, and parent process termination before attempting to patch or stub an error.",
@@ -209,6 +210,7 @@ exit 0
 		"screenshot_preservation":               "Windows games save screenshots to C:\\users\\steamuser\\Pictures. Always preserve Pictures alongside Saved Games and AppData during prefix wipes.",
 		"drm_display_routing":                   "External HDMI/DP ports are typically hardwired to the dGPU on hybrid laptops. Query /sys/class/drm/card*-*/status without sudo to target external displays directly and eliminate PCIe double-bounce stutter.",
 		"wine_prefix_lifecycle_and_stale_locks": "Never add wineserver shutdown or prefix lock clearing to pre_launch.sh or post_exit.sh. rpt automatically performs prefix flushing (graceful wineserver -k/-w), per-prefix process isolation, and non-blocking flock stale lock cleanup (/tmp/.wine-<UID>) both immediately before launch and during post-exit teardown. Adding manual wineserver kills to hooks risks terminating concurrent Wine sessions and disrupts rpt's process supervisor.",
+		"profile_architecture":                  "rpt organizes configurations into self-contained profiles under [profiles.<name>], with active_profile pointing to the active profile name at the root of rpt.toml. Each profile is completely self-contained (no inheritance chain or partial override ambiguity). When generating or modifying configurations, declare settings inside the target profile table.",
 	}
 
 	docLinks := map[string]string{

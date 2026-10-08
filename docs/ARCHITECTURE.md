@@ -59,16 +59,16 @@ For "non-standard" games (like *Arknights: Endfield*, HoYoverse games, or repack
 ### Tier 1: Offline UMU & Quirks Detection
 - **Local UMU Database**: Parses `umu-database.csv` (1,192 games) bundled inside installed Proton-GE / DW-Proton (`protonfixes/umu-database.csv`).
 - **Curated Quirks Registry**: Recognizes titles like Endfield to inject `UMU_ID` (activating upstream IL2CPP `/dev/shm` JIT RAM redirection), `WINE_CANONICAL_HOLE="skip_volatile_check"` (anti-cheat memory hole), and `-vulkan` flags.
-- **Explicit Review Modal (`[d]`)**: Presents detected quirks for inspection with a clean diff before applying to `.proton-config.toml`.
+- **Explicit Review Modal (`[d]`)**: Presents detected quirks for inspection with a clean diff before applying to `rpt.toml`.
 
-### Tier 2: Per-Executable Profiles in Shared Prefix
+### Tier 2: Self-Contained Profiles in Shared Prefix
 - A single game directory frequently contains setup utilities (`Setup.exe`), web launchers (`Launcher.exe`), and the 3D binary (`Game.exe`).
-- The `profiles` map in `.proton-config.toml` allows each binary to override Gamescope, PrimeRun, P-Cores, and ExtraArgs independently while sharing the identical Wine prefix (`proton-prefix`).
-- When switching executables via `[3]`, `rpt` applies the matching profile automatically. In the picker, `[i]` toggles hiding setup/installer binaries.
+- The `profiles` map in `rpt.toml` provides self-contained configurations (`[profiles.<name>]`) allowing each binary to configure Gamescope, PrimeRun, P-Cores, and ExtraArgs independently while sharing the identical Wine prefix (`proton-prefix`).
+- When switching executables or profiles via `[P]` or `[e]`, `rpt` applies the matching configuration immediately.
 
 ### Tier 3: Cascading Lifecycle Hooks
 Custom shell scripts executed before launch and after exit:
-1. Explicit path in `.proton-config.toml` (`pre_launch_hook`, `post_exit_hook`).
+1. Explicit path in `rpt.toml` (`pre_launch_hook`, `post_exit_hook`).
 2. Local directory: `$PWD/.rpt/hooks/{pre_launch,post_exit}.sh`.
 3. User global directory: `$HOME/.config/rpt/hooks/{pre_launch,post_exit}.sh` (or `~/.rpt/hooks/`).
 

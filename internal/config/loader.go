@@ -11,38 +11,86 @@ import (
 )
 
 const (
-	ConfigFileName       = ".proton-config.toml"
-	LegacyConfigFileName = ".proton-config"
+	ConfigFileName    = "rpt.toml"
+	DotConfigFileName = ".rpt.toml"
 )
 
-// LoadConfig loads the game configuration from .proton-config.toml.
-// If not found, it checks for legacy .proton-config and migrates it.
-// If neither exists, it generates a hardware-aware default.
-func LoadConfig(gameDir string) (*GameConfig, error) {
+// LoadConfigFile loads the game configuration file from rpt.toml (or .rpt.toml).
+// Returns os.ErrNotExist if neither file exists.
+func LoadConfigFile(gameDir string) (*GameConfigFile, error) {
+	candidates := []string{
+		filepath.Join(gameDir, ConfigFileName),
+		filepath.Join(gameDir, DotConfigFileName),
+	}
+
+	for _, path := range candidates {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			var fileCfg GameConfigFile
+			if err := toml.Unmarshal(data, &fileCfg); err != nil {
+				return nil, fmt.Errorf("failed to parse %s: %w", filepath.Base(path), err)
+			}
+			if fileCfg.Profiles == nil {
+				fileCfg.Profiles = make(map[string]*GameConfig)
+			}
+			if len(fileCfg.Profiles) == 0 {
+				fileCfg.Profiles["default"] = NewDefaultConfig()
+				fileCfg.ActiveProfile = "default"
+			}
+			if fileCfg.ActiveProfile == "" || fileCfg.Profiles[fileCfg.ActiveProfile] == nil {
+				for name := range fileCfg.Profiles {
+					fileCfg.ActiveProfile = name
+					break
+				}
+			}
+			return &fileCfg, nil
+		} else if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("failed to read %s: %w", filepath.Base(path), err)
+		}
+	}
+
+	return nil, os.ErrNotExist
+}
+
+// SaveConfigFile serializes the GameConfigFile into rpt.toml in the target game directory.
+func SaveConfigFile(gameDir string, fileCfg *GameConfigFile) error {
+	if fileCfg == nil {
+		return fmt.Errorf("cannot save nil configuration")
+	}
 	tomlPath := filepath.Join(gameDir, ConfigFileName)
-	if data, err := os.ReadFile(tomlPath); err == nil {
-		cfg := NewDefaultConfig()
-		if err := toml.Unmarshal(data, cfg); err != nil {
-			return nil, fmt.Errorf("failed to parse %s: %w", ConfigFileName, err)
-		}
-		return cfg, nil
-	} else if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("failed to read %s: %w", ConfigFileName, err)
+	data, err := toml.Marshal(fileCfg)
+	if err != nil {
+		return err
 	}
+	return os.WriteFile(tomlPath, data, 0644)
+}
 
-	// Check for legacy Fish configuration
-	legacyPath := filepath.Join(gameDir, LegacyConfigFileName)
-	if _, err := os.Stat(legacyPath); err == nil {
-		if legacyCfg, err := ParseLegacyFishConfig(legacyPath); err == nil {
-			_ = SaveConfig(gameDir, legacyCfg)
-			return legacyCfg, nil
+// LoadConfig loads the active GameConfig from rpt.toml (or .rpt.toml).
+// If no configuration file exists, it returns a new default configuration with hardware safe standards applied.
+func LoadConfig(gameDir string) (*GameConfig, error) {
+	fileCfg, err := LoadConfigFile(gameDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			cfg := NewDefaultConfig()
+			ApplyHardwareSafeStandards(cfg)
+			return cfg, nil
 		}
+		return nil, err
 	}
+	return fileCfg.GetActiveProfile(), nil
+}
 
-	// Generate hardware-aware default
-	cfg := NewDefaultConfig()
-	ApplyHardwareSafeStandards(cfg)
-	return cfg, nil
+// SaveConfig saves or updates the active profile in rpt.toml.
+func SaveConfig(gameDir string, cfg *GameConfig) error {
+	fileCfg, err := LoadConfigFile(gameDir)
+	if err != nil {
+		fileCfg = NewConfigFileWithDefault()
+	}
+	if fileCfg.ActiveProfile == "" {
+		fileCfg.ActiveProfile = "default"
+	}
+	fileCfg.Profiles[fileCfg.ActiveProfile] = cfg.Clone()
+	return SaveConfigFile(gameDir, fileCfg)
 }
 
 // ApplyHardwareSafeStandards detects the host environment and hardware capabilities
@@ -58,15 +106,16 @@ func ApplyHardwareSafeStandards(cfg *GameConfig) {
 
 	if gpu, err := hardware.DetectGPU(); err == nil {
 		cfg.UsePrimeRun = gpu.HasPrimeRun
-		if gpu.PreferredOutput != "" {
-			cfg.GamescopeOutput = gpu.PreferredOutput
-		} else {
-			cfg.GamescopeOutput = "auto"
-		}
+		cfg.GamescopeOutput = "auto"
 	} else {
 		cfg.UsePrimeRun = false
 		cfg.GamescopeOutput = "auto"
 	}
+
+	// Default geometry to auto (0 = let gamescope match display)
+	cfg.GamescopeWidth = 0
+	cfg.GamescopeHeight = 0
+	cfg.GamescopeRefresh = 0
 
 	// Safe standard for Wayland: enable Gamescope if binary is present
 	isWayland := os.Getenv("WAYLAND_DISPLAY") != "" || os.Getenv("XDG_SESSION_TYPE") == "wayland"
@@ -81,14 +130,4 @@ func ApplyHardwareSafeStandards(cfg *GameConfig) {
 	} else {
 		cfg.ManagePower = false
 	}
-}
-
-// SaveConfig serializes the GameConfig into .proton-config.toml in the target game directory.
-func SaveConfig(gameDir string, cfg *GameConfig) error {
-	tomlPath := filepath.Join(gameDir, ConfigFileName)
-	data, err := toml.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(tomlPath, data, 0644)
 }

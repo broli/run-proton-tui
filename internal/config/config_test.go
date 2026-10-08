@@ -6,42 +6,77 @@ import (
 	"testing"
 )
 
-func TestConfigLoadSaveMigration(t *testing.T) {
+func TestConfigFileProfilesAndLoadSave(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Write mock legacy config
-	legacyContent := `
-target_exe=Game.exe
-proton_path=/path/to/proton
-use_gamescope=1
-use_pcores=1
-use_xalia=0
-app_id=4567
-`
-	legacyFile := filepath.Join(tmpDir, LegacyConfigFileName)
-	if err := os.WriteFile(legacyFile, []byte(legacyContent), 0644); err != nil {
-		t.Fatalf("Failed to write legacy file: %v", err)
+	fileCfg := NewConfigFileWithDefault()
+	defProfile := fileCfg.GetActiveProfile()
+	defProfile.TargetExe = "Game.exe"
+	defProfile.UseGamescope = true
+	defProfile.AppID = "4567"
+
+	// Add a secondary launcher profile
+	launcherCfg := NewDefaultConfig()
+	launcherCfg.TargetExe = "Launcher.exe"
+	launcherCfg.UseGamescope = false
+	if err := fileCfg.AddProfile("launcher", launcherCfg); err != nil {
+		t.Fatalf("AddProfile failed: %v", err)
 	}
 
-	cfg, err := LoadConfig(tmpDir)
-	if err != nil {
-		t.Fatalf("LoadConfig failed: %v", err)
+	// Save to rpt.toml
+	if err := SaveConfigFile(tmpDir, fileCfg); err != nil {
+		t.Fatalf("SaveConfigFile failed: %v", err)
 	}
 
-	if cfg.TargetExe != "Game.exe" {
-		t.Errorf("Expected TargetExe=Game.exe, got %s", cfg.TargetExe)
-	}
-	if !cfg.UseGamescope {
-		t.Errorf("Expected UseGamescope=true, got %v", cfg.UseGamescope)
-	}
-	if cfg.AppID != "4567" {
-		t.Errorf("Expected AppID=4567, got %s", cfg.AppID)
-	}
-
-	// Verify migrated TOML file was created
+	// Verify rpt.toml exists
 	tomlPath := filepath.Join(tmpDir, ConfigFileName)
 	if _, err := os.Stat(tomlPath); err != nil {
-		t.Errorf("Expected %s to be created during migration", ConfigFileName)
+		t.Fatalf("Expected %s to exist", ConfigFileName)
+	}
+
+	// Load back
+	loadedFile, err := LoadConfigFile(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadConfigFile failed: %v", err)
+	}
+
+	if loadedFile.ActiveProfile != "default" {
+		t.Errorf("Expected ActiveProfile=default, got %s", loadedFile.ActiveProfile)
+	}
+	if len(loadedFile.Profiles) != 2 {
+		t.Errorf("Expected 2 profiles, got %d", len(loadedFile.Profiles))
+	}
+	loadedDef := loadedFile.GetActiveProfile()
+	if loadedDef.TargetExe != "Game.exe" {
+		t.Errorf("Expected TargetExe=Game.exe, got %s", loadedDef.TargetExe)
+	}
+	if !loadedDef.UseGamescope {
+		t.Errorf("Expected UseGamescope=true, got %v", loadedDef.UseGamescope)
+	}
+
+	// Switch profile
+	if err := loadedFile.SetActiveProfile("launcher"); err != nil {
+		t.Fatalf("SetActiveProfile failed: %v", err)
+	}
+	active := loadedFile.GetActiveProfile()
+	if active.TargetExe != "Launcher.exe" {
+		t.Errorf("Expected active TargetExe=Launcher.exe, got %s", active.TargetExe)
+	}
+
+	// Clone profile
+	if err := loadedFile.CloneProfile("launcher", "portable"); err != nil {
+		t.Fatalf("CloneProfile failed: %v", err)
+	}
+	if len(loadedFile.Profiles) != 3 {
+		t.Errorf("Expected 3 profiles after clone, got %d", len(loadedFile.Profiles))
+	}
+
+	// Delete profile
+	if err := loadedFile.DeleteProfile("portable"); err != nil {
+		t.Fatalf("DeleteProfile failed: %v", err)
+	}
+	if len(loadedFile.Profiles) != 2 {
+		t.Errorf("Expected 2 profiles after delete, got %d", len(loadedFile.Profiles))
 	}
 }
 
@@ -212,9 +247,9 @@ func TestResetToSafeDefaults(t *testing.T) {
 		t.Errorf("Expected AppID preserved as 12345, got %s", cfg.AppID)
 	}
 
-	// Gamescope must be reset to standard safe 1080p, SDR, Linear, Untouched Hz
-	if cfg.GamescopeWidth != 1920 || cfg.GamescopeHeight != 1080 {
-		t.Errorf("Expected Gamescope 1920x1080, got %dx%d", cfg.GamescopeWidth, cfg.GamescopeHeight)
+	// Gamescope must be reset to standard safe Auto (0x0), SDR, Linear, Untouched Hz
+	if cfg.GamescopeWidth != 0 || cfg.GamescopeHeight != 0 {
+		t.Errorf("Expected Gamescope Auto geometry (0x0), got %dx%d", cfg.GamescopeWidth, cfg.GamescopeHeight)
 	}
 	if cfg.GamescopeRefresh != 0 {
 		t.Errorf("Expected GamescopeRefresh 0, got %d", cfg.GamescopeRefresh)

@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -65,7 +67,132 @@ type ExecutableProfile struct {
 	CloudSync           *CloudSyncConfig  `toml:"cloud_sync,omitempty"`
 }
 
-// GameConfig represents the persistent per-game configuration stored in .proton-config.toml.
+// GameConfigFile represents the top-level configuration stored in rpt.toml.
+type GameConfigFile struct {
+	ActiveProfile string                 `toml:"active_profile"`
+	Profiles      map[string]*GameConfig `toml:"profiles"`
+}
+
+// NewConfigFileWithDefault creates a new GameConfigFile with a single active "default" profile.
+func NewConfigFileWithDefault() *GameConfigFile {
+	return &GameConfigFile{
+		ActiveProfile: "default",
+		Profiles: map[string]*GameConfig{
+			"default": NewDefaultConfig(),
+		},
+	}
+}
+
+// GetActiveProfile returns the active profile configuration, falling back safely if needed.
+func (f *GameConfigFile) GetActiveProfile() *GameConfig {
+	if f == nil || len(f.Profiles) == 0 {
+		return NewDefaultConfig()
+	}
+	if p, ok := f.Profiles[f.ActiveProfile]; ok && p != nil {
+		return p
+	}
+	if p, ok := f.Profiles["default"]; ok && p != nil {
+		f.ActiveProfile = "default"
+		return p
+	}
+	for name, p := range f.Profiles {
+		if p != nil {
+			f.ActiveProfile = name
+			return p
+		}
+	}
+	newDef := NewDefaultConfig()
+	f.ActiveProfile = "default"
+	if f.Profiles == nil {
+		f.Profiles = make(map[string]*GameConfig)
+	}
+	f.Profiles["default"] = newDef
+	return newDef
+}
+
+// SetActiveProfile changes the active profile name.
+func (f *GameConfigFile) SetActiveProfile(name string) error {
+	if f == nil {
+		return fmt.Errorf("config file is nil")
+	}
+	if _, ok := f.Profiles[name]; !ok {
+		return fmt.Errorf("profile %q does not exist", name)
+	}
+	f.ActiveProfile = name
+	return nil
+}
+
+// AddProfile stores a profile by name.
+func (f *GameConfigFile) AddProfile(name string, profile *GameConfig) error {
+	if f == nil {
+		return fmt.Errorf("config file is nil")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("profile name cannot be empty")
+	}
+	if f.Profiles == nil {
+		f.Profiles = make(map[string]*GameConfig)
+	}
+	f.Profiles[name] = profile.Clone()
+	return nil
+}
+
+// DeleteProfile removes a profile by name. Returns an error if attempting to delete the last profile.
+func (f *GameConfigFile) DeleteProfile(name string) error {
+	if f == nil {
+		return fmt.Errorf("config file is nil")
+	}
+	if len(f.Profiles) <= 1 {
+		return fmt.Errorf("cannot delete the only profile")
+	}
+	if _, ok := f.Profiles[name]; !ok {
+		return fmt.Errorf("profile %q not found", name)
+	}
+	delete(f.Profiles, name)
+	if f.ActiveProfile == name {
+		for other := range f.Profiles {
+			f.ActiveProfile = other
+			break
+		}
+	}
+	return nil
+}
+
+// CloneProfile copies an existing profile under a new name.
+func (f *GameConfigFile) CloneProfile(srcName, dstName string) error {
+	if f == nil {
+		return fmt.Errorf("config file is nil")
+	}
+	dstName = strings.TrimSpace(dstName)
+	if dstName == "" {
+		return fmt.Errorf("new profile name cannot be empty")
+	}
+	if _, exists := f.Profiles[dstName]; exists {
+		return fmt.Errorf("profile %q already exists", dstName)
+	}
+	src, ok := f.Profiles[srcName]
+	if !ok || src == nil {
+		return fmt.Errorf("source profile %q not found", srcName)
+	}
+	f.Profiles[dstName] = src.Clone()
+	return nil
+}
+
+// ProfileNames returns a sorted list of profile names.
+func (f *GameConfigFile) ProfileNames() []string {
+	if f == nil || len(f.Profiles) == 0 {
+		return []string{"default"}
+	}
+	names := make([]string, 0, len(f.Profiles))
+	for name := range f.Profiles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// GameConfig represents the persistent per-game configuration stored in rpt.toml.
 type GameConfig struct {
 	TargetExe           string                        `toml:"target_exe"`
 	ProtonPath          string                        `toml:"proton_path"`
@@ -125,8 +252,8 @@ func NewDefaultConfig() *GameConfig {
 		AppID:               "0",
 		UseGamescope:        false, // Baseline is false (Clean Zero)
 		GamescopeOutput:     "auto",
-		GamescopeWidth:      1920,
-		GamescopeHeight:     1080,
+		GamescopeWidth:      0, // 0 = Auto / Native
+		GamescopeHeight:     0, // 0 = Auto / Native
 		GamescopeRefresh:    0, // 0 = Native / Untouched
 		GamescopeScaling:    "fit",
 		GamescopeFilter:     "linear",
@@ -152,8 +279,8 @@ func NewDefaultConfig() *GameConfig {
 func (c *GameConfig) ResetGamescopeToDefaults() {
 	c.UseGamescope = true
 	c.GamescopeOutput = "auto"
-	c.GamescopeWidth = 1920
-	c.GamescopeHeight = 1080
+	c.GamescopeWidth = 0 // 0 = Auto / Native
+	c.GamescopeHeight = 0 // 0 = Auto / Native
 	c.GamescopeRefresh = 0 // Untouched / Native
 	c.GamescopeScaling = "fit"
 	c.GamescopeFilter = "linear"
@@ -180,8 +307,8 @@ func (c *GameConfig) ResetHardwareToDefaults(hasPrimeRun bool, pcoresMask string
 func (c *GameConfig) ResetToCleanZero() {
 	c.UseGamescope = false
 	c.GamescopeOutput = "auto"
-	c.GamescopeWidth = 1920
-	c.GamescopeHeight = 1080
+	c.GamescopeWidth = 0 // 0 = Auto / Native
+	c.GamescopeHeight = 0 // 0 = Auto / Native
 	c.GamescopeRefresh = 0
 	c.GamescopeScaling = "fit"
 	c.GamescopeFilter = "linear"

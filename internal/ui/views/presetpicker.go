@@ -60,7 +60,7 @@ func (v *PresetPickerView) View() string {
 
 	subHeader := lipgloss.NewStyle().
 		Foreground(style.ColorMuted).
-		Render("Review detected quirks and optimizations before applying them to .proton-config.toml")
+		Render("Review detected quirks and optimizations before applying them to rpt.toml")
 
 	divider := lipgloss.NewStyle().
 		Foreground(style.ColorBorder).

@@ -35,7 +35,7 @@ func GetDefaultSignatures() []SignatureDefinition {
 			Category: "Missing Kernel Stub / Entrypoint",
 			Keywords: []string{"status_entrypoint_not_found"},
 			Observation: "Wine encountered a missing DLL entrypoint or kernel stub.",
-			Recommendation: "Try switching to GE-Proton or Proton Experimental, or configure DLL overrides in .proton-config.toml.",
+			Recommendation: "Try switching to GE-Proton or Proton Experimental, or configure DLL overrides in rpt.toml.",
 		},
 		{
 			Category: "Bink Video / Intro Splash Stall",

@@ -186,7 +186,7 @@ ATTENTION: default value of option vk_wsi_force_swapchain_to_current_extent over
   - Include game configuration, system hardware, log tail, and direct links to GitHub wiki documentation.
   - Friendly instructions for gamers with zero AI/LLM background:
     *"The AI assistant will do its best to diagnose the issue and suggest settings or launch scripts 😉"*
-  - Instruct the AI assistant to provide fixes via `.proton-config.toml` or create lifecycle hooks (`hooks/pre_launch.sh`).
+  - Instruct the AI assistant to provide fixes via `rpt.toml` or create lifecycle hooks (`hooks/pre_launch.sh`).
 - [x] **Linux Boot-Style `[ OK ]` Launch Indicators**:
   - When launching games, output clean sequential status lines (`[ OK ] Target verified`, `[ OK ] Hook executed`, `[ OK ] CPU affinity set`) for immediate reassurance while slow games initialize.
 - [x] **Manual Post-Session Diagnostics**:
@@ -214,7 +214,7 @@ Currently, users have no way inside the `rpt` TUI to verify which hook scripts w
     - `Pre-Launch Hook`: `Active` (Path) or `None detected`
     - `Post-Exit Hook`: `Active` (Path) or `None detected`
   - Shows cascade resolution priority breakdown:
-    1. Config explicit override (`.proton-config.toml`)
+    1. Config explicit override (`rpt.toml`)
     2. Local game folder (`./hooks/pre_launch.sh`, `./.rpt/hooks/pre_launch.sh`, `./pre_launch.sh`)
     3. Custom hook paths (`hook_dirs`)
     4. Global user configuration (`~/.config/rpt/hooks/pre_launch.sh`)

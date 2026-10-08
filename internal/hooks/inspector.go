@@ -61,7 +61,7 @@ func InspectCandidates(gameDir string, hookType HookType, configHookPath string,
 		exists := fileExists(target)
 		candidates = append(candidates, CascadeCandidate{
 			Path:   target,
-			Source: "Configuration (.proton-config.toml)",
+			Source: "Configuration (rpt.toml)",
 			Exists: exists,
 		})
 	}

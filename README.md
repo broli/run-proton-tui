@@ -99,7 +99,8 @@ Forget opening `winecfg` and messing with the Windows registry. Just press `[o]`
 If a game fails to start or crashes within a few seconds, `rpt` doesn't just vanish. It captures the crash logs and opens the **Diagnostics Screen**, explaining in plain English what went wrong (e.g. missing executable permissions, conflicting processes, or DirectX errors) and how to resolve it.
 
 ### 7. 🎛️ Zero Setup Out of the Box, Total Control When You Need It
-Every game is unique. While `rpt` works instantly with zero setup, it also lets you customize per-game behavior with a simple, human-readable `.proton-config.toml` right inside the game directory:
+Every game is unique. While `rpt` works instantly with zero setup, it also lets you customize per-game behavior with a simple, human-readable `rpt.toml` right inside the game directory:
+* **Self-Contained Profiles**: Switch between `[profiles.default]`, `[profiles.launcher]`, or `[profiles.game]` with 1 keypress (`[P]`), keeping all flags and settings isolated and organized.
 * **Custom Launch Arguments**: Add flags like `-dx11`, `-vulkan`, `-windowed`, or `-skipintro`.
 * **Per-Executable Profiles**: Run the heavy 3D game with your dedicated GPU and Gamescope, while keeping the launcher light on battery.
 * **Custom Symlinks & Directories**: Automatically link in-game photo cameras to your host `~/Pictures/` folder, or redirect save data to cloud storage.
@@ -117,6 +118,7 @@ All main functions are organized into clean numbered categories, with convenient
 | Key | Category / Action | What It Does |
 |:---:|---|---|
 | **`[Enter]`** | **Launch Game** | Run game with active configuration |
+| **`[P]`** | **Profile Manager** | View, clone, switch, and manage named configuration profiles (`rpt.toml`) |
 | **`[e / 2]`** | **Switch Executable** | Instant picker to switch between game binaries, launchers, or setup installers |
 | **`[3]`** | **Proton & Game Setup** | Choose a Proton runner, game quirks, or view ProtonDB ratings |
 | **`[4]`** | **Performance & Sandbox** | Toggle Gamescope, switch GPUs, or cycle display monitors (`[m]`) |
@@ -160,7 +162,7 @@ To unlock advanced sandboxing, performance tuning, and cloud save synchronizatio
 Looking for technical architecture, config schemas, or developer guides? Check out our dedicated documentation:
 
 * [📖 **GitHub Wiki Home**](https://github.com/broli/run-proton-tui/wiki)
-* [⚙️ **Configuration Reference (`.proton-config.toml`)**](https://github.com/broli/run-proton-tui/wiki/Configuration-Reference)
+* [⚙️ **Configuration Reference (`rpt.toml`)**](https://github.com/broli/run-proton-tui/wiki/Configuration-Reference)
 * [🖥️ **Hardware Topology & Wayland Architecture**](https://github.com/broli/run-proton-tui/wiki/Hardware-and-Wayland-Architecture)
 * [🔄 **Lifecycle Shell Hooks & File Directives**](https://github.com/broli/run-proton-tui/wiki/Lifecycle-Hooks-and-Preservation)
 * [🤖 **AI Agent Integration & `--dump-spec`**](https://github.com/broli/run-proton-tui/wiki/AI-Agent-Integration)

@@ -23,7 +23,7 @@ By default, preserved files are saved to:
 ```
 ~/Games/Backups/<GameName>/<YYYY-MM-DD_HH-MM-SS>/
 ```
-You can customize where your preserved files are placed in `.proton-config.toml`:
+You can customize where your preserved files are placed in `rpt.toml`:
 ```toml
 # Save preserved files directly to your preferred folder:
 backup_dir = "~/winegames/saves"
@@ -32,7 +32,7 @@ backup_dir = "~/MySaves"
 ```
 
 ### Extra Preservation Paths
-For non-standard games that save progress in arbitrary locations outside Windows user folders (e.g. directly in `drive_c/GameSaves/`), declare them in `.proton-config.toml`:
+For non-standard games that save progress in arbitrary locations outside Windows user folders (e.g. directly in `drive_c/GameSaves/`), declare them in `rpt.toml`:
 ```toml
 [filesystem]
 extra_backup_paths = [
@@ -53,7 +53,7 @@ For complex operations that no static configuration file can anticipate, `rpt` p
 
 ### Search Priority Order
 `rpt` searches for hooks in the following locations, prioritizing your unpacked game folder:
-1. Explicitly configured path in `.proton-config.toml`: `pre_launch_hook = "..."`
+1. Explicitly configured path in `rpt.toml`: `pre_launch_hook = "..."`
 2. **Unpacked game directory**: `$PWD/hooks/<type>.sh`
 3. **Unpacked game directory**: `$PWD/.rpt/hooks/<type>.sh`
 4. **Unpacked game directory root**: `$PWD/<type>.sh`
