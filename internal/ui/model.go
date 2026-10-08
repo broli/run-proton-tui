@@ -686,11 +686,18 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		m.Config.UseGamescope = !m.Config.UseGamescope
 		_ = config.SaveConfig(m.GameDir, m.Config)
 		if m.Config.UseGamescope {
-			refStr := "Native"
-			if m.Config.GamescopeRefresh > 0 {
-				refStr = fmt.Sprintf("%dHz", m.Config.GamescopeRefresh)
+			geomStr := "Native"
+			if m.Config.GamescopeWidth > 0 && m.Config.GamescopeHeight > 0 {
+				geomStr = fmt.Sprintf("%dx%d", m.Config.GamescopeWidth, m.Config.GamescopeHeight)
 			}
-			m.StatusMessage = fmt.Sprintf("Gamescope ENABLED (%dx%d @ %s -> %s)", m.Config.GamescopeWidth, m.Config.GamescopeHeight, refStr, m.Config.GamescopeOutput)
+			if m.Config.GamescopeRefresh > 0 {
+				geomStr = fmt.Sprintf("%s@%dHz", geomStr, m.Config.GamescopeRefresh)
+			}
+			gsOut := m.Config.GamescopeOutput
+			if gsOut == "" || strings.EqualFold(gsOut, "auto") {
+				gsOut = "Auto"
+			}
+			m.StatusMessage = fmt.Sprintf("Gamescope ENABLED (%s -> %s)", geomStr, gsOut)
 		} else {
 			m.StatusMessage = "Gamescope DISABLED (Native Window)"
 		}

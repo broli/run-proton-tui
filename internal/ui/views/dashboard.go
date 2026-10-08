@@ -170,15 +170,18 @@ func RenderDashboard(d DashboardData) string {
 	// Gamescope
 	gsOutput := d.Config.GamescopeOutput
 	if gsOutput == "" || strings.EqualFold(gsOutput, "auto") {
-		gsOutput = "Auto (External)"
+		gsOutput = "Auto"
 	}
 	gsStatus := style.BadgeMuted.Render("Disabled (Native Window)")
 	if d.Config.UseGamescope {
-		refStr := "Native"
-		if d.Config.GamescopeRefresh > 0 {
-			refStr = fmt.Sprintf("%dHz", d.Config.GamescopeRefresh)
+		geomStr := "Native"
+		if d.Config.GamescopeWidth > 0 && d.Config.GamescopeHeight > 0 {
+			geomStr = fmt.Sprintf("%dx%d", d.Config.GamescopeWidth, d.Config.GamescopeHeight)
 		}
-		gsStatus = fmt.Sprintf("%s %s", style.BadgeSuccess.Render(fmt.Sprintf("ON (%dx%d@%s -> %s)", d.Config.GamescopeWidth, d.Config.GamescopeHeight, refStr, gsOutput)), style.KeyStyle.Render("([m] Cycle, [G] Edit)"))
+		if d.Config.GamescopeRefresh > 0 {
+			geomStr = fmt.Sprintf("%s@%dHz", geomStr, d.Config.GamescopeRefresh)
+		}
+		gsStatus = fmt.Sprintf("%s %s", style.BadgeSuccess.Render(fmt.Sprintf("ON (%s -> %s)", geomStr, gsOutput)), style.KeyStyle.Render("([m] Cycle, [G] Edit)"))
 	}
 	renderRow("Gamescope:", gsStatus)
 

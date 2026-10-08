@@ -238,20 +238,31 @@ func (v *SubMenuView) View() string {
 
 		gsStatus := style.BadgeMuted.Render("OFF (Native Window)")
 		if cfg.UseGamescope {
-			refStr := "Native"
-			if cfg.GamescopeRefresh > 0 {
-				refStr = fmt.Sprintf("%dHz", cfg.GamescopeRefresh)
+			geomStr := "Native"
+			if cfg.GamescopeWidth > 0 && cfg.GamescopeHeight > 0 {
+				geomStr = fmt.Sprintf("%dx%d", cfg.GamescopeWidth, cfg.GamescopeHeight)
 			}
-			gsStatus = style.BadgeSuccess.Render(fmt.Sprintf("ON (%dx%d @ %s -> %s)", cfg.GamescopeWidth, cfg.GamescopeHeight, refStr, cfg.GamescopeOutput))
+			if cfg.GamescopeRefresh > 0 {
+				geomStr = fmt.Sprintf("%s@%dHz", geomStr, cfg.GamescopeRefresh)
+			}
+			gsOut := cfg.GamescopeOutput
+			if gsOut == "" || strings.EqualFold(gsOut, "auto") {
+				gsOut = "Auto"
+			}
+			gsStatus = style.BadgeSuccess.Render(fmt.Sprintf("ON (%s -> %s)", geomStr, gsOut))
 		}
 
 		dispStatus := style.BadgeSuccess.Render(cfg.GamescopeOutput)
 		if cfg.GamescopeOutput == "" || strings.EqualFold(cfg.GamescopeOutput, "auto") {
-			dispStatus = style.BadgeMuted.Render("Auto (External Preferred)")
+			dispStatus = style.BadgeMuted.Render("Auto")
 		}
 
 		detectDesc := "Detect native size & keep refresh untouched"
-		optSummary := fmt.Sprintf("%dx%d (%s, %s)", cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeWindowMode, cfg.GamescopeFilter)
+		optGeom := "Auto (Native)"
+		if cfg.GamescopeWidth > 0 && cfg.GamescopeHeight > 0 {
+			optGeom = fmt.Sprintf("%dx%d", cfg.GamescopeWidth, cfg.GamescopeHeight)
+		}
+		optSummary := fmt.Sprintf("%s (%s, %s)", optGeom, cfg.GamescopeWindowMode, cfg.GamescopeFilter)
 
 		items = []struct {
 			keys  string
@@ -262,7 +273,7 @@ func (v *SubMenuView) View() string {
 			{"[m / 2]", "Target Display Monitor", dispStatus},
 			{"[d / 3]", "Detect Monitor Size & Native Hz", detectDesc},
 			{"[s / 4]", "Gamescope Advanced Options", optSummary},
-			{"[r / 5]", "Reset Display & Gamescope to Defaults", "Restores 1080p, Linear, SDR, Untouched Hz"},
+			{"[r / 5]", "Reset Display & Gamescope to Defaults", "Restores Auto Geometry, Linear, SDR, Untouched Hz"},
 		}
 
 	case MenuHardware:

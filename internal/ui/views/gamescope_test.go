@@ -94,6 +94,13 @@ func TestGamescopeView(t *testing.T) {
 	if cfg.GamescopeWidth != 0 || cfg.GamescopeHeight != 0 || cfg.GamescopeHDR {
 		t.Errorf("Expected 'r' to reset Gamescope to Auto geometry (0x0) SDR, got %dx%d HDR=%v", cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeHDR)
 	}
+	resetView := gv.View()
+	if !strings.Contains(resetView, "Auto / Native (Host Negotiated)") {
+		t.Errorf("Expected 'Auto / Native (Host Negotiated)' in view after reset, got: %s", resetView)
+	}
+	if strings.Contains(resetView, "External Preferred") {
+		t.Errorf("Did not expect 'External Preferred' in view after reset, got: %s", resetView)
+	}
 
 	// 9. Test Esc returns done=true
 	done, _ := gv.Update(tea.KeyMsg{Type: tea.KeyEsc})

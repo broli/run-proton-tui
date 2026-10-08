@@ -16,6 +16,7 @@ var resolutionPresets = []struct {
 	width  int
 	height int
 }{
+	{"Auto / Native (Host Negotiated)", 0, 0},
 	{"1080p (1920x1080)", 1920, 1080},
 	{"1440p (2560x1440)", 2560, 1440},
 	{"4K UHD (3840x2160)", 3840, 2160},
@@ -109,7 +110,7 @@ func (v *GamescopeView) Update(msg tea.Msg) (done bool, detected bool) {
 
 		case "r", "R":
 			v.Config.ResetGamescopeToDefaults()
-			v.StatusMessage = "✓ Gamescope reset to safe defaults (1080p, Linear, SDR, Untouched Hz)"
+			v.StatusMessage = "✓ Gamescope reset to safe defaults (Auto Geometry, Linear, SDR, Untouched Hz)"
 			return false, false
 
 		case "enter", "space", " ", "right", "l":
@@ -345,10 +346,13 @@ func (v *GamescopeView) View() string {
 	// Format values
 	dispVal := v.Config.GamescopeOutput
 	if dispVal == "" || strings.EqualFold(dispVal, "auto") {
-		dispVal = "Auto (External Preferred)"
+		dispVal = "Auto"
 	}
 
-	resVal := fmt.Sprintf("%dx%d", v.Config.GamescopeWidth, v.Config.GamescopeHeight)
+	resVal := "Auto / Native (Host Negotiated)"
+	if v.Config.GamescopeWidth > 0 && v.Config.GamescopeHeight > 0 {
+		resVal = fmt.Sprintf("%dx%d", v.Config.GamescopeWidth, v.Config.GamescopeHeight)
+	}
 	for _, r := range resolutionPresets {
 		if r.width == v.Config.GamescopeWidth && r.height == v.Config.GamescopeHeight {
 			resVal = r.label

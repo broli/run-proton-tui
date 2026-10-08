@@ -141,3 +141,47 @@ func TestRenderDashboardGPUOffloadStatus(t *testing.T) {
 		t.Errorf("Expected 'prime-run (Dedicated GPU)' when prime-run is active, got output: %s", outActive)
 	}
 }
+
+func TestRenderDashboardGamescopeFormatting(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	data := DashboardData{
+		Config: cfg,
+		Width:  120,
+		Height: 35,
+	}
+
+	// 1. Gamescope disabled
+	cfg.UseGamescope = false
+	out := RenderDashboard(data)
+	if !strings.Contains(out, "Disabled (Native Window)") {
+		t.Errorf("Expected 'Disabled (Native Window)' when gamescope is off, got: %s", out)
+	}
+
+	// 2. Gamescope enabled with Auto geometry (0x0) and Auto output
+	cfg.UseGamescope = true
+	cfg.GamescopeWidth = 0
+	cfg.GamescopeHeight = 0
+	cfg.GamescopeRefresh = 0
+	cfg.GamescopeOutput = "auto"
+	outAuto := RenderDashboard(data)
+	if !strings.Contains(outAuto, "ON (Native -> Auto)") {
+		t.Errorf("Expected 'ON (Native -> Auto)' for default gamescope, got: %s", outAuto)
+	}
+	if strings.Contains(outAuto, "0x0") {
+		t.Errorf("Did not expect '0x0' in gamescope status, got: %s", outAuto)
+	}
+	if strings.Contains(outAuto, "External") {
+		t.Errorf("Did not expect 'External' in gamescope status, got: %s", outAuto)
+	}
+
+	// 3. Gamescope with custom resolution and refresh
+	cfg.GamescopeWidth = 1920
+	cfg.GamescopeHeight = 1080
+	cfg.GamescopeRefresh = 144
+	cfg.GamescopeOutput = "DP-1"
+	outCustom := RenderDashboard(data)
+	if !strings.Contains(outCustom, "ON (1920x1080@144Hz -> DP-1)") {
+		t.Errorf("Expected 'ON (1920x1080@144Hz -> DP-1)', got: %s", outCustom)
+	}
+}
+
