@@ -34,7 +34,7 @@ Running `rpt --dump-spec` outputs:
 ```json
 {
   "schema_version": "rpt-spec-v2",
-  "rpt_version": "0.9.0",
+  "rpt_version": "0.10.0",
   "title": "AI Assistant Game Setup Helper",
   "description": "System and launcher specification for AI assistants (like ChatGPT, Claude, etc.) to configure games and write launch hooks under run-proton-tui.",
   "ai_assistant_guidelines": [
