@@ -314,6 +314,34 @@ func TestBuildGamescopeArgs(t *testing.T) {
 			t.Errorf("Expected --framerate-limit 60, got: %s", joined)
 		}
 	})
+
+	t.Run("omits geometry, filter, and scaling when blank or auto", func(t *testing.T) {
+		cfg := config.NewDefaultConfig()
+		cfg.GamescopeWidth = 0
+		cfg.GamescopeHeight = 0
+		cfg.GamescopeFilter = ""
+		cfg.GamescopeScaling = ""
+
+		args := BuildGamescopeArgs(cfg)
+		for _, a := range args {
+			if a == "-W" || a == "-H" || a == "-w" || a == "-h" {
+				t.Errorf("Expected geometry flags (-W/-H/-w/-h) to be omitted when 0x0, got: %s in %v", a, args)
+			}
+			if a == "-F" || a == "-S" {
+				t.Errorf("Expected filter/scaler flags (-F/-S) to be omitted when empty/auto, got: %s in %v", a, args)
+			}
+		}
+
+		// Also test when explicitly set to "auto"
+		cfg.GamescopeFilter = "auto"
+		cfg.GamescopeScaling = "auto"
+		argsAuto := BuildGamescopeArgs(cfg)
+		for _, a := range argsAuto {
+			if a == "-F" || a == "-S" {
+				t.Errorf("Expected filter/scaler flags to be omitted when 'auto', got: %s in %v", a, argsAuto)
+			}
+		}
+	})
 }
 
 
