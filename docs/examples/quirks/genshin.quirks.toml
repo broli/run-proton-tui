@@ -1,0 +1,13 @@
+# Declarative Quirks Manifest for Genshin Impact
+# Place in <game_dir>/.rpt/quirks.toml or ~/.config/rpt/quirks/genshin.toml
+
+[[quirks]]
+name = "Genshin Impact"
+match_exe = ["genshin", "launcher.exe"]
+summary_notes = "Activates UMU Genshin compatibility shims, suppresses volatile memory checks for anti-cheat, and supervises launcher."
+umu_id = "umu-genshin"
+wait_processes = ["launcher.exe"]
+
+[quirks.env_vars]
+WINE_CANONICAL_HOLE = "skip_volatile_check"
+PROTON_USE_XALIA = "0"

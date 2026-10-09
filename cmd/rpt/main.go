@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	version = "0.10.1"
+	version = "0.11.0"
 )
 
 func main() {
@@ -64,6 +64,7 @@ func main() {
 	flagProfile := flag.String("profile", "", "Select specific game profile from rpt.toml (e.g. game, launcher)")
 	flagDryRun := flag.Bool("dry-run", false, "Print resolved launch command without executing")
 	flagPrintCmd := flag.Bool("print-cmd", false, "Alias for --dry-run")
+	flagGuess := flag.Bool("guess", false, "Attempt launch without rpt.toml using best-guess heuristics")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "rpt (Run Proton TUI) v%s — Modular Linux Game Launcher Helper\n\n", version)
@@ -79,6 +80,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  cd ~/Games/Endfield && rpt      # Interactive TUI in game directory (recommended)\n")
 		fmt.Fprintf(os.Stderr, "  rpt --now                       # Quick launch with saved/auto-detected settings\n")
+		fmt.Fprintf(os.Stderr, "  rpt --now --guess               # Launch headlessly by guessing settings when no rpt.toml exists\n")
 		fmt.Fprintf(os.Stderr, "  rpt Setup.exe                   # Switch to specific installer/tool and open TUI\n")
 		fmt.Fprintf(os.Stderr, "  rpt --profile launcher --now    # Launch specific profile headlessly\n")
 		fmt.Fprintf(os.Stderr, "  rpt --dry-run                   # Inspect resolved launch command without executing\n")
@@ -120,8 +122,8 @@ func main() {
 	cfgFile, err := config.LoadConfigFile(gameDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			if skipTUI && !(*flagDryRun || *flagPrintCmd) {
-				// User attempted headless launch without an rpt.toml config
+			if skipTUI && !*flagGuess {
+				// User attempted headless launch without an rpt.toml config and without --guess
 				errBox := lipgloss.NewStyle().
 					BorderStyle(lipgloss.DoubleBorder()).
 					BorderForeground(style.ColorDanger).
@@ -140,15 +142,21 @@ func main() {
 						"  %s\n\n"+
 						"%s\n\n"+
 						"This allows rpt to detect executables, select your Proton runner,\n"+
-						"and save a tailored 'rpt.toml' profile before running headlessly.\n",
+						"and save a tailored 'rpt.toml' profile before running headlessly.\n\n"+
+						"If you wish to bypass configuration and run anyway by guessing:\n"+
+						"  %s\n",
 					titleStyle.Render("No Configuration Found (rpt.toml)"),
-					bodyStyle.Render("Headless launch (--now) requires an existing game profile in rpt.toml."),
+					bodyStyle.Render("There is no saved configuration file (rpt.toml) for this game."),
 					cmdStyle.Render(fmt.Sprintf("$ cd %q && rpt", gameDir)),
 					subStyle.Render("(Generic syntax: cd /path/to/game/folder && rpt)"),
+					cmdStyle.Render("rpt --guess --now (or rpt --guess --dry-run)"),
 				)
 
 				fmt.Fprintln(os.Stderr, errBox.Render(msg))
 				os.Exit(1)
+			}
+			if skipTUI && *flagGuess {
+				fmt.Println(style.BadgeWarning.Render("⚠️  No rpt.toml found; proceeding with best-guess heuristics (--guess)"))
 			}
 			cfgFile = config.NewConfigFileWithDefault()
 			config.ApplyHardwareSafeStandards(cfgFile.GetActiveProfile())
@@ -194,9 +202,10 @@ func main() {
 		}
 	}
 
-	// Auto-detect quirks preset if not yet configured
-	if cfg.PresetName == "" && cfg.TargetExe != "" {
+	// Auto-detect quirks preset only if guessing is explicitly allowed
+	if cfg.PresetName == "" && cfg.TargetExe != "" && *flagGuess {
 		if p := quirks.DetectQuirks(gameDir, cfg.TargetExe, cfg.AppID, cfg.ProtonPath); p != nil {
+			fmt.Printf("💡 Detected and applied game preset: %s (%s)\n", p.Name, p.MatchedSource)
 			p.ApplyToConfig(cfg, false)
 		}
 	}

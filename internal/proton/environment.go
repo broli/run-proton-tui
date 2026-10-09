@@ -119,10 +119,6 @@ func BuildEnvironment(opts EnvOptions) map[string]string {
 		delete(env, "PROTON_ENABLE_NGX_UPDATER")
 	}
 
-	// 8. Memory Management: Prevent VRAM thrashing on 8GB GPUs
-	if _, ok := env["VKD3D_CONFIG"]; !ok {
-		env["VKD3D_CONFIG"] = "no_upload_hvv"
-	}
 
 	// 9. Debug & Session Logging
 	if opts.EnableLogging {

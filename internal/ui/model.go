@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -44,6 +43,7 @@ const (
 	StateGamescopeSettings
 	StateResetConfirm
 	StateProfiles
+	StateDetectionMenu
 )
 
 // Model is the root Elm Architecture model for rpt.
@@ -84,6 +84,7 @@ type Model struct {
 	GamescopeView    *views.GamescopeView
 	ResetConfirmView *views.ResetConfirmView
 	ProfilesView     *views.ProfilesView
+	DetectionMenuView *views.DetectionMenuView
 	DetectedPreset   *quirks.Preset
 }
 
@@ -96,6 +97,7 @@ type protonDBResultMsg struct {
 // NewModel constructs the root application state.
 func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 	fileCfg, err := config.LoadConfigFile(gameDir)
+	isFreshConfig := err != nil && os.IsNotExist(err)
 	if err != nil {
 		fileCfg = config.NewConfigFileWithDefault()
 		if cfg != nil {
@@ -122,11 +124,10 @@ func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 		cfg.ProtonPath = runners[0].Path
 	}
 
-	// Auto-detect known non-standard quirks preset on initial run if not already set
+	// Detect known quirks without silently applying them
+	var detectedPreset *quirks.Preset
 	if cfg.PresetName == "" {
-		if p := quirks.DetectQuirks(gameDir, cfg.TargetExe, cfg.AppID, cfg.ProtonPath); p != nil {
-			p.ApplyToConfig(cfg, false)
-		}
+		detectedPreset = quirks.DetectQuirks(gameDir, cfg.TargetExe, cfg.AppID, cfg.ProtonPath)
 	}
 
 	// Read active overrides
@@ -147,10 +148,19 @@ func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 		termHeight = 32
 	}
 
+	initialState := StateDashboard
+	var presetView *views.PresetPickerView
+	if isFreshConfig && detectedPreset != nil {
+		initialState = StatePresetPicker
+		presetView = views.NewPresetPickerView(detectedPreset, filepath.Base(gameDir), cfg, termWidth, termHeight)
+	}
+
 	m := &Model{
-		State:           StateDashboard,
-		GameDir:         gameDir,
-		GameTitle:       filepath.Base(gameDir),
+		State:            initialState,
+		PresetPickerView: presetView,
+		DetectedPreset:   detectedPreset,
+		GameDir:          gameDir,
+		GameTitle:        filepath.Base(gameDir),
 		Config:          cfg,
 		ConfigFile:      fileCfg,
 		Runners:         runners,
@@ -275,6 +285,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.ProtonPickerView != nil {
 			m.ProtonPickerView.SetDimensions(msg.Width, msg.Height)
 		}
+		if m.DetectionMenuView != nil {
+			m.DetectionMenuView.Width = msg.Width
+			m.DetectionMenuView.Height = msg.Height
+		}
 		return m, nil
 
 	case protonDBResultMsg:
@@ -331,7 +345,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 
-				// Auto-apply per-executable profile or classification recommendations
+				// If per-executable profile exists, adopt it; otherwise preserve user's active settings
 				if _, ok := m.Config.Profiles[m.Config.TargetExe]; ok {
 					eff := m.Config.GetEffectiveConfig(m.Config.TargetExe)
 					m.Config.UseGamescope = eff.UseGamescope
@@ -339,19 +353,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.Config.UsePCores = eff.UsePCores
 					m.StatusMessage = fmt.Sprintf("Switched to %s profile!", m.Config.TargetExe)
 				} else {
-					class := runner.ClassifyExecutable(m.Config.TargetExe)
-					_, gsErr := exec.LookPath("gamescope")
-					hasGamescope := gsErr == nil
-					isWayland := os.Getenv("WAYLAND_DISPLAY") != "" || os.Getenv("XDG_SESSION_TYPE") == "wayland"
-					hasPrimeRun := m.GPUInfo != nil && m.GPUInfo.HasPrimeRun
-					isHybrid := m.CPUTopo != nil && m.CPUTopo.IsHybrid
-
-					m.Config.UseGamescope = class.RecommendGamescope && hasGamescope && isWayland
-					m.Config.UsePrimeRun = class.RecommendPrimeRun && hasPrimeRun
-					m.Config.UsePCores = class.RecommendPCores && isHybrid
-					if isHybrid && m.Config.PCoresMask == "" && m.CPUTopo != nil {
-						m.Config.PCoresMask = m.CPUTopo.PCoresMask
-					}
+					m.StatusMessage = fmt.Sprintf("Selected binary: %s", m.Config.TargetExe)
 				}
 				_ = config.SaveConfig(m.GameDir, m.Config)
 				m.State = StateDashboard
@@ -376,6 +378,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					_ = config.SaveConfig(m.GameDir, m.Config)
 					m.State = StateDashboard
 				} else if cancel {
+					m.State = StateDashboard
+				}
+			}
+			return m, nil
+
+		case StateDetectionMenu:
+			if m.DetectionMenuView != nil {
+				done, applied := m.DetectionMenuView.Update(msg)
+				if applied {
+					_ = config.SaveConfig(m.GameDir, m.Config)
+					m.StatusMessage = m.DetectionMenuView.StatusMessage
+				}
+				if done {
 					m.State = StateDashboard
 				}
 			}
@@ -815,6 +830,11 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		m.State = StateDiagnostics
 		return m, nil
 
+	case views.ActionOpenDetections:
+		m.DetectionMenuView = views.NewDetectionMenuView(m.Config, m.GameDir, m.GameTitle, m.Width, m.Height)
+		m.State = StateDetectionMenu
+		return m, nil
+
 	case views.ActionToggleLogging:
 		m.Config.EnableLogging = !m.Config.EnableLogging
 		_ = config.SaveConfig(m.GameDir, m.Config)
@@ -955,24 +975,6 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.State = StateProfiles
 		return m, nil
 
-	case "D":
-		target := m.Config.GamescopeOutput
-		w, h, err := hardware.DetectOutputResolution(target)
-		m.Config.GamescopeWidth = w
-		m.Config.GamescopeHeight = h
-		m.Config.GamescopeRefresh = 0 // Untouched / Native
-		_ = config.SaveConfig(m.GameDir, m.Config)
-		dispName := target
-		if dispName == "" || strings.EqualFold(dispName, "auto") {
-			dispName = "Auto-detected monitor"
-		}
-		if err != nil {
-			m.StatusMessage = fmt.Sprintf("⚠️ Detection fallback (%s): %dx%d (Refresh: Untouched / Native)", dispName, w, h)
-		} else {
-			m.StatusMessage = fmt.Sprintf("✓ Detected %s: %dx%d (Refresh: Untouched / Native)", dispName, w, h)
-		}
-		return m, nil
-
 	case "s", "S":
 		opts := launcher.ShortcutOptions{
 			GameTitle: m.GameTitle,
@@ -1080,6 +1082,11 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.State = StatePresetPicker
 		return m, nil
 
+	case "D":
+		m.DetectionMenuView = views.NewDetectionMenuView(m.Config, m.GameDir, m.GameTitle, m.Width, m.Height)
+		m.State = StateDetectionMenu
+		return m, nil
+
 	case "L":
 		m.Config.EnableLogging = !m.Config.EnableLogging
 		_ = config.SaveConfig(m.GameDir, m.Config)
@@ -1132,6 +1139,10 @@ func (m *Model) View() string {
 	case StatePresetPicker:
 		if m.PresetPickerView != nil {
 			return m.PresetPickerView.View()
+		}
+	case StateDetectionMenu:
+		if m.DetectionMenuView != nil {
+			return m.DetectionMenuView.View()
 		}
 	case StateProtonDB:
 		if m.ProtonDBView != nil {

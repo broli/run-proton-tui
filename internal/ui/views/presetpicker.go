@@ -132,17 +132,34 @@ func (v *PresetPickerView) View() string {
 	if len(p.EnvVars) > 0 {
 		b.WriteString(fmt.Sprintf("  • %s:\n", lipgloss.NewStyle().Bold(true).Render("Custom Environment Variables")))
 		for k, val := range p.EnvVars {
-			b.WriteString(fmt.Sprintf("      %s = %s\n",
+			desc := ""
+			switch k {
+			case "WINE_CANONICAL_HOLE":
+				desc = " (Prevents anti-cheat memory scan crashes)"
+			case "PROTON_USE_XALIA":
+				desc = " (Disables accessibility bridge to prevent launcher crash)"
+			case "VKD3D_CONFIG":
+				desc = " (D3D12 RAM staging; prevents 8GB VRAM thrashing)"
+			}
+			b.WriteString(fmt.Sprintf("      %s = %s%s\n",
 				lipgloss.NewStyle().Foreground(style.ColorMuted).Render(k),
 				lipgloss.NewStyle().Foreground(style.ColorSecondary).Render(val),
+				lipgloss.NewStyle().Foreground(style.ColorMuted).Italic(true).Render(desc),
 			))
 		}
 	}
 
 	if len(p.ExtraArgs) > 0 {
-		b.WriteString(fmt.Sprintf("  • %s: %s\n",
+		extraDesc := ""
+		for _, arg := range p.ExtraArgs {
+			if arg == "-vulkan" {
+				extraDesc = " (Directs engine to use native Vulkan renderer)"
+			}
+		}
+		b.WriteString(fmt.Sprintf("  • %s: %s%s\n",
 			lipgloss.NewStyle().Bold(true).Render("Extra Launch Arguments"),
 			lipgloss.NewStyle().Foreground(style.ColorHighlight).Render(strings.Join(p.ExtraArgs, " ")),
+			lipgloss.NewStyle().Foreground(style.ColorMuted).Italic(true).Render(extraDesc),
 		))
 	}
 

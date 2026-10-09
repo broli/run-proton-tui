@@ -95,11 +95,20 @@ func TestGamescopeView(t *testing.T) {
 		t.Errorf("Expected 'r' to reset Gamescope to Auto geometry (0x0) SDR, got %dx%d HDR=%v", cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GamescopeHDR)
 	}
 	resetView := gv.View()
-	if !strings.Contains(resetView, "Auto / Native (Host Negotiated)") {
-		t.Errorf("Expected 'Auto / Native (Host Negotiated)' in view after reset, got: %s", resetView)
+	if !strings.Contains(resetView, "Auto / Native (Blank - Host Negotiated)") {
+		t.Errorf("Expected 'Auto / Native (Blank - Host Negotiated)' in view after reset, got: %s", resetView)
 	}
 	if strings.Contains(resetView, "External Preferred") {
 		t.Errorf("Did not expect 'External Preferred' in view after reset, got: %s", resetView)
+	}
+
+	// Test 'u' shortcut to clear geometry to blank
+	cfg.GamescopeWidth = 1920
+	cfg.GamescopeHeight = 1080
+	cfg.GeometryAutoDetected = true
+	gv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}})
+	if cfg.GamescopeWidth != 0 || cfg.GamescopeHeight != 0 || cfg.GeometryAutoDetected {
+		t.Errorf("Expected 'u' to clear geometry to 0x0 and unset GeometryAutoDetected, got %dx%d auto=%v", cfg.GamescopeWidth, cfg.GamescopeHeight, cfg.GeometryAutoDetected)
 	}
 
 	// 9. Test Esc returns done=true

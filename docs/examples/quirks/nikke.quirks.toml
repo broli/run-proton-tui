@@ -1,0 +1,12 @@
+# Declarative Quirks Manifest for Goddess of Victory: NIKKE
+# Place in <game_dir>/.rpt/quirks.toml or ~/.config/rpt/quirks/nikke.toml
+
+[[quirks]]
+name = "Goddess of Victory: NIKKE"
+match_exe = ["nikke"]
+summary_notes = "Activates UMU Nikke compatibility patches and suppresses anti-cheat memory conflicts."
+umu_id = "umu-nikke"
+
+[quirks.env_vars]
+WINE_CANONICAL_HOLE = "skip_volatile_check"
+PROTON_USE_XALIA = "0"

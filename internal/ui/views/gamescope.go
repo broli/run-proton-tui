@@ -16,7 +16,7 @@ var resolutionPresets = []struct {
 	width  int
 	height int
 }{
-	{"Auto / Native (Host Negotiated)", 0, 0},
+	{"Auto / Native (Blank - Host Negotiated)", 0, 0},
 	{"1080p (1920x1080)", 1920, 1080},
 	{"1440p (2560x1440)", 2560, 1440},
 	{"4K UHD (3840x2160)", 3840, 2160},
@@ -39,8 +39,8 @@ var refreshPresets = []struct {
 }
 
 var windowModes = []string{"fullscreen", "borderless", "windowed"}
-var filterPresets = []string{"linear", "fsr", "nis", "nearest", "pixel"}
-var scalingPresets = []string{"fit", "fill", "stretch", "integer"}
+var filterPresets = []string{"", "linear", "fsr", "nis", "nearest", "pixel"}
+var scalingPresets = []string{"", "fit", "fill", "stretch", "integer"}
 var fpsLimits = []int{0, 30, 40, 60, 120}
 
 type GamescopeField int
@@ -48,6 +48,7 @@ type GamescopeField int
 const (
 	FieldOutput GamescopeField = iota
 	FieldDetectSize
+	FieldClearGeometry
 	FieldResolution
 	FieldRefresh
 	FieldWindowMode
@@ -108,6 +109,10 @@ func (v *GamescopeView) Update(msg tea.Msg) (done bool, detected bool) {
 			v.DetectMonitorSize()
 			return false, true
 
+		case "u", "U", "x", "X", "backspace":
+			v.ClearGeometry()
+			return false, false
+
 		case "r", "R":
 			v.Config.ResetGamescopeToDefaults()
 			v.StatusMessage = "✓ Gamescope reset to safe defaults (Auto Geometry, Linear, SDR, Untouched Hz)"
@@ -120,6 +125,9 @@ func (v *GamescopeView) Update(msg tea.Msg) (done bool, detected bool) {
 			case FieldDetectSize:
 				v.DetectMonitorSize()
 				return false, true
+			case FieldClearGeometry:
+				v.ClearGeometry()
+				return false, false
 			case FieldResolution:
 				v.cycleResolution(1)
 			case FieldRefresh:
@@ -152,6 +160,9 @@ func (v *GamescopeView) Update(msg tea.Msg) (done bool, detected bool) {
 			case FieldDetectSize:
 				v.DetectMonitorSize()
 				return false, true
+			case FieldClearGeometry:
+				v.ClearGeometry()
+				return false, false
 			case FieldResolution:
 				v.cycleResolution(-1)
 			case FieldRefresh:
@@ -187,23 +198,34 @@ func (v *GamescopeView) Update(msg tea.Msg) (done bool, detected bool) {
 	return false, false
 }
 
+// ClearGeometry resets Gamescope canvas width and height to 0 (Auto / Blank),
+// allowing Gamescope to adaptively negotiate resolution with the host display.
+func (v *GamescopeView) ClearGeometry() {
+	v.Config.GamescopeWidth = 0
+	v.Config.GamescopeHeight = 0
+	v.Config.GeometryAutoDetected = false
+	v.StatusMessage = "✓ Geometry unset to Auto / Blank (0x0 display negotiation)"
+}
+
 // DetectMonitorSize triggers DRM sysfs scanning for the active connector,
-// updates width/height to native monitor dimensions, and sets refresh to 0 (native/untouched).
+// updates width/height to native monitor dimensions, sets refresh to 0 (native/untouched),
+// and marks GeometryAutoDetected so it saves with a documented comment in rpt.toml.
 func (v *GamescopeView) DetectMonitorSize() {
 	target := v.Config.GamescopeOutput
 	w, h, err := hardware.DetectOutputResolution(target)
 	v.Config.GamescopeWidth = w
 	v.Config.GamescopeHeight = h
 	v.Config.GamescopeRefresh = 0 // Untouched / Native
+	v.Config.GeometryAutoDetected = true
 
 	dispName := target
 	if dispName == "" || strings.EqualFold(dispName, "auto") {
 		dispName = "Auto-detected monitor"
 	}
 	if err != nil {
-		v.StatusMessage = fmt.Sprintf("⚠️ Detection fallback (%s): %dx%d (Refresh: Untouched)", dispName, w, h)
+		v.StatusMessage = fmt.Sprintf("⚠️ Detection fallback (%s): %dx%d (Comment '# auto detected from TUI' will be saved)", dispName, w, h)
 	} else {
-		v.StatusMessage = fmt.Sprintf("✓ Detected %s: %dx%d (Refresh: Untouched / Native)", dispName, w, h)
+		v.StatusMessage = fmt.Sprintf("✓ Detected %s: %dx%d (Comment '# auto detected from TUI' will be saved)", dispName, w, h)
 	}
 }
 
@@ -235,6 +257,9 @@ func (v *GamescopeView) cycleResolution(dir int) {
 	nextIdx := (curIdx + dir + len(resolutionPresets)) % len(resolutionPresets)
 	v.Config.GamescopeWidth = resolutionPresets[nextIdx].width
 	v.Config.GamescopeHeight = resolutionPresets[nextIdx].height
+	if v.Config.GamescopeWidth == 0 && v.Config.GamescopeHeight == 0 {
+		v.Config.GeometryAutoDetected = false
+	}
 }
 
 func (v *GamescopeView) cycleRefresh(dir int) {
@@ -264,9 +289,6 @@ func (v *GamescopeView) cycleWindowMode(dir int) {
 
 func (v *GamescopeView) cycleFilter(dir int) {
 	cur := strings.ToLower(v.Config.GamescopeFilter)
-	if cur == "" {
-		cur = "linear"
-	}
 	curIdx := 0
 	for i, f := range filterPresets {
 		if f == cur {
@@ -280,9 +302,6 @@ func (v *GamescopeView) cycleFilter(dir int) {
 
 func (v *GamescopeView) cycleScaling(dir int) {
 	cur := strings.ToLower(v.Config.GamescopeScaling)
-	if cur == "" {
-		cur = "fit"
-	}
 	curIdx := 0
 	for i, s := range scalingPresets {
 		if s == cur {
@@ -372,18 +391,22 @@ func (v *GamescopeView) View() string {
 		winVal = "Windowed"
 	}
 
-	filterVal := strings.ToUpper(v.Config.GamescopeFilter)
-	if filterVal == "" || filterVal == "LINEAR" {
+	filterVal := "Auto / Default (blank)"
+	if strings.EqualFold(v.Config.GamescopeFilter, "linear") {
 		filterVal = "Linear (Default / Clean)"
-	} else if filterVal == "FSR" {
+	} else if strings.EqualFold(v.Config.GamescopeFilter, "fsr") {
 		filterVal = "AMD FidelityFX FSR 1.0"
-	} else if filterVal == "NIS" {
+	} else if strings.EqualFold(v.Config.GamescopeFilter, "nis") {
 		filterVal = "NVIDIA Image Scaling (NIS)"
+	} else if v.Config.GamescopeFilter != "" {
+		filterVal = style.Capitalize(v.Config.GamescopeFilter)
 	}
 
-	scaleVal := style.Capitalize(v.Config.GamescopeScaling)
-	if scaleVal == "" {
-		scaleVal = "Fit"
+	scaleVal := "Auto / Default (blank)"
+	if strings.EqualFold(v.Config.GamescopeScaling, "fit") {
+		scaleVal = "Fit (Aspect Ratio Preserved)"
+	} else if v.Config.GamescopeScaling != "" {
+		scaleVal = style.Capitalize(v.Config.GamescopeScaling)
 	}
 
 	sharpVal := fmt.Sprintf("%d / 20 (0=Max, 20=Min)", v.Config.GamescopeSharpness)
@@ -409,7 +432,8 @@ func (v *GamescopeView) View() string {
 		val   string
 	}{
 		{FieldOutput, "Target Display Monitor", dispVal},
-		{FieldDetectSize, "[⚡ Detect Monitor Size]", "Auto-detect native resolution & reset refresh to Native"},
+		{FieldDetectSize, "[⚡ Detect Monitor Size]", "Auto-detect native resolution & record comment"},
+		{FieldClearGeometry, "[✖ Leave Geometry Blank]", "Reset width/height to 0 (Auto / Host Negotiated)"},
 		{FieldResolution, "Output Resolution (-W / -H)", resVal},
 		{FieldRefresh, "Refresh Rate Override (-r)", refVal},
 		{FieldWindowMode, "Window Display Mode", winVal},
@@ -435,13 +459,14 @@ func (v *GamescopeView) View() string {
 	}
 
 	b.WriteString("\n" + divider + "\n")
-	navHelp := fmt.Sprintf("%s    %s    %s    %s",
+	navHelp := fmt.Sprintf("%s    %s    %s    %s    %s",
 		lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[↑/↓] Navigate"),
-		lipgloss.NewStyle().Foreground(style.ColorSecondary).Render("[Enter/Space/←/→] Change Value"),
-		lipgloss.NewStyle().Foreground(style.ColorSuccess).Render("[d] Detect Size"),
-		lipgloss.NewStyle().Foreground(style.ColorWarning).Render("[r] Safe Defaults"),
+		lipgloss.NewStyle().Foreground(style.ColorSecondary).Render("[Enter/Space/←/→] Select"),
+		lipgloss.NewStyle().Foreground(style.ColorSuccess).Render("[d] Detect"),
+		lipgloss.NewStyle().Foreground(style.ColorWarning).Render("[u] Blank Geometry"),
+		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[r] Defaults"),
 	)
-	exitHelp := lipgloss.NewStyle().Foreground(style.ColorMuted).Render("    [Esc/q] Save & Return")
+	exitHelp := lipgloss.NewStyle().Foreground(style.ColorMuted).Render("    [Esc/q] Return")
 	b.WriteString(navHelp + exitHelp)
 
 	return lipgloss.NewStyle().
