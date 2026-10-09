@@ -1,0 +1,23 @@
+# Declarative Quirks Manifest for Arknights: Endfield
+# Place in <game_dir>/.rpt/quirks.toml or ~/.config/rpt/quirks/endfield.toml
+
+[[quirks]]
+name = "Arknights: Endfield"
+match_exe = ["endfield", "gryphlink", "launcher.exe"]
+summary_notes = "Redirects 64 IL2CPP JIT mmap files to /dev/shm (RAM) via UMU, skips volatile memory check for ACE anti-cheat, enables -vulkan, registers display socket, and supervises updater processes."
+umu_id = "umu-endfield"
+extra_args = ["-vulkan"]
+wait_processes = ["Updater.exe", "7zg.exe", "Patch.exe", "Games.exe", "ACE-Service64.exe"]
+display_file = "/tmp/gamescope-endfield-display"
+
+[quirks.env_vars]
+WINE_CANONICAL_HOLE = "skip_volatile_check"
+PROTON_USE_XALIA = "0"
+VKD3D_CONFIG = "no_upload_hvv"
+
+[quirks.profiles."Launcher.exe"]
+target_exe = "Launcher.exe"
+use_gamescope = false
+use_prime_run = false
+use_pcores = false
+extra_args = []
