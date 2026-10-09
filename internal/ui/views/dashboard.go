@@ -347,7 +347,7 @@ func renderMenuDock(width int, opaque bool, targetExe, protonName string) string
 	r2 := lipgloss.JoinHorizontal(lipgloss.Top, row2...)
 	grid := r1 + "\n\n" + r2
 
-	quickTips := style.SubheaderStyle.Render("Quick Hotkeys: [P] Profiles • [e] Select Exe • [g] Toggle Gamescope • [v] Toggle GPU • [R] Revert to Safe Defaults • [?] Help")
+	quickTips := style.SubheaderStyle.Render("Quick Hotkeys: [P] Profiles • [e] Exe • [d] Quirks • [D] Detections • [g] Gamescope • [v] GPU • [?] Help")
 	dockContent := style.SectionTitle.Render("📂 Main Menu & Categories (Press key to open sub-menu):") + "\n\n" + grid + "\n\n" + quickTips
 
 	return style.GetPanelStyle(opaque).Width(width).Render(dockContent)

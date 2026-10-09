@@ -78,8 +78,8 @@ func renderHelpContent() string {
 	sb.WriteString("                • [h/3] Health Check\n")
 	sb.WriteString("  [6]         : Settings & Documentation Sub-Menu\n")
 	sb.WriteString("                • [b/1] Backdrop Style • [?/2] Help Manual  • [q/3] Quit\n\n")
-	sb.WriteString("  Note: All mnemonic shortcut keys ([g], [p], [v], [o], [c], [l], [L], [d], [a], [b])\n")
-	sb.WriteString("  can also be pressed directly on the dashboard for instant 1-key access!\n\n")
+	sb.WriteString("  Note: All mnemonic shortcut keys ([g], [p], [v], [o], [c], [l], [L], [d], [D], [a], [b])\n")
+	sb.WriteString("  can also be pressed directly on the dashboard for instant 1-key access! ([D] opens Hardware Detections)\n\n")
 
 	sb.WriteString(section("2. STEAM EMULATORS & lsteamclient.dll=d"))
 	sb.WriteString(sub("Why is lsteamclient disabled by default?"))

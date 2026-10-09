@@ -63,6 +63,7 @@ const (
 	ActionConfirmResetDefaults
 	ActionGenerateBugReport
 	ActionOpenProfiles
+	ActionOpenDetections
 )
 
 // SubMenuData contains current state needed to display sub-menu options accurately.
@@ -111,12 +112,14 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 				return ActionOpenExePicker
 			case "2", "r", "R":
 				return ActionOpenProtonPicker
-			case "3", "d", "D":
+			case "3", "d":
 				return ActionOpenQuirks
 			case "4", "a", "A":
 				return ActionOpenProtonDB
 			case "5", "p", "P":
 				return ActionOpenProfiles
+			case "6", "D":
+				return ActionOpenDetections
 			}
 
 		case MenuDisplay:
@@ -166,8 +169,10 @@ func (v *SubMenuView) Update(msg tea.Msg) SubMenuAction {
 				return ActionToggleLogging
 			case "2", "l":
 				return ActionOpenLogs
-			case "3", "k", "K", "d", "D":
+			case "3", "k", "K":
 				return ActionOpenDiagnostics
+			case "D":
+				return ActionOpenDetections
 			case "4", "h", "H":
 				return ActionOpenHooks
 			case "5", "t", "T":
@@ -230,6 +235,7 @@ func (v *SubMenuView) View() string {
 			{"[d / 3]", "Game Quirks & Presets", pfxPreset},
 			{"[a / 4]", "ProtonDB Community Report", pdbStatus},
 			{"[p / 5]", "Manage Profiles (rpt.toml)", "Switch, Clone, or Delete Profiles"},
+			{"[D / 6]", "Hardware & Game Detections", "Run on-demand probe suite"},
 		}
 
 	case MenuDisplay:
@@ -368,6 +374,7 @@ func (v *SubMenuView) View() string {
 			{"[? / 8]", "In-Depth Help & Documentation", "Comprehensive offline manual"},
 			{"[R / 9]", "Revert Entire Config to Safe Defaults", "Preserves target exe & runner, resets all tweaks"},
 			{"[B / 0]", "Generate GitHub Bug Report", "Sanitizes system specs & opens GitHub issue"},
+			{"[D]", "Run Hardware & Game Detections", "On-demand DRM display, GPU, CPU & quirks probe"},
 		}
 	}
 
