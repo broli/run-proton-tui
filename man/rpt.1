@@ -25,6 +25,9 @@ automatically scans the directory, classifies executables (separating 3D game en
 .BR \-\-now ", " \-\-no\-tui ", " \-y
 Launch the game immediately using saved or auto-detected configuration settings without opening the interactive TUI.
 .TP
+.BR \-\-guess
+Attempt launch without an existing \fIrpt.toml\fR configuration file using best-guess heuristics. If omitted during headless launch without a config, \fBrpt\fR safely aborts and guides the user to configure the game interactively.
+.TP
 .BR \-c ", " \-\-clean
 Clean and reset the Wine prefix (\fI./proton-prefix/\fR) before launching. Automatically preserves existing game saves, player documents, and screenshots into a safe destination (default: \fI~/Games/Backups/\fR or custom \fIbackup_dir\fR).
 .TP
@@ -95,6 +98,9 @@ Cycle through connected hardware display outputs on the fly.
 .TP
 .BR d
 Inspect active or detected quirks preset and UMU compatibility recipes.
+.TP
+.BR D
+Open on-demand \fBHardware & Game Detection Routines\fR menu (probe display DRM, GPU offload, CPU cores, runners, and game quirks).
 .TP
 .BR a
 View live ProtonDB community tier report and ratings card. Inside this view, press \fBc\fR to generate a 1-click contribution report, copy it to the clipboard, and launch the browser via \fBxdg-open\fR.
