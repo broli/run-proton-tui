@@ -234,6 +234,8 @@ type GameConfig struct {
 	Filesystem          FilesystemConfig              `toml:"filesystem,omitempty"`
 	CloudSync           *CloudSyncConfig              `toml:"cloud_sync,omitempty"`
 	Profiles            map[string]*ExecutableProfile `toml:"profiles,omitempty"`
+	// Transient runtime flags (not serialized directly as keys, used for TOML comments)
+	GeometryAutoDetected bool                         `toml:"-"`
 }
 
 // NewCleanZeroConfig returns a pristine, unadorned baseline configuration (Gate 1).

@@ -52,17 +52,15 @@ func LoadConfigFile(gameDir string) (*GameConfigFile, error) {
 	return nil, os.ErrNotExist
 }
 
-// SaveConfigFile serializes the GameConfigFile into rpt.toml in the target game directory.
+// SaveConfigFile serializes the GameConfigFile into rpt.toml in the target game directory,
+// producing a fully annotated, human-readable format.
 func SaveConfigFile(gameDir string, fileCfg *GameConfigFile) error {
 	if fileCfg == nil {
 		return fmt.Errorf("cannot save nil configuration")
 	}
 	tomlPath := filepath.Join(gameDir, ConfigFileName)
-	data, err := toml.Marshal(fileCfg)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(tomlPath, data, 0644)
+	content := FormatDocumentedConfigFile(fileCfg)
+	return os.WriteFile(tomlPath, []byte(content), 0644)
 }
 
 // LoadConfig loads the active GameConfig from rpt.toml (or .rpt.toml).

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -358,6 +359,67 @@ func TestIsValidAppID(t *testing.T) {
 	cfg.AppID = "12345"
 	if !cfg.HasValidAppID() {
 		t.Errorf("GameConfig{AppID: 12345}.HasValidAppID() should be true")
+	}
+}
+
+func TestFormatDocumentedConfigFile(t *testing.T) {
+	fileCfg := NewConfigFileWithDefault()
+	active := fileCfg.GetActiveProfile()
+	active.TargetExe = "Endfield.exe"
+	active.ProtonPath = "/path/to/proton"
+	active.AppID = "0"
+	active.ExtraArgs = []string{"-vulkan"}
+	active.PresetName = "Arknights: Endfield"
+	active.UmuID = "umu-endfield"
+	active.UseGamescope = true
+	active.GamescopeWidth = 1920
+	active.GamescopeHeight = 1080
+	active.GamescopeRefresh = 75
+	active.GeometryAutoDetected = true
+	active.UsePrimeRun = true
+	active.UsePCores = true
+	active.PCoresMask = "0-11"
+	active.EnvVars = map[string]string{
+		"WINE_CANONICAL_HOLE": "skip_volatile_check",
+		"VKD3D_CONFIG":        "no_upload_hvv",
+	}
+
+	formatted := FormatDocumentedConfigFile(fileCfg)
+
+	// Verify required comments and documentation
+	if !strings.Contains(formatted, "# auto detected from TUI") {
+		t.Errorf("Expected formatted TOML to contain '# auto detected from TUI'")
+	}
+	if !strings.Contains(formatted, "gamescope_width = 1920") {
+		t.Errorf("Expected formatted TOML to contain gamescope_width = 1920")
+	}
+	if !strings.Contains(formatted, "Prevents anti-cheat page fault crashes") {
+		t.Errorf("Expected formatted TOML to contain WINE_CANONICAL_HOLE comment")
+	}
+	if !strings.Contains(formatted, "active_profile = \"default\"") {
+		t.Errorf("Expected formatted TOML to declare active_profile")
+	}
+
+	// Verify round-trip unmarshaling
+	tmpDir := t.TempDir()
+	if err := SaveConfigFile(tmpDir, fileCfg); err != nil {
+		t.Fatalf("SaveConfigFile failed: %v", err)
+	}
+
+	loaded, err := LoadConfigFile(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadConfigFile failed on documented TOML: %v", err)
+	}
+
+	loadedActive := loaded.GetActiveProfile()
+	if loadedActive.TargetExe != "Endfield.exe" {
+		t.Errorf("Expected TargetExe Endfield.exe, got %s", loadedActive.TargetExe)
+	}
+	if loadedActive.GamescopeWidth != 1920 || loadedActive.GamescopeHeight != 1080 {
+		t.Errorf("Expected 1920x1080, got %dx%d", loadedActive.GamescopeWidth, loadedActive.GamescopeHeight)
+	}
+	if loadedActive.EnvVars["WINE_CANONICAL_HOLE"] != "skip_volatile_check" {
+		t.Errorf("Expected WINE_CANONICAL_HOLE=skip_volatile_check, got %s", loadedActive.EnvVars["WINE_CANONICAL_HOLE"])
 	}
 }
 
