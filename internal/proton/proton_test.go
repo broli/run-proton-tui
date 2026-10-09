@@ -37,6 +37,10 @@ func TestBuildEnvironment(t *testing.T) {
 		t.Errorf("Expected lsteamclient=d in WINEDLLOVERRIDES, got %s", env["WINEDLLOVERRIDES"])
 	}
 
+	if val, ok := env["VKD3D_CONFIG"]; ok {
+		t.Errorf("Expected VKD3D_CONFIG to be unset by default (Clean Zero), got %s", val)
+	}
+
 	// Test with UmuID and CustomEnv
 	customOpts := EnvOptions{
 		PrefixDir: "/tmp/test-prefix",
@@ -44,6 +48,7 @@ func TestBuildEnvironment(t *testing.T) {
 		UmuID:     "umu-endfield",
 		CustomEnv: map[string]string{
 			"WINE_CANONICAL_HOLE": "skip_volatile_check",
+			"VKD3D_CONFIG":        "no_upload_hvv",
 		},
 	}
 	customEnv := BuildEnvironment(customOpts)
@@ -52,6 +57,9 @@ func TestBuildEnvironment(t *testing.T) {
 	}
 	if customEnv["WINE_CANONICAL_HOLE"] != "skip_volatile_check" {
 		t.Errorf("Expected WINE_CANONICAL_HOLE=skip_volatile_check, got %s", customEnv["WINE_CANONICAL_HOLE"])
+	}
+	if customEnv["VKD3D_CONFIG"] != "no_upload_hvv" {
+		t.Errorf("Expected VKD3D_CONFIG=no_upload_hvv from CustomEnv, got %s", customEnv["VKD3D_CONFIG"])
 	}
 }
 
