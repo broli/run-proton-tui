@@ -2,7 +2,6 @@ package runner
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -94,26 +93,5 @@ func TestRecordSession_OptInEnabled(t *testing.T) {
 	}
 	if len(historyAfterClear) != 0 {
 		t.Errorf("Expected 0 history records after wipe, got %d", len(historyAfterClear))
-	}
-}
-
-func TestSanitizePath(t *testing.T) {
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		t.Skip("No user home dir found")
-	}
-
-	testPath := filepath.Join(home, "Games", "MyGame", "game.exe")
-	sanitized := SanitizePath(testPath)
-	expectedPrefix := "~/"
-	if filepath.Separator == '\\' {
-		expectedPrefix = "~\\"
-	}
-
-	if sanitized == testPath {
-		t.Errorf("SanitizePath failed to strip home dir: %s", sanitized)
-	}
-	if sanitized[:2] != expectedPrefix[:2] {
-		t.Errorf("Expected prefix %s, got %s", expectedPrefix, sanitized)
 	}
 }

@@ -317,10 +317,8 @@ exit $EXIT_CODE
 		}
 	}
 
-	// False-Positive-Friendly Crash / Premature Exit Detection:
-	// If the game exited with error OR terminated in under 90 seconds,
-	// assume the game aborted, stalled, or crashed early.
-	if !result.AbortedByUser && (result.ExitCode != 0 || duration < 90*time.Second) {
+	// Detect abnormal exit
+	if !result.AbortedByUser && result.ExitCode != 0 {
 		result.CrashDetected = true
 	}
 

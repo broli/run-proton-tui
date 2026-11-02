@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/broli/run-proton-tui/internal/config"
-	"github.com/broli/run-proton-tui/internal/diagnostics"
 	"github.com/broli/run-proton-tui/internal/ui/style"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -167,16 +166,7 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 		})
 	}
 
-	// 1. Gamescope with Direct3D 9 / vintage engines
-	if (hasGamescope || cfg.UseGamescope) && strings.Contains(strings.ToLower(cfg.TargetExe), "justcause") {
-		insights = append(insights, DiagnosticInsight{
-			Category:       "Gamescope & 32-bit Direct3D 9 Stall",
-			Observation:    "Gamescope was active on Intel iGPU while game launched via prime-run. 32-bit DirectX 9 titles frequently deadlock when presenting swapchain frames to Gamescope's nested Xwayland server.",
-			Recommendation: "Consider testing with Gamescope disabled ('rpt --gamescope false --now'). Vintage D3D9 games may present cleaner frames natively under KWin Wayland/Xwayland.",
-		})
-	}
-
-	// 2. Bink Video Codec / Splash Loading Bar Freeze (fallback if not already caught by signatures)
+	// 1. Bink Video Codec / Splash Loading Bar Freeze (fallback if not already caught by signatures)
 	if hasCODA && !matchedSigCategories["Bink Video / Intro Splash Stall"] {
 		insights = append(insights, DiagnosticInsight{
 			Category:       "Splash Screen & Bink Video / CODA Stall",
@@ -185,16 +175,7 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 		})
 	}
 
-	// 3. AppID mismatch detection
-	if (cfg.AppID == "225540" || cfg.AppID == "0" || cfg.AppID == "") && strings.Contains(strings.ToLower(cfg.TargetExe), "justcause") {
-		insights = append(insights, DiagnosticInsight{
-			Category:       "Steam AppID Mismatch",
-			Observation:    fmt.Sprintf("Configured AppID is %q (Steam ID for Just Cause 3, 2015), but this is Just Cause 1 (2006).", cfg.AppID),
-			Recommendation: "Set app_id = '6880' in rpt.toml so ProtonDB quirks and UMU fixes match the actual game.",
-		})
-	}
-
-	// 4. Wine segmentation fault
+	// 2. Wine segmentation fault
 	if hasWineServerCrash {
 		insights = append(insights, DiagnosticInsight{
 			Category:       "Wine Segmentation Fault",
@@ -246,11 +227,6 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 	}
 
 	return insights
-}
-
-// ReadLogTail reads the last n lines of a file safely.
-func ReadLogTail(logPath string, n int) []string {
-	return diagnostics.ReadLogTail(logPath, n)
 }
 
 // GenerateAIHelperPackage formats a complete, self-contained diagnostic prompt for AI assistants (like ChatGPT, Claude, etc.).

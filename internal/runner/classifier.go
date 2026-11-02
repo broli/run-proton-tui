@@ -26,10 +26,13 @@ var utilityKeywords = []string{
 	"launcher", "update", "setup", "patch", "installer", "unins",
 	"repair", "redist", "dxsetup", "vcredist", "crashreport",
 	"crashhandler", "config", "service", "helper", "anticheat",
-	"ace-", "cef", "webengine", "platformprocess", "games.exe",
+	"ace-", "cef", "webengine", "platformprocess",
 }
 
 func is2DUtility(baseName string) bool {
+	if baseName == "games.exe" {
+		return true
+	}
 	for _, kw := range utilityKeywords {
 		if strings.Contains(baseName, kw) {
 			return true
