@@ -28,11 +28,6 @@ type ShortcutOptions struct {
 }
 
 
-// Slugify generates a filesystem-safe identifier for desktop files.
-func Slugify(s string) string {
-	return pathutil.Slugify(s)
-}
-
 // FindGameIcon looks for an icon in the game directory or returns a standard fallback.
 func FindGameIcon(gameDir, customIcon string) string {
 	if customIcon != "" {
@@ -79,7 +74,7 @@ func CreateDesktopShortcut(opts ShortcutOptions) (string, error) {
 
 	home := pathutil.UserHomeDir()
 
-	slug := Slugify(opts.GameTitle)
+	slug := pathutil.Slugify(opts.GameTitle)
 	desktopFileName := fmt.Sprintf("rpt-%s.desktop", slug)
 
 	var targetDir string

@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/launcher"
@@ -38,7 +37,7 @@ type SubmissionResult struct {
 // GenerateQuirkRecipe formats the active game configuration and any lifecycle hooks into a clean Markdown submission.
 func GenerateQuirkRecipe(gameDir string, cfg *config.GameConfig) (string, string) {
 	gameTitle := filepath.Base(gameDir)
-	slug := launcher.Slugify(gameTitle)
+	slug := pathutil.Slugify(gameTitle)
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("## Quirk Profile: %s\n\n", gameTitle))
@@ -80,7 +79,7 @@ func GenerateQuirkRecipe(gameDir string, cfg *config.GameConfig) (string, string
 	return sb.String(), slug
 }
 
-// SubmitQuirk submits the current game quirk to broli/run-proton-tui adhering to the fallback order: gh -> git -> web.
+// SubmitQuirk submits the current game quirk to broli/run-proton-tui via Git (if in repo) or GitHub Web Issues.
 func SubmitQuirk(gameDir string, cfg *config.GameConfig, acceptedMIT bool) (*SubmissionResult, error) {
 	if !acceptedMIT {
 		return nil, fmt.Errorf("submission rejected: contributor must accept the MIT License terms")
@@ -89,33 +88,7 @@ func SubmitQuirk(gameDir string, cfg *config.GameConfig, acceptedMIT bool) (*Sub
 	recipe, slug := GenerateQuirkRecipe(gameDir, cfg)
 	title := fmt.Sprintf("feat(quirks): add curated profile for %s", filepath.Base(gameDir))
 
-	// 1. Attempt GH CLI
-	if ghPath, err := exec.LookPath("gh"); err == nil {
-		authCmd := exec.Command(ghPath, "auth", "status")
-		if err := authCmd.Run(); err == nil {
-			branch := fmt.Sprintf("quirk/%s-%d", slug, time.Now().Unix())
-			_ = exec.Command("git", "-C", gameDir, "checkout", "-b", branch).Run()
-
-			// Create PR using gh CLI
-			prCmd := exec.Command(ghPath, "pr", "create",
-				"--repo", "broli/run-proton-tui",
-				"--title", title,
-				"--body", recipe,
-			)
-			prCmd.Dir = gameDir
-			output, prErr := prCmd.CombinedOutput()
-			if prErr == nil {
-				prURL := strings.TrimSpace(string(output))
-				return &SubmissionResult{
-					Method:  MethodGH,
-					Message: "Successfully submitted Pull Request via GitHub CLI (gh)!",
-					URL:     prURL,
-				}, nil
-			}
-		}
-	}
-
-	// 2. Attempt Local Git CLI (if inside a git workspace for run-proton-tui)
+	// 1. Attempt Local Git CLI (if inside a git workspace for run-proton-tui)
 	if gitPath, err := exec.LookPath("git"); err == nil {
 		isGitCmd := exec.Command(gitPath, "-C", gameDir, "rev-parse", "--is-inside-work-tree")
 		if err := isGitCmd.Run(); err == nil {
@@ -131,7 +104,7 @@ func SubmitQuirk(gameDir string, cfg *config.GameConfig, acceptedMIT bool) (*Sub
 		}
 	}
 
-	// 3. Universal Web Fallback (xdg-open + clipboard)
+	// 2. Universal Web Fallback (xdg-open + clipboard)
 	_ = launcher.CopyToClipboard(recipe)
 
 	baseURL := "https://github.com/broli/run-proton-tui/issues/new"

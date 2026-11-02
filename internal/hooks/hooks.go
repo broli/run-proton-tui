@@ -1,7 +1,6 @@
 package hooks
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -54,7 +53,7 @@ func ResolveHook(gameDir string, hookType HookType, configHookPath string, extra
 
 	// 1. Explicitly configured hook path
 	if configHookPath != "" {
-		target := ExpandPath(gameDir, configHookPath)
+		target := pathutil.ExpandWithBase(gameDir, configHookPath)
 		if fi, err := os.Stat(target); err == nil && !fi.IsDir() {
 			return target
 		}
@@ -74,7 +73,7 @@ func ResolveHook(gameDir string, hookType HookType, configHookPath string, extra
 
 	// 3. Extra custom hook directories
 	for _, dir := range extraDirs {
-		candidate := ExpandPath(gameDir, dir)
+		candidate := pathutil.ExpandWithBase(gameDir, dir)
 		scriptPath := filepath.Join(candidate, scriptName)
 		if fi, err := os.Stat(scriptPath); err == nil && !fi.IsDir() {
 			return scriptPath
@@ -161,20 +160,4 @@ func ExecuteHook(ctx context.Context, hookType HookType, opts HookOptions) (*Hoo
 	}
 
 	return res, nil
-}
-
-// StreamHookOutput prefixes hook output for clean unified logging.
-func StreamHookOutput(r io.Reader, w io.Writer, hookType HookType) {
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		_, _ = fmt.Fprintf(w, "[HOOK:%s] %s\n", hookType, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		_, _ = fmt.Fprintf(w, "[HOOK:%s] stream read error: %v\n", hookType, err)
-	}
-}
-
-// ExpandPath resolves tilde (~) and relative paths based on baseDir into canonical paths.
-func ExpandPath(baseDir, path string) string {
-	return pathutil.ExpandWithBase(baseDir, path)
 }

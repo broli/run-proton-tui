@@ -39,30 +39,12 @@ func CheckPrefixContainment(prefixDir string, testPath string) bool {
 		absPath = filepath.Clean(realPath)
 	}
 
-	// Exact match: testPath IS the prefix directory
 	if absPath == absPrefix {
 		return true
 	}
 
-	// Relative path check: testPath is a descendant of prefixDir
 	rel, err := filepath.Rel(absPrefix, absPath)
-	if err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
-		return true
-	}
-
-	// Direct prefix boundary check
-	prefixWithSep := absPrefix + string(filepath.Separator)
-	if strings.HasPrefix(absPath, prefixWithSep) {
-		return true
-	}
-
-	// Secondary check: if testPath explicitly points into canonical pfx/drive_c of prefixDir
-	canonicalPfx := filepath.Join(absPrefix, "pfx", "drive_c")
-	if absPath == canonicalPfx || strings.HasPrefix(absPath, canonicalPfx+string(filepath.Separator)) {
-		return true
-	}
-
-	return false
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // SafeCleanPrefix wipes and regenerates a Wine prefix while enforcing strict safety rules:

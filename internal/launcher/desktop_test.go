@@ -7,25 +7,6 @@ import (
 	"testing"
 )
 
-func TestSlugify(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"Arknights: Endfield", "arknights-endfield"},
-		{"Just Cause (2006)!", "just-cause-2006"},
-		{"   Game   Name   ", "game-name"},
-		{"", "game"},
-	}
-
-	for _, tt := range tests {
-		got := Slugify(tt.input)
-		if got != tt.expected {
-			t.Errorf("Slugify(%q) = %q, expected %q", tt.input, got, tt.expected)
-		}
-	}
-}
-
 func TestCreateDesktopShortcut(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "rpt-desktop-test-*")
 	if err != nil {
