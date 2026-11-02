@@ -66,41 +66,33 @@ func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *Heal
 		report.Issues = append(report.Issues, fmt.Sprintf("Target executable not found: %s", targetExe))
 	}
 
-	// 3. Scan and auto-fix Unreal Engine *Shipping.exe binaries
-	_ = filepath.Walk(gameDir, func(path string, info os.FileInfo, err error) error {
+	// 3. Scan and auto-fix Unreal Engine *Shipping.exe binaries & check file ownership in a single pass
+	_ = filepath.WalkDir(gameDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if info.IsDir() {
-			name := info.Name()
-			if pathutil.IsIgnoredDir(name) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if strings.HasSuffix(strings.ToLower(info.Name()), "shipping.exe") {
-			if info.Mode()&0111 == 0 {
-				if err := os.Chmod(path, info.Mode()|0111); err == nil {
-					rel, _ := filepath.Rel(gameDir, path)
-					report.ShippingExesFixed = append(report.ShippingExesFixed, rel)
-				}
-			}
-		}
-		return nil
-	})
-
-	// 4. File Ownership Check
-	_ = filepath.Walk(gameDir, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			name := info.Name()
-			if pathutil.IsIgnoredDir(name) {
+		if d.IsDir() {
+			if pathutil.IsIgnoredDir(d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		var sysStat syscall.Stat_t
-		if err := syscall.Stat(path, &sysStat); err == nil {
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+
+		// Auto-fix missing +x on Shipping.exe
+		if strings.HasSuffix(strings.ToLower(d.Name()), "shipping.exe") && info.Mode()&0111 == 0 {
+			if err := os.Chmod(path, info.Mode()|0111); err == nil {
+				rel, _ := filepath.Rel(gameDir, path)
+				report.ShippingExesFixed = append(report.ShippingExesFixed, rel)
+			}
+		}
+
+		// File ownership check using cached stat from info.Sys()
+		if sysStat, ok := info.Sys().(*syscall.Stat_t); ok {
 			if int(sysStat.Uid) != uid && len(report.UnownedFiles) < 5 {
 				rel, _ := filepath.Rel(gameDir, path)
 				report.UnownedFiles = append(report.UnownedFiles, rel)
