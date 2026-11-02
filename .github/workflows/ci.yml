@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main, development ]
+
+jobs:
+  test:
+    name: Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Run linter (go vet)
+        run: go vet ./...
+
+      - name: Run automated test suite
+        run: go test -v -race -coverprofile=coverage.txt ./...
+
+      - name: Build binary
+        run: make build
+
