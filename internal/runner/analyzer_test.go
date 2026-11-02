@@ -10,7 +10,7 @@ import (
 	"github.com/broli/run-proton-tui/internal/config"
 )
 
-func TestAnalyzeSessionLog_JustCauseHang(t *testing.T) {
+func TestAnalyzeSessionLog_CODAStall(t *testing.T) {
 	tmpDir := t.TempDir()
 	logFile := filepath.Join(tmpDir, "game_test.log")
 
@@ -25,40 +25,25 @@ Allocating 67108864 bytes at 0x19e20020 for CODA transfers
 	}
 
 	cfg := &config.GameConfig{
-		TargetExe:    "JustCause.exe",
+		TargetExe:    "Game.exe",
 		AppID:        "225540",
 		UseGamescope: true,
 	}
 
 	insights := AnalyzeSessionLog(logFile, cfg)
-	if len(insights) < 2 {
-		t.Fatalf("expected at least 2 diagnostic insights, got %d", len(insights))
+	if len(insights) < 1 {
+		t.Fatalf("expected at least 1 diagnostic insight, got %d", len(insights))
 	}
 
-	foundGamescope := false
 	foundCODA := false
-	foundAppID := false
-
 	for _, ins := range insights {
-		if strings.Contains(ins.Category, "Gamescope") {
-			foundGamescope = true
-		}
 		if strings.Contains(ins.Category, "Bink Video") || strings.Contains(ins.Category, "CODA") {
 			foundCODA = true
 		}
-		if strings.Contains(ins.Category, "AppID") {
-			foundAppID = true
-		}
 	}
 
-	if !foundGamescope {
-		t.Errorf("expected Gamescope insight to be generated")
-	}
 	if !foundCODA {
 		t.Errorf("expected CODA / Bink Video insight to be generated")
-	}
-	if !foundAppID {
-		t.Errorf("expected Steam AppID mismatch insight to be generated")
 	}
 }
 

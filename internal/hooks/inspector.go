@@ -57,7 +57,7 @@ func InspectCandidates(gameDir string, hookType HookType, configHookPath string,
 
 	// 1. Explicit config path
 	if configHookPath != "" {
-		target := ExpandPath(gameDir, configHookPath)
+		target := pathutil.ExpandWithBase(gameDir, configHookPath)
 		exists := fileExists(target)
 		candidates = append(candidates, CascadeCandidate{
 			Path:   target,
@@ -86,7 +86,7 @@ func InspectCandidates(gameDir string, hookType HookType, configHookPath string,
 
 	// 3. Extra custom hook directories
 	for _, dir := range extraDirs {
-		candidate := ExpandPath(gameDir, dir)
+		candidate := pathutil.ExpandWithBase(gameDir, dir)
 		fullPath := filepath.Join(candidate, scriptName)
 		candidates = append(candidates, CascadeCandidate{
 			Path:   fullPath,

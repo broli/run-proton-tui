@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/broli/run-proton-tui/internal/pathutil"
 )
@@ -52,11 +51,7 @@ Provide a concise, 3-bullet diagnosis with the exact recommended fix (e.g. Proto
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-goog-api-key", apiKey)
 
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	resp, err := client.Do(req)
+	resp, err := defaultHTTPClient.Do(req)
 	if err != nil {
 		return "", err
 	}

@@ -24,6 +24,8 @@ func TestClassifyExecutable(t *testing.T) {
 		{"Endfield.exe", false, true},
 		{"Game-Win64-Shipping.exe", false, true},
 		{"EldenRing.exe", false, true},
+		{"WarGames.exe", false, true},
+		{"EpicGames.exe", false, true},
 	}
 
 	for _, tt := range tests {

@@ -7,8 +7,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // LogFileInfo provides metadata for a discovered log file.
@@ -86,30 +84,40 @@ func FindRecentLogs(gameDir string, prefixDir string) []LogFileInfo {
 	return logs
 }
 
-// SanitizePath scrubs absolute paths containing the user's home directory,
-// replacing "/home/username/..." with "~/..." to guarantee total privacy in diagnostics.
-func SanitizePath(p string) string {
-	return pathutil.Sanitize(p)
-}
-
-// ReadLogTail reads the last n lines of a file safely.
+// ReadLogTail reads the last n lines of a file safely using a fixed ring buffer.
 func ReadLogTail(logPath string, n int) []string {
+	if n <= 0 {
+		return nil
+	}
 	f, err := os.Open(logPath)
 	if err != nil {
 		return nil
 	}
 	defer f.Close()
 
-	var lines []string
+	ring := make([]string, n)
+	idx := 0
+	count := 0
+
 	scanner := bufio.NewScanner(f)
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
 	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-		if len(lines) > n {
-			lines = lines[1:]
-		}
+		ring[idx] = scanner.Text()
+		idx = (idx + 1) % n
+		count++
 	}
 	_ = scanner.Err()
-	return lines
+
+	if count == 0 {
+		return nil
+	}
+	if count < n {
+		return ring[:count]
+	}
+	res := make([]string, n)
+	for i := 0; i < n; i++ {
+		res[i] = ring[(idx+i)%n]
+	}
+	return res
 }

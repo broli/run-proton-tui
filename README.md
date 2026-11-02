@@ -1,5 +1,6 @@
 # rpt (Run Proton TUI) 🎮
 
+[![CI](https://github.com/broli/run-proton-tui/actions/workflows/ci.yml/badge.svg)](https://github.com/broli/run-proton-tui/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go)](https://go.dev)
 [![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?logo=linux&logoColor=black)](https://kernel.org)

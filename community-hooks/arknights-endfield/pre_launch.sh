@@ -6,7 +6,7 @@
 #   "Universal features belong in rpt. Game-specific fixes belong in hooks."
 #
 # What this hook does:
-#   1. Idempotently verifies Wine kernel compatibility for ACE anti-cheat.
+#   1. Idempotently verifies Wine prefix environment.
 #   2. Idempotently redirects 64 IL2CPP JIT mmap files to RAM (/dev/shm) to eliminate
 #      micro-stuttering and disk thrashing.
 #   3. Idempotently symlinks the in-game screenshot directory directly to your
@@ -56,12 +56,10 @@ if [ -d "/dev/shm" ]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 3. Wine Kernel / Anti-Cheat Compatibility Check (Idempotent)
+# 3. Environment Verification (Idempotent)
 # ------------------------------------------------------------------------------
-# Endfield requires GE-Proton 11-6+ or UMU-Proton with ntoskrnl bypass.
-NTOSKRNL_PATH="${RPT_PREFIX_DIR}/drive_c/windows/system32/ntoskrnl.exe"
-if [ -f "${NTOSKRNL_PATH}" ]; then
-    echo "[HOOK:pre_launch] [✓] Wine system32 kernel files verified."
+if [ -d "${RPT_PREFIX_DIR}/drive_c/windows/system32" ]; then
+    echo "[HOOK:pre_launch] [✓] Wine system32 files verified."
 fi
 
 echo "[HOOK:pre_launch] All pre-launch checks and optimizations complete. Launching game!"

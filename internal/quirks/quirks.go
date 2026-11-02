@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
@@ -44,23 +45,14 @@ func (p *Preset) ApplyToConfig(cfg *config.GameConfig, overwrite bool) {
 		}
 	}
 
-	if overwrite {
+	if overwrite || len(cfg.ExtraArgs) == 0 {
 		if len(p.ExtraArgs) > 0 {
-			cfg.ExtraArgs = make([]string, len(p.ExtraArgs))
-			copy(cfg.ExtraArgs, p.ExtraArgs)
+			cfg.ExtraArgs = slices.Clone(p.ExtraArgs)
 		}
+	}
+	if overwrite || len(cfg.WaitProcesses) == 0 {
 		if len(p.WaitProcesses) > 0 {
-			cfg.WaitProcesses = make([]string, len(p.WaitProcesses))
-			copy(cfg.WaitProcesses, p.WaitProcesses)
-		}
-	} else {
-		if len(p.ExtraArgs) > 0 && len(cfg.ExtraArgs) == 0 {
-			cfg.ExtraArgs = make([]string, len(p.ExtraArgs))
-			copy(cfg.ExtraArgs, p.ExtraArgs)
-		}
-		if len(p.WaitProcesses) > 0 && len(cfg.WaitProcesses) == 0 {
-			cfg.WaitProcesses = make([]string, len(p.WaitProcesses))
-			copy(cfg.WaitProcesses, p.WaitProcesses)
+			cfg.WaitProcesses = slices.Clone(p.WaitProcesses)
 		}
 	}
 

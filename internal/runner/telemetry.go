@@ -27,11 +27,6 @@ type SessionRecord struct {
 	HardwareSummary string    `json:"hardware_summary"`
 }
 
-// SanitizePath scrubs absolute paths containing the user's home directory.
-func SanitizePath(p string) string {
-	return pathutil.Sanitize(p)
-}
-
 // GetHistoryFilePath returns the canonical local path to the per-game session history ledger.
 func GetHistoryFilePath(gameDir string) string {
 	return filepath.Join(gameDir, ".logs", "session-history.json")
@@ -98,7 +93,7 @@ func RecordSession(gameDir string, cfg *config.GameConfig, result *SessionResult
 		Timestamp:       time.Now().UTC(),
 		AppID:           cfg.AppID,
 		GameTitle:       filepath.Base(gameDir),
-		TargetExe:       SanitizePath(cfg.TargetExe),
+		TargetExe:       pathutil.Sanitize(cfg.TargetExe),
 		DurationSeconds: result.Duration.Seconds(),
 		ExitCode:        result.ExitCode,
 		CrashDetected:   result.CrashDetected,

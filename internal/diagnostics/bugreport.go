@@ -12,6 +12,7 @@ import (
 	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/hardware"
 	"github.com/broli/run-proton-tui/internal/launcher"
+	"github.com/broli/run-proton-tui/internal/pathutil"
 )
 
 // BugReportOptions defines options for generating a GitHub-ready issue report.
@@ -40,7 +41,7 @@ func GenerateBugReport(opts BugReportOptions) (string, string) {
 	sb.WriteString("<!-- A clear and concise description of what the problem is. -->\n\n")
 
 	sb.WriteString("### Steps to Reproduce\n\n")
-	sb.WriteString("1. cd into game directory: `" + SanitizePath(opts.GameDir) + "`\n")
+	sb.WriteString("1. cd into game directory: `" + pathutil.Sanitize(opts.GameDir) + "`\n")
 	sb.WriteString("2. Run command: `rpt`\n")
 	sb.WriteString("3. <!-- What action did you take next? (e.g. launched game, toggled Gamescope, changed runner) -->\n\n")
 
@@ -92,8 +93,8 @@ func GenerateBugReport(opts BugReportOptions) (string, string) {
 	if opts.Config != nil {
 		sb.WriteString("### Active Game Configuration (`rpt.toml`)\n\n")
 		sb.WriteString("```toml\n")
-		sb.WriteString(fmt.Sprintf("target_exe = %q\n", SanitizePath(opts.Config.TargetExe)))
-		sb.WriteString(fmt.Sprintf("proton_path = %q\n", SanitizePath(opts.Config.ProtonPath)))
+		sb.WriteString(fmt.Sprintf("target_exe = %q\n", pathutil.Sanitize(opts.Config.TargetExe)))
+		sb.WriteString(fmt.Sprintf("proton_path = %q\n", pathutil.Sanitize(opts.Config.ProtonPath)))
 		sb.WriteString(fmt.Sprintf("app_id = %q\n", opts.Config.AppID))
 		sb.WriteString(fmt.Sprintf("use_gamescope = %v\n", opts.Config.UseGamescope))
 		if opts.Config.UseGamescope {
@@ -149,10 +150,10 @@ func GenerateBugReport(opts BugReportOptions) (string, string) {
 			latest := logs[0].Path
 			tailLines := ReadLogTail(latest, 30)
 			if len(tailLines) > 0 {
-				sb.WriteString(fmt.Sprintf("### Log Excerpt (`%s`)\n\n", SanitizePath(latest)))
+				sb.WriteString(fmt.Sprintf("### Log Excerpt (`%s`)\n\n", pathutil.Sanitize(latest)))
 				sb.WriteString("```text\n")
 				for _, l := range tailLines {
-					sb.WriteString(SanitizePath(l) + "\n")
+					sb.WriteString(pathutil.Sanitize(l) + "\n")
 				}
 				sb.WriteString("```\n\n")
 			}

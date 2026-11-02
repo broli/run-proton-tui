@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
+	"github.com/broli/run-proton-tui/internal/pathutil"
 	"github.com/broli/run-proton-tui/internal/runner"
 	"github.com/broli/run-proton-tui/internal/ui/style"
 	tea "github.com/charmbracelet/bubbletea"
@@ -134,7 +135,7 @@ func (v *TelemetryView) View() string {
 		))
 
 		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render("📁 EXACT STORAGE LOCATION ON YOUR DISK") + "\n")
-		historyPath := runner.SanitizePath(runner.GetHistoryFilePath(v.GameDir))
+		historyPath := pathutil.Sanitize(runner.GetHistoryFilePath(v.GameDir))
 		b.WriteString(fmt.Sprintf("  • Per-Game Ledger: %s\n", lipgloss.NewStyle().Foreground(style.ColorSecondary).Render(historyPath)))
 		b.WriteString(lipgloss.NewStyle().Foreground(style.ColorMuted).Render(
 			"  Stored in human-readable JSON format. You can inspect or delete it at any time.\n\n",
