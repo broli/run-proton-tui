@@ -34,6 +34,7 @@ type DashboardData struct {
 	Width           int
 	Height          int
 	OpaqueBackdrop  bool
+	Version         string
 }
 
 func lbl(name string) string {
@@ -68,7 +69,11 @@ func RenderDashboard(d DashboardData) string {
 	if !d.OpaqueBackdrop {
 		backdropText = "[b] Backdrop: Transparent"
 	}
-	leftHeader := fmt.Sprintf("🎮 rpt v0.8.0 │ Game: %s", d.GameTitle)
+	verStr := d.Version
+	if verStr == "" {
+		verStr = "0.11.0"
+	}
+	leftHeader := fmt.Sprintf("🎮 rpt v%s │ Game: %s", verStr, d.GameTitle)
 	rightHeader := fmt.Sprintf("%s  •  [s] Desktop Icon  •  [?] Help  •  [q] Quit", style.KeyStyle.Render(backdropText))
 	spaceCount := contentWidth - lipgloss.Width(leftHeader) - lipgloss.Width(rightHeader) - 2
 	if spaceCount < 2 {

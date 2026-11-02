@@ -613,7 +613,7 @@ func main() {
 		insights := runner.AnalyzeSessionLog(result.LogFile, cfg, result.ExitCode)
 
 		// Generate and write AI Assistant Helper package to log file only (hiding complexity from user)
-		logTail := runner.ReadLogTail(result.LogFile, 35)
+		logTail := diagnostics.ReadLogTail(result.LogFile, 35)
 		aiPackage := runner.GenerateAIHelperPackage(result, cfg, insights, logTail, result.LogFile)
 		_ = os.WriteFile(absHelpFilePath, []byte(aiPackage), 0644)
 

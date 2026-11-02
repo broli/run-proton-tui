@@ -125,43 +125,23 @@ func TestClassifyRunner(t *testing.T) {
 	tests := []struct {
 		name         string
 		expectedType RunnerType
-		isGE         bool
-		isCachy      bool
-		isDW         bool
-		isExp        bool
-		isValve      bool
 	}{
-		{"GE-Proton11-7", RunnerTypeGE, true, false, false, false, false},
-		{"Proton-GE Latest", RunnerTypeGE, true, false, false, false, false},
-		{"Proton-CachyOS Latest-x86_64_v3", RunnerTypeCachyOS, false, true, false, false, false},
-		{"dwproton-11.0-14", RunnerTypeDW, false, false, true, false, false},
-		{"DW-Proton Latest", RunnerTypeDW, false, false, true, false, false},
-		{"Proton - Experimental", RunnerTypeExperimental, false, false, false, true, true},
-		{"Proton 10.0", RunnerTypeValve, false, false, false, false, true},
-		{"Proton 9.0 (Beta)", RunnerTypeValve, false, false, false, false, true},
-		{"wine-lutris-GE-8.26", RunnerTypeWine, false, false, false, false, false},
-		{"custom-runner", RunnerTypeCustom, false, false, false, false, false},
+		{"GE-Proton11-7", RunnerTypeGE},
+		{"Proton-GE Latest", RunnerTypeGE},
+		{"Proton-CachyOS Latest-x86_64_v3", RunnerTypeCachyOS},
+		{"dwproton-11.0-14", RunnerTypeDW},
+		{"DW-Proton Latest", RunnerTypeDW},
+		{"Proton - Experimental", RunnerTypeExperimental},
+		{"Proton 10.0", RunnerTypeValve},
+		{"Proton 9.0 (Beta)", RunnerTypeValve},
+		{"wine-lutris-GE-8.26", RunnerTypeWine},
+		{"custom-runner", RunnerTypeCustom},
 	}
 
 	for _, tc := range tests {
 		r := classifyRunner(tc.name, "/dummy/"+tc.name, "/dummy/"+tc.name+"/proton")
 		if r.Type != tc.expectedType {
 			t.Errorf("[%s] Expected Type %s, got %s", tc.name, tc.expectedType, r.Type)
-		}
-		if r.IsGE != tc.isGE {
-			t.Errorf("[%s] Expected IsGE=%v, got %v", tc.name, tc.isGE, r.IsGE)
-		}
-		if r.IsCachy != tc.isCachy {
-			t.Errorf("[%s] Expected IsCachy=%v, got %v", tc.name, tc.isCachy, r.IsCachy)
-		}
-		if r.IsDW != tc.isDW {
-			t.Errorf("[%s] Expected IsDW=%v, got %v", tc.name, tc.isDW, r.IsDW)
-		}
-		if r.IsExperimental != tc.isExp {
-			t.Errorf("[%s] Expected IsExperimental=%v, got %v", tc.name, tc.isExp, r.IsExperimental)
-		}
-		if r.IsValve != tc.isValve {
-			t.Errorf("[%s] Expected IsValve=%v, got %v", tc.name, tc.isValve, r.IsValve)
 		}
 		if r.Recommendation == "" {
 			t.Errorf("[%s] Expected non-empty recommendation", tc.name)

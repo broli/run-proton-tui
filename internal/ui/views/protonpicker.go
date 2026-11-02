@@ -106,13 +106,6 @@ func getBadge(r proton.Runner) string {
 	case proton.RunnerTypeWine:
 		return style.BadgeMuted.Render("Wine")
 	default:
-		if r.IsGE {
-			return style.BadgeSuccess.Render("GE-Proton")
-		} else if r.IsCachy {
-			return style.BadgeHighlight.Render("CachyOS")
-		} else if r.IsExperimental {
-			return style.BadgeWarning.Render("Experimental")
-		}
 		return style.BadgeMuted.Render("Custom")
 	}
 }

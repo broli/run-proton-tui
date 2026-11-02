@@ -914,7 +914,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 	case views.ActionGenerateBugReport:
 		ver := m.Version
 		if ver == "" {
-			ver = "0.8.0"
+			ver = "0.11.0"
 		}
 		_, err := diagnostics.OpenBugReport(diagnostics.BugReportOptions{
 			Version: ver,
@@ -1195,6 +1195,7 @@ func (m *Model) View() string {
 			Width:             m.Width,
 			Height:            m.Height,
 			OpaqueBackdrop:    m.Config.OpaqueBackdrop,
+			Version:           m.Version,
 		})
 	}
 	return ""

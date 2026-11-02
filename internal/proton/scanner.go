@@ -31,11 +31,6 @@ type Runner struct {
 	Path           string     // Path to 'proton' binary
 	Directory      string     // Base directory of the runner
 	Type           RunnerType // Tool family / classification
-	IsGE           bool       // GloriousEggroll custom build
-	IsCachy        bool       // CachyOS optimized build
-	IsDW           bool       // Dawn Winery gacha build
-	IsExperimental bool       // Valve Proton Experimental
-	IsValve        bool       // Valve official Proton release
 	Recommendation string     // Short badge/hint for the TUI
 }
 
@@ -111,30 +106,23 @@ func classifyRunner(name, dirPath, protonBin string) Runner {
 	lower := strings.ToLower(name)
 
 	var rType RunnerType
-	var isGE, isCachy, isDW, isExp, isValve bool
 	var rec string
 
 	switch {
 	case strings.Contains(lower, "ge-proton") || strings.Contains(lower, "proton-ge"):
 		rType = RunnerTypeGE
-		isGE = true
 		rec = "GloriousEggroll: High game compatibility, media codecs & ProtonFixes"
 	case strings.Contains(lower, "cachyos"):
 		rType = RunnerTypeCachyOS
-		isCachy = true
 		rec = "CachyOS: x86-64-v3/v4 & NTSync tuned performance"
 	case strings.Contains(lower, "dwproton") || strings.Contains(lower, "dw-proton"):
 		rType = RunnerTypeDW
-		isDW = true
 		rec = "Dawn Winery: Optimized for Hoyoverse & anime gacha titles"
 	case strings.Contains(lower, "experimental"):
 		rType = RunnerTypeExperimental
-		isExp = true
-		isValve = true
 		rec = "Valve Experimental: Bleeding edge Proton features & latest fixes"
 	case strings.HasPrefix(lower, "proton") || strings.Contains(lower, "proton"):
 		rType = RunnerTypeValve
-		isValve = true
 		rec = "Valve Official: Stable Steam Linux Runtime compatibility tool"
 	case strings.Contains(lower, "wine") || strings.Contains(lower, "lutris") || strings.Contains(lower, "heroic"):
 		rType = RunnerTypeWine
@@ -149,11 +137,6 @@ func classifyRunner(name, dirPath, protonBin string) Runner {
 		Path:           protonBin,
 		Directory:      dirPath,
 		Type:           rType,
-		IsGE:           isGE,
-		IsCachy:        isCachy,
-		IsDW:           isDW,
-		IsExperimental: isExp,
-		IsValve:        isValve,
 		Recommendation: rec,
 	}
 }
