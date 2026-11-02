@@ -71,7 +71,7 @@ func RenderDashboard(d DashboardData) string {
 	}
 	verStr := d.Version
 	if verStr == "" {
-		verStr = "0.11.0"
+		verStr = "0.11.1"
 	}
 	leftHeader := fmt.Sprintf("🎮 rpt v%s │ Game: %s", verStr, d.GameTitle)
 	rightHeader := fmt.Sprintf("%s  •  [s] Desktop Icon  •  [?] Help  •  [q] Quit", style.KeyStyle.Render(backdropText))
