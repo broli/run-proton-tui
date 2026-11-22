@@ -76,7 +76,7 @@ func (v *TelemetryView) View() string {
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(style.ColorPrimary).
-		Render("🛡️ LOCAL SESSION TELEMETRY & PRIVACY AUDIT")
+		Render("LOCAL SESSION TELEMETRY & PRIVACY AUDIT")
 
 	subHeader := lipgloss.NewStyle().
 		Foreground(style.ColorMuted).
@@ -104,7 +104,7 @@ func (v *TelemetryView) View() string {
 
 	if v.InspectMode {
 		// History Inspection Mode
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render("📜 RECORDED LOCAL HISTORY ENTRIES:") + "\n\n")
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render("RECORDED LOCAL HISTORY ENTRIES:") + "\n\n")
 		if len(v.History) == 0 {
 			b.WriteString(lipgloss.NewStyle().Foreground(style.ColorMuted).Render("  No session history currently recorded on disk.\n\n"))
 		} else {
@@ -127,21 +127,21 @@ func (v *TelemetryView) View() string {
 		}
 	} else {
 		// Transparency Sections
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render("ℹ️ OVERVIEW & PURPOSE") + "\n")
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render("OVERVIEW & PURPOSE") + "\n")
 		b.WriteString(lipgloss.NewStyle().Foreground(style.ColorText).Render(
 			"  When enabled, rpt keeps a local log of game sessions on your computer.\n"+
 				"  This provides empirical data to back up ProtonDB reports (e.g. '5 sessions\n"+
 				"  over 12 hours with 0 crashes') and verifies which runner version works best.\n\n",
 		))
 
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render("📁 EXACT STORAGE LOCATION ON YOUR DISK") + "\n")
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render("EXACT STORAGE LOCATION ON YOUR DISK") + "\n")
 		historyPath := pathutil.Sanitize(runner.GetHistoryFilePath(v.GameDir))
 		b.WriteString(fmt.Sprintf("  • Per-Game Ledger: %s\n", lipgloss.NewStyle().Foreground(style.ColorSecondary).Render(historyPath)))
 		b.WriteString(lipgloss.NewStyle().Foreground(style.ColorMuted).Render(
 			"  Stored in human-readable JSON format. You can inspect or delete it at any time.\n\n",
 		))
 
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render("📊 WHAT IS RECORDED (ONLY IF ENABLED)") + "\n")
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render("WHAT IS RECORDED (ONLY IF ENABLED)") + "\n")
 		metrics := []string{
 			"[✓] Game Executable Basename & Steam AppID (e.g. Endfield.exe / 4732690)",
 			"[✓] Session Duration & Exit Code (e.g. 1h 45m, Exit 0 - Clean)",
@@ -150,11 +150,11 @@ func (v *TelemetryView) View() string {
 			"[✓] Anonymized Hardware Summary (GPU Model, Driver string, CPU threads)",
 		}
 		for _, m := range metrics {
-			b.WriteString("  " + lipgloss.NewStyle().Foreground(style.ColorText).Render(m) + "\n")
+			b.WriteString("  " + style.ItemStyle.Render(m) + "\n")
 		}
 		b.WriteString("\n")
 
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorDanger).Render("🚫 WHAT IS NEVER RECORDED OR TRANSMITTED (ZERO LEAKS)") + "\n")
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(style.ColorDanger).Render("WHAT IS NEVER RECORDED OR TRANSMITTED") + "\n")
 		guarantees := []string{
 			"[✗] NO personal file paths or usernames (always sanitized to ~/)",
 			"[✗] NO Steam credentials, passwords, or authentication tokens",
@@ -162,7 +162,7 @@ func (v *TelemetryView) View() string {
 			"[✗] NO network telemetry or phoning home to any third-party server (100% offline)",
 		}
 		for _, g := range guarantees {
-			b.WriteString("  " + lipgloss.NewStyle().Foreground(style.ColorMuted).Render(g) + "\n")
+			b.WriteString("  " + style.SubheaderStyle.Render(g) + "\n")
 		}
 		b.WriteString("\n")
 	}

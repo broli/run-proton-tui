@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
@@ -10,6 +11,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+var presetClearBadge = lipgloss.NewStyle().Foreground(style.ColorWarning).Render("[c] Clear Preset (Standard Defaults)")
 
 // PresetPickerView displays detected UMU and curated quirks for user review before applying.
 type PresetPickerView struct {
@@ -56,7 +59,7 @@ func (v *PresetPickerView) View() string {
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(style.ColorPrimary).
-		Render("⚡ GAME QUIRKS & PRESETS (Offline Engine)")
+		Render("GAME QUIRKS & PRESETS (Offline Engine)")
 
 	subHeader := lipgloss.NewStyle().
 		Foreground(style.ColorMuted).
@@ -102,7 +105,7 @@ func (v *PresetPickerView) View() string {
 	matchTitle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(style.ColorSuccess).
-		Render("🎯 Matched Title: " + p.Name) + activeBadge
+		Render("Matched Title: " + p.Name) + activeBadge
 
 	matchSource := lipgloss.NewStyle().
 		Foreground(style.ColorSecondary).
@@ -116,7 +119,7 @@ func (v *PresetPickerView) View() string {
 			Background(style.ColorBgDark).
 			Padding(0, 1).
 			Width(contentWidth).
-			Render("ℹ️ " + p.SummaryNotes)
+			Render(p.SummaryNotes)
 		b.WriteString(notesBox + "\n\n")
 	}
 
@@ -131,7 +134,13 @@ func (v *PresetPickerView) View() string {
 
 	if len(p.EnvVars) > 0 {
 		b.WriteString(fmt.Sprintf("  • %s:\n", lipgloss.NewStyle().Bold(true).Render("Custom Environment Variables")))
-		for k, val := range p.EnvVars {
+		var envKeys []string
+		for k := range p.EnvVars {
+			envKeys = append(envKeys, k)
+		}
+		slices.Sort(envKeys)
+		for _, k := range envKeys {
+			val := p.EnvVars[k]
 			desc := ""
 			switch k {
 			case "WINE_CANONICAL_HOLE":
@@ -179,7 +188,12 @@ func (v *PresetPickerView) View() string {
 
 	if len(p.Profiles) > 0 {
 		b.WriteString(fmt.Sprintf("  • %s:\n", lipgloss.NewStyle().Bold(true).Render("Dual Multi-Executable Profiles")))
+		var profileKeys []string
 		for exeKey := range p.Profiles {
+			profileKeys = append(profileKeys, exeKey)
+		}
+		slices.Sort(profileKeys)
+		for _, exeKey := range profileKeys {
 			b.WriteString(fmt.Sprintf("      [%s] -> 2D Utility Mode (Default GPU, No Gamescope)\n",
 				lipgloss.NewStyle().Foreground(style.ColorHighlight).Render(exeKey),
 			))
@@ -192,9 +206,9 @@ func (v *PresetPickerView) View() string {
 		enterLabel = "[Enter] Re-apply Presets & Save"
 	}
 	dock := fmt.Sprintf("%s    %s    %s",
-		lipgloss.NewStyle().Bold(true).Foreground(style.ColorSuccess).Render(enterLabel),
-		lipgloss.NewStyle().Foreground(style.ColorWarning).Render("[c] Clear Preset (Standard Defaults)"),
-		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc] Return to Dashboard"),
+		style.ActiveTagStyle.Render(enterLabel),
+		presetClearBadge,
+		style.SubheaderStyle.Render("[Esc] Return to Dashboard"),
 	)
 	b.WriteString(dock)
 

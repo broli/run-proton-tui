@@ -71,7 +71,7 @@ func (v *ProfilesView) Update(msg tea.Msg) (bool, bool, bool) {
 			case "enter":
 				newName := strings.TrimSpace(v.NameInput.Value())
 				if newName == "" {
-					v.StatusMessage = "⚠️ Profile name cannot be empty"
+					v.StatusMessage = "Profile name cannot be empty"
 					return false, false, false
 				}
 				// Clone from currently selected profile
@@ -80,7 +80,7 @@ func (v *ProfilesView) Update(msg tea.Msg) (bool, bool, bool) {
 					srcName = names[v.Cursor]
 				}
 				if err := v.ConfigFile.CloneProfile(srcName, newName); err != nil {
-					v.StatusMessage = fmt.Sprintf("⚠️ %v", err)
+					v.StatusMessage = fmt.Sprintf("Error: %v", err)
 					return false, false, false
 				}
 				_ = v.ConfigFile.SetActiveProfile(newName)
@@ -113,7 +113,7 @@ func (v *ProfilesView) Update(msg tea.Msg) (bool, bool, bool) {
 			case "y", "Y", "enter":
 				target := v.DeleteTarget
 				if err := v.ConfigFile.DeleteProfile(target); err != nil {
-					v.StatusMessage = fmt.Sprintf("⚠️ %v", err)
+					v.StatusMessage = fmt.Sprintf("Error: %v", err)
 				} else {
 					v.StatusMessage = fmt.Sprintf("✓ Deleted profile %q", target)
 				}
@@ -164,7 +164,7 @@ func (v *ProfilesView) Update(msg tea.Msg) (bool, bool, bool) {
 
 			case "x", "X", "d", "D", "delete":
 				if len(names) <= 1 {
-					v.StatusMessage = "⚠️ Cannot delete the only profile."
+					v.StatusMessage = "Cannot delete the only profile."
 					return false, false, false
 				}
 				if v.Cursor >= 0 && v.Cursor < len(names) {
@@ -186,14 +186,8 @@ func (v *ProfilesView) Update(msg tea.Msg) (bool, bool, bool) {
 func (v *ProfilesView) View() string {
 	contentWidth := style.ClampWidth(v.Width, 10, 65, 95)
 
-	header := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(style.ColorPrimary).
-		Render("📋 GAME PROFILES MANAGER")
-
-	subHeader := lipgloss.NewStyle().
-		Foreground(style.ColorMuted).
-		Render("Each profile stores a complete, independent execution configuration in rpt.toml")
+	header := style.TitleStyle.Render("GAME PROFILES MANAGER")
+	subHeader := style.SubheaderStyle.Render("Each profile stores a complete, independent execution configuration in rpt.toml")
 
 	divider := lipgloss.NewStyle().
 		Foreground(style.ColorBorder).
@@ -218,7 +212,7 @@ func (v *ProfilesView) View() string {
 
 	case profileModeConfirmDelete:
 		warnStyle := lipgloss.NewStyle().Bold(true).Foreground(style.ColorDanger)
-		b.WriteString(warnStyle.Render(fmt.Sprintf("⚠️ Delete Profile %q?", v.DeleteTarget)) + "\n\n")
+		b.WriteString(warnStyle.Render(fmt.Sprintf("Delete Profile %q?", v.DeleteTarget)) + "\n\n")
 		b.WriteString("This action will remove all custom settings for this profile.\n\n")
 		b.WriteString(style.KeyStyle.Render("[y/Enter] Confirm Delete  •  [n/Esc] Cancel") + "\n")
 
@@ -232,19 +226,14 @@ func (v *ProfilesView) View() string {
 
 			isActive := name == v.ConfigFile.ActiveProfile
 
-			nameBadge := lipgloss.NewStyle().Bold(true).Foreground(style.ColorPrimary).Render(name)
+			nameBadge := style.TitleStyle.Render(name)
 			if i == v.Cursor {
-				nameBadge = lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render(name)
+				nameBadge = style.SelectedItemStyle.Render(name)
 			}
 
 			statusBadge := ""
 			if isActive {
-				statusBadge = " " + lipgloss.NewStyle().
-					Bold(true).
-					Foreground(lipgloss.Color("#11111b")).
-					Background(style.ColorSuccess).
-					Padding(0, 1).
-					Render("ACTIVE")
+				statusBadge = " " + style.BadgeSuccess.Render("ACTIVE")
 			}
 
 			// Profile Summary Info
@@ -275,11 +264,4 @@ func (v *ProfilesView) View() string {
 		Padding(1, 2).
 		Width(contentWidth + 4).
 		Render(b.String())
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

@@ -98,7 +98,7 @@ func (h *HooksView) Update(msg tea.Msg) (*HooksView, bool) {
 
 func (h *HooksView) openScript(path, hookName string) (*HooksView, bool) {
 	if path == "" {
-		h.StatusMessage = fmt.Sprintf("No %s script found in search paths. Create one in ./hooks/%s or ask an AI helper!", hookName, hookName)
+		h.StatusMessage = fmt.Sprintf("No %s script found in search paths. Create one in ./hooks/%s.", hookName, hookName)
 		return h, false
 	}
 
@@ -190,20 +190,20 @@ func (h *HooksView) View() string {
 	sb.WriteString("\n")
 
 	// 3. Exported Environment Variables Cheatsheet
-	sb.WriteString(style.HeaderStyle.Render("📦 Injected Environment Variables ($RPT_* Cheatsheet):") + "\n")
+	sb.WriteString(style.HeaderStyle.Render("Injected Environment Variables ($RPT_* Cheatsheet):") + "\n")
 	for _, env := range h.Report.EnvVars {
-		nameStr := lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight).Render(fmt.Sprintf("$%-22s", env.Name))
-		valStr := lipgloss.NewStyle().Foreground(style.ColorMuted).Render(fmt.Sprintf("= %s", env.CurrentVal))
+		nameStr := style.SelectedItemStyle.Render(fmt.Sprintf("$%-22s", env.Name))
+		valStr := style.SubheaderStyle.Render(fmt.Sprintf("= %s", env.CurrentVal))
 		sb.WriteString(fmt.Sprintf("    %s %s\n", nameStr, valStr))
-		sb.WriteString(fmt.Sprintf("      └─ %s\n", lipgloss.NewStyle().Foreground(style.ColorText).Render(env.Description)))
+		sb.WriteString(fmt.Sprintf("      └─ %s\n", style.ItemStyle.Render(env.Description)))
 	}
 	sb.WriteString("\n")
 
 	// Dock / Navigation hints
 	sb.WriteString(divider + "\n")
 	dock := fmt.Sprintf("%s    %s",
-		lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[1/2] View Script in Syntax-Highlighted Pager"),
-		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc / q] Return to Dashboard"),
+		style.KeyStyle.Render("[1/2] View Script in Syntax-Highlighted Pager"),
+		style.SubheaderStyle.Render("[Esc / q] Return to Dashboard"),
 	)
 	sb.WriteString(dock)
 

@@ -11,6 +11,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	metricLabelStyle     = lipgloss.NewStyle().Foreground(style.ColorMuted)
+	metricValueStyle     = lipgloss.NewStyle().Foreground(style.ColorSecondary)
+	protonDBNoReportDock = fmt.Sprintf("%s    %s    %s    %s",
+		lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[r] Retry Fetch"),
+		lipgloss.NewStyle().Foreground(style.ColorSecondary).Render("[c] Contribute (1-Click)"),
+		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[s] Search AppID"),
+		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc] Return"),
+	)
+)
+
 // ProtonDBView renders a full interactive report on ProtonDB community ratings.
 type ProtonDBView struct {
 	Report      *integrations.ProtonDBReport
@@ -135,13 +146,7 @@ func (v *ProtonDBView) View() string {
 			b.WriteString("Press [r] to query/retry, [s] to search by custom title or AppID, or [Esc] to return.\n\n")
 		}
 		b.WriteString(divider + "\n")
-		dock := fmt.Sprintf("%s    %s    %s    %s",
-			lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[r] Retry Fetch"),
-			lipgloss.NewStyle().Foreground(style.ColorSecondary).Render("[c] Contribute (1-Click)"),
-			lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[s] Search AppID"),
-			lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc] Return"),
-		)
-		b.WriteString(dock)
+		b.WriteString(protonDBNoReportDock)
 
 		return lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
@@ -180,8 +185,8 @@ func (v *ProtonDBView) View() string {
 
 	for _, m := range metrics {
 		b.WriteString(fmt.Sprintf("  • %-26s %s\n",
-			lipgloss.NewStyle().Foreground(style.ColorMuted).Render(m.Label),
-			lipgloss.NewStyle().Foreground(style.ColorSecondary).Render(m.Value),
+			metricLabelStyle.Render(m.Label),
+			metricValueStyle.Render(m.Value),
 		))
 	}
 
@@ -191,17 +196,17 @@ func (v *ProtonDBView) View() string {
 	guidance := ""
 	switch strings.ToLower(r.Tier) {
 	case "platinum":
-		guidance = "⭐ Platinum: Runs flawlessly out of the box with default Proton. No tweaks needed."
+		guidance = "Platinum: Runs flawlessly out of the box with default Proton. No tweaks needed."
 	case "gold":
-		guidance = "🥇 Gold: Runs smoothly after minor tweaks (e.g. Proton-GE or built-in gamefixes)."
+		guidance = "Gold: Runs smoothly after minor tweaks (e.g. Proton-GE or built-in gamefixes)."
 	case "silver":
-		guidance = "🥈 Silver: Generally playable, but may encounter minor audio, video, or graphical glitches."
+		guidance = "Silver: Generally playable, but may encounter minor audio, video, or graphical glitches."
 	case "bronze":
-		guidance = "🥉 Bronze: Significant issues or frequent crashes under standard Wine/Proton."
+		guidance = "Bronze: Significant issues or frequent crashes under standard Wine/Proton."
 	case "borked":
-		guidance = "❌ Borked: Will not start or crashes immediately (often due to anti-cheat or media foundation)."
+		guidance = "Borked: Will not start or crashes immediately (often due to anti-cheat or media foundation)."
 	default:
-		guidance = "ℹ️ Compatibility status based on community crowd-sourced reports."
+		guidance = "Compatibility status based on community crowd-sourced reports."
 	}
 
 	notesBox := lipgloss.NewStyle().

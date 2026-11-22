@@ -9,6 +9,46 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	cleanHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(style.ColorDanger)
+
+	cleanSubHeaderStyle = lipgloss.NewStyle().
+				Foreground(style.ColorMuted)
+
+	cleanDividerStyle = lipgloss.NewStyle().
+				Foreground(style.ColorBorder)
+
+	cleanWarnBoxStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(style.ColorWarning)
+
+	cleanDetailLabelStyle = lipgloss.NewStyle().
+				Foreground(style.ColorMuted)
+
+	cleanDetailValueStyle = lipgloss.NewStyle().
+				Foreground(style.ColorHighlight)
+
+	cleanBackupNoticeStyle = lipgloss.NewStyle().
+				Foreground(style.ColorText).
+				Background(style.ColorBgDark).
+				Padding(0, 1)
+
+	cleanConfirmBtnStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(style.ColorDanger)
+
+	cleanCancelBtnStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(style.ColorSuccess)
+
+	cleanModalBorder = lipgloss.NewStyle().
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderForeground(style.ColorDanger).
+				Padding(1, 2)
+)
+
 // CleanConfirmView renders a safety confirmation popup modal before clearing the Wine prefix.
 type CleanConfirmView struct {
 	GameTitle  string
@@ -47,29 +87,16 @@ func (v *CleanConfirmView) Update(msg tea.Msg) (confirmed bool, done bool) {
 func (v *CleanConfirmView) View() string {
 	contentWidth := style.ClampWidth(v.Width, 14, 55, 75)
 
-	header := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(style.ColorDanger).
-		Render("⚠️  RESET WINE PREFIX CONFIRMATION")
-
-	subHeader := lipgloss.NewStyle().
-		Foreground(style.ColorMuted).
-		Render("This operation will remove and recreate the isolated Wine container.")
-
-	divider := lipgloss.NewStyle().
-		Foreground(style.ColorBorder).
-		Render(strings.Repeat("─", contentWidth))
+	header := cleanHeaderStyle.Render("RESET WINE PREFIX CONFIRMATION")
+	subHeader := cleanSubHeaderStyle.Render("This operation will remove and recreate the isolated Wine container.")
+	divider := cleanDividerStyle.Render(strings.Repeat("─", contentWidth))
 
 	var b strings.Builder
 	b.WriteString(header + "\n")
 	b.WriteString(subHeader + "\n")
 	b.WriteString(divider + "\n\n")
 
-	warnBox := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(style.ColorWarning).
-		Render("Are you sure you want to clean and reset this Wine prefix?")
-	b.WriteString(warnBox + "\n\n")
+	b.WriteString(cleanWarnBoxStyle.Render("Are you sure you want to clean and reset this Wine prefix?") + "\n\n")
 
 	details := []struct {
 		Label string
@@ -82,32 +109,20 @@ func (v *CleanConfirmView) View() string {
 
 	for _, d := range details {
 		b.WriteString(fmt.Sprintf("  • %-16s %s\n",
-			lipgloss.NewStyle().Foreground(style.ColorMuted).Render(d.Label),
-			lipgloss.NewStyle().Foreground(style.ColorHighlight).Render(d.Value),
+			cleanDetailLabelStyle.Render(d.Label),
+			cleanDetailValueStyle.Render(d.Value),
 		))
 	}
 	b.WriteString("\n")
 
-	backupNotice := lipgloss.NewStyle().
-		Foreground(style.ColorText).
-		Background(style.ColorBgDark).
-		Padding(0, 1).
-		Width(contentWidth).
-		Render("🛡️ SafeClean Protection: Your save files, AppData, and registry overrides will be backed up automatically before wiping.")
-	b.WriteString(backupNotice + "\n\n")
-
+	b.WriteString(cleanBackupNoticeStyle.Width(contentWidth).Render("SafeClean Protection: Your save files, AppData, and registry overrides will be backed up automatically before wiping.") + "\n\n")
 	b.WriteString(divider + "\n")
 
 	dock := fmt.Sprintf("%s    %s",
-		lipgloss.NewStyle().Bold(true).Foreground(style.ColorDanger).Render("[y / Enter] Yes, Reset Prefix"),
-		lipgloss.NewStyle().Bold(true).Foreground(style.ColorSuccess).Render("[n / Esc] Cancel & Keep Prefix"),
+		cleanConfirmBtnStyle.Render("[y / Enter] Yes, Reset Prefix"),
+		cleanCancelBtnStyle.Render("[n / Esc] Cancel & Keep Prefix"),
 	)
 	b.WriteString(dock)
 
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(style.ColorDanger).
-		Padding(1, 2).
-		Width(contentWidth + 4).
-		Render(b.String())
+	return cleanModalBorder.Width(contentWidth + 4).Render(b.String())
 }

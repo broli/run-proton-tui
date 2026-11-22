@@ -23,13 +23,9 @@ type LogsView struct {
 
 // NewLogsView initializes the logs view.
 func NewLogsView(logs []diagnostics.LogFileInfo, width, height int) *LogsView {
-	vp := viewport.New(width, height-6)
 	return &LogsView{
-		Logs:           logs,
-		Cursor:         0,
-		ViewingContent: false,
-		Viewport:       vp,
-		ActiveLogPath:  "",
+		Logs:     logs,
+		Viewport: viewport.New(width, height-6),
 	}
 }
 
@@ -87,7 +83,7 @@ func (l *LogsView) View() string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(style.TitleStyle.Render("📋 Recent Session Logs & Diagnostics (Press [Enter] to View, [Esc] to Return)"))
+	sb.WriteString(style.TitleStyle.Render("Recent Session Logs & Diagnostics (Press [Enter] to View, [Esc] to Return)"))
 	sb.WriteString("\n\n")
 
 	if len(l.Logs) == 0 {
@@ -98,10 +94,10 @@ func (l *LogsView) View() string {
 
 	for i, item := range l.Logs {
 		cursor := "  "
-		lineStyle := lipgloss.NewStyle().Foreground(style.ColorText)
+		lineStyle := style.ItemStyle
 		if i == l.Cursor {
 			cursor = "👉"
-			lineStyle = lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight)
+			lineStyle = style.SelectedItemStyle
 		}
 
 		sizeStr := fmt.Sprintf("%.1f KB", float64(item.Size)/1024)

@@ -11,6 +11,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	gamescopeNavHelp = fmt.Sprintf("%s    %s    %s    %s    %s",
+		lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[↑/↓] Navigate"),
+		lipgloss.NewStyle().Foreground(style.ColorSecondary).Render("[Enter/Space/←/→] Select"),
+		lipgloss.NewStyle().Foreground(style.ColorSuccess).Render("[d] Detect"),
+		lipgloss.NewStyle().Foreground(style.ColorWarning).Render("[u] Blank Geometry"),
+		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[r] Defaults"),
+	)
+	gamescopeExitHelp = lipgloss.NewStyle().Foreground(style.ColorMuted).Render("    [Esc/q] Return")
+)
+
 var resolutionPresets = []struct {
 	label  string
 	width  int
@@ -223,7 +234,7 @@ func (v *GamescopeView) DetectMonitorSize() {
 		dispName = "Auto-detected monitor"
 	}
 	if err != nil {
-		v.StatusMessage = fmt.Sprintf("⚠️ Detection fallback (%s): %dx%d (Comment '# auto detected from TUI' will be saved)", dispName, w, h)
+		v.StatusMessage = fmt.Sprintf("Detection fallback (%s): %dx%d (Comment '# auto detected from TUI' will be saved)", dispName, w, h)
 	} else {
 		v.StatusMessage = fmt.Sprintf("✓ Detected %s: %dx%d (Comment '# auto detected from TUI' will be saved)", dispName, w, h)
 	}
@@ -343,7 +354,7 @@ func (v *GamescopeView) View() string {
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(style.ColorPrimary).
-		Render("🎯 GAMESCOPE SANDBOX & UPSCALING CONFIGURATION")
+		Render("GAMESCOPE SANDBOX & UPSCALING CONFIGURATION")
 
 	subHeader := lipgloss.NewStyle().
 		Foreground(style.ColorMuted).
@@ -432,7 +443,7 @@ func (v *GamescopeView) View() string {
 		val   string
 	}{
 		{FieldOutput, "Target Display Monitor", dispVal},
-		{FieldDetectSize, "[⚡ Detect Monitor Size]", "Auto-detect native resolution & record comment"},
+		{FieldDetectSize, "[Detect Monitor Size]", "Auto-detect native resolution & record comment"},
 		{FieldClearGeometry, "[✖ Leave Geometry Blank]", "Reset width/height to 0 (Auto / Host Negotiated)"},
 		{FieldResolution, "Output Resolution (-W / -H)", resVal},
 		{FieldRefresh, "Refresh Rate Override (-r)", refVal},
@@ -449,25 +460,17 @@ func (v *GamescopeView) View() string {
 
 	for i, it := range items {
 		prefix := "   "
-		lblStyle := lipgloss.NewStyle().Foreground(style.ColorText)
+		lblStyle := style.ItemStyle
 		if i == v.Cursor {
 			prefix = " > "
-			lblStyle = lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight)
+			lblStyle = style.SelectedItemStyle
 		}
 
 		b.WriteString(fmt.Sprintf("%s%-36s : %s\n", prefix, lblStyle.Render(it.label), it.val))
 	}
 
 	b.WriteString("\n" + divider + "\n")
-	navHelp := fmt.Sprintf("%s    %s    %s    %s    %s",
-		lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[↑/↓] Navigate"),
-		lipgloss.NewStyle().Foreground(style.ColorSecondary).Render("[Enter/Space/←/→] Select"),
-		lipgloss.NewStyle().Foreground(style.ColorSuccess).Render("[d] Detect"),
-		lipgloss.NewStyle().Foreground(style.ColorWarning).Render("[u] Blank Geometry"),
-		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[r] Defaults"),
-	)
-	exitHelp := lipgloss.NewStyle().Foreground(style.ColorMuted).Render("    [Esc/q] Return")
-	b.WriteString(navHelp + exitHelp)
+	b.WriteString(gamescopeNavHelp + gamescopeExitHelp)
 
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).

@@ -9,6 +9,46 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	resetHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(style.ColorWarning)
+
+	resetSubHeaderStyle = lipgloss.NewStyle().
+				Foreground(style.ColorMuted)
+
+	resetDividerStyle = lipgloss.NewStyle().
+				Foreground(style.ColorBorder)
+
+	resetWarnBoxStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(style.ColorHighlight)
+
+	resetDetailLabelStyle = lipgloss.NewStyle().
+				Foreground(style.ColorMuted)
+
+	resetDetailValueStyle = lipgloss.NewStyle().
+				Foreground(style.ColorText)
+
+	resetProtectNoticeStyle = lipgloss.NewStyle().
+				Foreground(style.ColorText).
+				Background(style.ColorBgDark).
+				Padding(0, 1)
+
+	resetConfirmBtnStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(style.ColorWarning)
+
+	resetCancelBtnStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(style.ColorSuccess)
+
+	resetModalBorder = lipgloss.NewStyle().
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderForeground(style.ColorWarning).
+				Padding(1, 2)
+)
+
 // ResetConfirmView renders a safety confirmation popup modal before reverting to safe defaults.
 type ResetConfirmView struct {
 	GameTitle  string
@@ -47,29 +87,16 @@ func (v *ResetConfirmView) Update(msg tea.Msg) (confirmed bool, done bool) {
 func (v *ResetConfirmView) View() string {
 	contentWidth := style.ClampWidth(v.Width, 14, 55, 80)
 
-	header := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(style.ColorWarning).
-		Render("⚠️  REVERT TO SAFE DEFAULTS CONFIRMATION")
-
-	subHeader := lipgloss.NewStyle().
-		Foreground(style.ColorMuted).
-		Render("Restores standard, rock-solid stable settings for this game.")
-
-	divider := lipgloss.NewStyle().
-		Foreground(style.ColorBorder).
-		Render(strings.Repeat("─", contentWidth))
+	header := resetHeaderStyle.Render("REVERT TO SAFE DEFAULTS CONFIRMATION")
+	subHeader := resetSubHeaderStyle.Render("Restores standard, rock-solid stable settings for this game.")
+	divider := resetDividerStyle.Render(strings.Repeat("─", contentWidth))
 
 	var b strings.Builder
 	b.WriteString(header + "\n")
 	b.WriteString(subHeader + "\n")
 	b.WriteString(divider + "\n\n")
 
-	warnBox := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(style.ColorHighlight).
-		Render("Revert complex settings to safe defaults?")
-	b.WriteString(warnBox + "\n\n")
+	b.WriteString(resetWarnBoxStyle.Render("Revert complex settings to safe defaults?") + "\n\n")
 
 	details := []struct {
 		Label string
@@ -85,32 +112,20 @@ func (v *ResetConfirmView) View() string {
 
 	for _, d := range details {
 		b.WriteString(fmt.Sprintf("  • %-18s %s\n",
-			lipgloss.NewStyle().Foreground(style.ColorMuted).Render(d.Label),
-			lipgloss.NewStyle().Foreground(style.ColorText).Render(d.Value),
+			resetDetailLabelStyle.Render(d.Label),
+			resetDetailValueStyle.Render(d.Value),
 		))
 	}
 	b.WriteString("\n")
 
-	protectNotice := lipgloss.NewStyle().
-		Foreground(style.ColorText).
-		Background(style.ColorBgDark).
-		Padding(0, 1).
-		Width(contentWidth).
-		Render("🛡️ SafeReset Protection: Target executable, AppID, and selected Proton runner are kept intact.")
-	b.WriteString(protectNotice + "\n\n")
-
+	b.WriteString(resetProtectNoticeStyle.Width(contentWidth).Render("SafeReset Protection: Target executable, AppID, and selected Proton runner are kept intact.") + "\n\n")
 	b.WriteString(divider + "\n")
 
 	dock := fmt.Sprintf("%s    %s",
-		lipgloss.NewStyle().Bold(true).Foreground(style.ColorWarning).Render("[y / Enter] Yes, Revert to Safe Defaults"),
-		lipgloss.NewStyle().Bold(true).Foreground(style.ColorSuccess).Render("[n / Esc] Cancel & Keep Settings"),
+		resetConfirmBtnStyle.Render("[y / Enter] Yes, Revert to Safe Defaults"),
+		resetCancelBtnStyle.Render("[n / Esc] Cancel & Keep Settings"),
 	)
 	b.WriteString(dock)
 
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(style.ColorWarning).
-		Padding(1, 2).
-		Width(contentWidth + 4).
-		Render(b.String())
+	return resetModalBorder.Width(contentWidth + 4).Render(b.String())
 }
