@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/broli/run-proton-tui/internal/pathutil"
@@ -25,23 +24,14 @@ type HealthReport struct {
 }
 
 // RunPreflightCheck inspects file permissions, ownership, and directory safety.
-// It automatically attempts non-destructive fixes (such as adding missing +x bits).
 func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *HealthReport {
 	report := &HealthReport{
-		TargetExeExists:    false,
-		TargetExeFixed:     false,
-		ShippingExesFixed:  make([]string, 0),
-		UnownedFiles:       make([]string, 0),
-		GameDirWritable:    false,
-		PrefixDirWritable:  false,
-		InsidePrefixHazard: false,
-		Issues:             make([]string, 0),
-		AllHealthy:         true,
+		AllHealthy: true,
 	}
 
 	uid := os.Getuid()
 
-	// 1. Guardrail Check: Is target exe or gameDir inside prefix?
+	// Guardrail Check: Is target exe or gameDir inside prefix?
 	fullExePath := filepath.Join(gameDir, targetExe)
 	if prefix.CheckPrefixContainment(prefixDir, fullExePath) || prefix.CheckPrefixContainment(prefixDir, gameDir) {
 		report.InsidePrefixHazard = true
@@ -49,24 +39,15 @@ func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *Heal
 		report.Issues = append(report.Issues, "HAZARD: Game executable is located inside the Wine prefix! Cleaning prefix will erase game files.")
 	}
 
-	// 2. Check Target Executable (+x permissions)
-	if info, err := os.Stat(fullExePath); err == nil {
+	// Target executable existence
+	if _, err := os.Stat(fullExePath); err == nil {
 		report.TargetExeExists = true
-		if info.Mode()&0111 == 0 {
-			// Lacks executable bit -> attempt chmod +x
-			if err := os.Chmod(fullExePath, info.Mode()|0111); err == nil {
-				report.TargetExeFixed = true
-			} else {
-				report.AllHealthy = false
-				report.Issues = append(report.Issues, fmt.Sprintf("Executable lacks +x permission: %s", targetExe))
-			}
-		}
 	} else if targetExe != "" {
 		report.AllHealthy = false
 		report.Issues = append(report.Issues, fmt.Sprintf("Target executable not found: %s", targetExe))
 	}
 
-	// 3. Scan and auto-fix Unreal Engine *Shipping.exe binaries & check file ownership in a single pass
+	// File ownership check across game files
 	_ = filepath.WalkDir(gameDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -83,15 +64,6 @@ func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *Heal
 			return nil
 		}
 
-		// Auto-fix missing +x on Shipping.exe
-		if strings.HasSuffix(strings.ToLower(d.Name()), "shipping.exe") && info.Mode()&0111 == 0 {
-			if err := os.Chmod(path, info.Mode()|0111); err == nil {
-				rel, _ := filepath.Rel(gameDir, path)
-				report.ShippingExesFixed = append(report.ShippingExesFixed, rel)
-			}
-		}
-
-		// File ownership check using cached stat from info.Sys()
 		if sysStat, ok := info.Sys().(*syscall.Stat_t); ok {
 			if int(sysStat.Uid) != uid && len(report.UnownedFiles) < 5 {
 				rel, _ := filepath.Rel(gameDir, path)
@@ -106,7 +78,7 @@ func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *Heal
 		report.Issues = append(report.Issues, fmt.Sprintf("Found files not owned by current user (e.g. %s)", report.UnownedFiles[0]))
 	}
 
-	// 5. Game Directory Writeability
+	// Game directory writeability
 	if isDirWritable(gameDir) {
 		report.GameDirWritable = true
 	} else {
@@ -114,7 +86,7 @@ func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *Heal
 		report.Issues = append(report.Issues, "Game directory is not writable!")
 	}
 
-	// 6. Prefix Directory Writeability
+	// Prefix directory writeability
 	checkDir := prefixDir
 	if _, err := os.Stat(checkDir); os.IsNotExist(err) {
 		checkDir = filepath.Dir(prefixDir)
@@ -130,12 +102,5 @@ func RunPreflightCheck(gameDir string, targetExe string, prefixDir string) *Heal
 }
 
 func isDirWritable(dir string) bool {
-	f, err := os.CreateTemp(dir, ".rpt_write_test_*")
-	if err != nil {
-		return false
-	}
-	name := f.Name()
-	_ = f.Close()
-	_ = os.Remove(name)
-	return true
+	return syscall.Access(dir, 2) == nil
 }

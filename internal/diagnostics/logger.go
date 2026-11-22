@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -29,12 +29,17 @@ func FindRecentLogs(gameDir string, prefixDir string) []LogFileInfo {
 	var logs []LogFileInfo
 	seen := make(map[string]bool)
 
-	addFile := func(path string) {
+	addEntry := func(path string, info os.FileInfo) {
 		if seen[path] {
 			return
 		}
-		info, err := os.Stat(path)
-		if err != nil || info.IsDir() {
+		if info == nil {
+			var err error
+			info, err = os.Stat(path)
+			if err != nil || info.IsDir() {
+				return
+			}
+		} else if info.IsDir() {
 			return
 		}
 		seen[path] = true
@@ -49,9 +54,11 @@ func FindRecentLogs(gameDir string, prefixDir string) []LogFileInfo {
 
 	// 1. Logs in .logs/
 	logsDir := filepath.Join(gameDir, ".logs")
-	_ = filepath.Walk(logsDir, func(path string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() {
-			addFile(path)
+	_ = filepath.WalkDir(logsDir, func(path string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			if info, err := d.Info(); err == nil {
+				addEntry(path, info)
+			}
 		}
 		return nil
 	})
@@ -59,26 +66,34 @@ func FindRecentLogs(gameDir string, prefixDir string) []LogFileInfo {
 	// 2. Legacy proton-game.log or steam-*.log in root
 	rootFiles, _ := filepath.Glob(filepath.Join(gameDir, "*.log"))
 	for _, f := range rootFiles {
-		addFile(f)
+		addEntry(f, nil)
 	}
 
 	// 3. Game crash logs in prefix AppData
 	if prefixDir != "" {
 		pfxUsers := filepath.Join(prefixDir, "pfx", "drive_c", "users")
-		_ = filepath.Walk(pfxUsers, func(path string, info os.FileInfo, err error) error {
+		_ = filepath.WalkDir(pfxUsers, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil
 			}
-			if !info.IsDir() && (strings.HasSuffix(path, ".log") || strings.HasSuffix(path, ".dmp")) {
-				addFile(path)
+			if !d.IsDir() && (strings.HasSuffix(path, ".log") || strings.HasSuffix(path, ".dmp")) {
+				if info, err := d.Info(); err == nil {
+					addEntry(path, info)
+				}
 			}
 			return nil
 		})
 	}
 
 	// Sort logs: newest first
-	sort.Slice(logs, func(i, j int) bool {
-		return logs[i].ModTime.After(logs[j].ModTime)
+	slices.SortFunc(logs, func(a, b LogFileInfo) int {
+		if a.ModTime.After(b.ModTime) {
+			return -1
+		}
+		if a.ModTime.Before(b.ModTime) {
+			return 1
+		}
+		return 0
 	})
 
 	return logs
