@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -33,7 +33,7 @@ func FormatDocumentedConfigFile(fileCfg *GameConfigFile) string {
 			names = append(names, name)
 		}
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	orderedProfiles := append([]string{activeProfile}, names...)
 
 	for _, name := range orderedProfiles {
@@ -53,8 +53,8 @@ func formatProfile(b *strings.Builder, name string, cfg *GameConfig) {
 	b.WriteString("# ------------------------------------------------------------------------------\n")
 	b.WriteString(fmt.Sprintf("[profiles.%s]\n\n", name))
 
-	// 1. Core Execution Settings
-	b.WriteString("# --- 1. Core Execution Settings ---\n")
+	// Core Execution Settings
+	b.WriteString("# --- Core Execution Settings ---\n")
 	b.WriteString(fmt.Sprintf("target_exe = %q # Target Windows binary (relative to game dir)\n", cfg.TargetExe))
 	b.WriteString(fmt.Sprintf("proton_path = %q # Absolute path to Proton runner executable\n", cfg.ProtonPath))
 	b.WriteString(fmt.Sprintf("app_id = %q # Steam AppID for UMU fixes and ProtonDB queries\n", cfg.AppID))
@@ -67,8 +67,8 @@ func formatProfile(b *strings.Builder, name string, cfg *GameConfig) {
 	}
 	b.WriteString("\n")
 
-	// 2. Hardware, Sandbox & Performance Controls
-	b.WriteString("# --- 2. Hardware, Sandbox & Performance Controls ---\n")
+	// Hardware, Sandbox & Performance Controls
+	b.WriteString("# --- Hardware, Sandbox & Performance Controls ---\n")
 	b.WriteString(fmt.Sprintf("use_gamescope = %t # Run inside Gamescope nested micro-compositor\n", cfg.UseGamescope))
 	b.WriteString(fmt.Sprintf("gamescope_output = %q # Target DRM display (\"auto\" lets host compositor decide)\n", cfg.GamescopeOutput))
 
@@ -106,7 +106,7 @@ func formatProfile(b *strings.Builder, name string, cfg *GameConfig) {
 	}
 
 	b.WriteString(fmt.Sprintf("use_prime_run = %t # Offload 3D rendering to NVIDIA dGPU via prime-run\n", cfg.UsePrimeRun))
-	b.WriteString(fmt.Sprintf("use_pcores = %t # Pin execution to Intel Performance cores (taskset)\n", cfg.UsePCores))
+	b.WriteString(fmt.Sprintf("use_pcores = %t # Pin execution to Performance cores (taskset)\n", cfg.UsePCores))
 	b.WriteString(fmt.Sprintf("pcores_mask = %q # Thread affinity mask for Performance cores\n", cfg.PCoresMask))
 	b.WriteString(fmt.Sprintf("manage_power = %t # Automatically request system performance power profile\n", cfg.ManagePower))
 	b.WriteString(fmt.Sprintf("use_xalia = %t # Enable Proton Xalia UI accessibility bridge\n", cfg.UseXalia))
@@ -117,8 +117,8 @@ func formatProfile(b *strings.Builder, name string, cfg *GameConfig) {
 	b.WriteString(fmt.Sprintf("opaque_backdrop = %t # TUI visual styling: opaque or transparent\n", cfg.OpaqueBackdrop))
 	b.WriteString("\n")
 
-	// 3. Process Supervision & Hooks
-	b.WriteString("# --- 3. Process Supervision & Diagnostics ---\n")
+	// Process Supervision & Hooks
+	b.WriteString("# --- Process Supervision & Diagnostics ---\n")
 	b.WriteString(fmt.Sprintf("wait_processes = %s # Background updater/child processes to supervise\n", formatStringSlice(cfg.WaitProcesses)))
 	if cfg.DisplayFile != "" {
 		b.WriteString(fmt.Sprintf("display_file = %q # File to write current $DISPLAY socket to\n", cfg.DisplayFile))
@@ -134,14 +134,14 @@ func formatProfile(b *strings.Builder, name string, cfg *GameConfig) {
 	}
 	b.WriteString("\n")
 
-	// 4. Custom Environment Variables
+	// Custom Environment Variables
 	if len(cfg.EnvVars) > 0 {
-		b.WriteString(fmt.Sprintf("# --- 4. Custom Environment Variables ---\n[profiles.%s.env_vars]\n", name))
+		b.WriteString(fmt.Sprintf("# --- Custom Environment Variables ---\n[profiles.%s.env_vars]\n", name))
 		var envKeys []string
 		for k := range cfg.EnvVars {
 			envKeys = append(envKeys, k)
 		}
-		sort.Strings(envKeys)
+		slices.Sort(envKeys)
 		for _, k := range envKeys {
 			comment := getEnvComment(k)
 			if comment != "" {
@@ -153,23 +153,23 @@ func formatProfile(b *strings.Builder, name string, cfg *GameConfig) {
 		b.WriteString("\n")
 	}
 
-	// 5. DLL Overrides
+	// DLL Overrides
 	if len(cfg.DLLOverrides) > 0 {
-		b.WriteString(fmt.Sprintf("# --- 5. DLL Overrides (WINEDLLOVERRIDES) ---\n[profiles.%s.dll_overrides]\n", name))
+		b.WriteString(fmt.Sprintf("# --- DLL Overrides (WINEDLLOVERRIDES) ---\n[profiles.%s.dll_overrides]\n", name))
 		var dllKeys []string
 		for k := range cfg.DLLOverrides {
 			dllKeys = append(dllKeys, k)
 		}
-		sort.Strings(dllKeys)
+		slices.Sort(dllKeys)
 		for _, k := range dllKeys {
 			b.WriteString(fmt.Sprintf("%q = %q\n", k, cfg.DLLOverrides[k]))
 		}
 		b.WriteString("\n")
 	}
 
-	// 6. Filesystem Directives
+	// Filesystem Directives
 	if len(cfg.Filesystem.EnsureDirs) > 0 || len(cfg.Filesystem.Symlinks) > 0 || len(cfg.Filesystem.ExtraBackupPaths) > 0 {
-		b.WriteString(fmt.Sprintf("# --- 6. Declarative Filesystem Directives ---\n[profiles.%s.filesystem]\n", name))
+		b.WriteString(fmt.Sprintf("# --- Declarative Filesystem Directives ---\n[profiles.%s.filesystem]\n", name))
 		if len(cfg.Filesystem.EnsureDirs) > 0 {
 			b.WriteString(fmt.Sprintf("ensure_dirs = %s\n", formatStringSlice(cfg.Filesystem.EnsureDirs)))
 		}
@@ -182,9 +182,9 @@ func formatProfile(b *strings.Builder, name string, cfg *GameConfig) {
 		b.WriteString("\n")
 	}
 
-	// 7. Cloud Sync Directives
+	// Cloud Sync Directives
 	if cfg.CloudSync != nil && (cfg.CloudSync.Backend != "" || cfg.CloudSync.RemotePath != "") {
-		b.WriteString(fmt.Sprintf("# --- 7. Cloud Save Sync Configuration ---\n[profiles.%s.cloud_sync]\n", name))
+		b.WriteString(fmt.Sprintf("# --- Cloud Save Sync Configuration ---\n[profiles.%s.cloud_sync]\n", name))
 		b.WriteString(fmt.Sprintf("backend = %q\n", cfg.CloudSync.Backend))
 		b.WriteString(fmt.Sprintf("remote_path = %q\n", cfg.CloudSync.RemotePath))
 		b.WriteString(fmt.Sprintf("local_path = %q\n", cfg.CloudSync.LocalPath))
@@ -198,7 +198,7 @@ func formatProfile(b *strings.Builder, name string, cfg *GameConfig) {
 		for k := range cfg.Profiles {
 			exeKeys = append(exeKeys, k)
 		}
-		sort.Strings(exeKeys)
+		slices.Sort(exeKeys)
 		for _, exe := range exeKeys {
 			ep := cfg.Profiles[exe]
 			if ep != nil {
@@ -251,7 +251,7 @@ func formatExeProfile(b *strings.Builder, profName, exeName string, ep *Executab
 		for k := range ep.EnvVars {
 			keys = append(keys, k)
 		}
-		sort.Strings(keys)
+		slices.Sort(keys)
 		for _, k := range keys {
 			b.WriteString(fmt.Sprintf("%s = %q\n", k, ep.EnvVars[k]))
 		}
@@ -263,9 +263,9 @@ func formatStringSlice(slice []string) string {
 	if len(slice) == 0 {
 		return "[]"
 	}
-	var quoted []string
-	for _, s := range slice {
-		quoted = append(quoted, fmt.Sprintf("%q", s))
+	quoted := make([]string, len(slice))
+	for i, s := range slice {
+		quoted[i] = fmt.Sprintf("%q", s)
 	}
 	return "[" + strings.Join(quoted, ", ") + "]"
 }

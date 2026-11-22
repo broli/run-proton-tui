@@ -423,5 +423,28 @@ func TestFormatDocumentedConfigFile(t *testing.T) {
 	}
 }
 
+func TestProtonDBURL(t *testing.T) {
+	var nilCfg *GameConfig
+	if url := nilCfg.ProtonDBURL(); url != "https://www.protondb.com/contribute" {
+		t.Errorf("Expected contribute URL for nil config, got %s", url)
+	}
+
+	cfg := &GameConfig{AppID: ""}
+	if url := cfg.ProtonDBURL(); url != "https://www.protondb.com/contribute" {
+		t.Errorf("Expected contribute URL for empty AppID, got %s", url)
+	}
+
+	cfg.AppID = "0"
+	if url := cfg.ProtonDBURL(); url != "https://www.protondb.com/contribute" {
+		t.Errorf("Expected contribute URL for '0' AppID, got %s", url)
+	}
+
+	cfg.AppID = " 1091500 "
+	if url := cfg.ProtonDBURL(); url != "https://www.protondb.com/app/1091500" {
+		t.Errorf("Expected app URL for valid AppID, got %s", url)
+	}
+}
+
+
 
 

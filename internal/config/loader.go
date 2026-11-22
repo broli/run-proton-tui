@@ -38,9 +38,13 @@ func LoadConfigFile(gameDir string) (*GameConfigFile, error) {
 				fileCfg.ActiveProfile = "default"
 			}
 			if fileCfg.ActiveProfile == "" || fileCfg.Profiles[fileCfg.ActiveProfile] == nil {
-				for name := range fileCfg.Profiles {
-					fileCfg.ActiveProfile = name
-					break
+				if fileCfg.Profiles["default"] != nil {
+					fileCfg.ActiveProfile = "default"
+				} else {
+					names := fileCfg.ProfileNames()
+					if len(names) > 0 {
+						fileCfg.ActiveProfile = names[0]
+					}
 				}
 			}
 			return &fileCfg, nil
@@ -102,13 +106,9 @@ func ApplyHardwareSafeStandards(cfg *GameConfig) {
 		cfg.PCoresMask = ""
 	}
 
-	if gpu, err := hardware.DetectGPU(); err == nil {
-		cfg.UsePrimeRun = gpu.HasPrimeRun
-		cfg.GamescopeOutput = "auto"
-	} else {
-		cfg.UsePrimeRun = false
-		cfg.GamescopeOutput = "auto"
-	}
+	gpu, err := hardware.DetectGPU()
+	cfg.UsePrimeRun = err == nil && gpu.HasPrimeRun
+	cfg.GamescopeOutput = "auto"
 
 	// Default geometry to auto (0 = let gamescope match display)
 	cfg.GamescopeWidth = 0
@@ -117,15 +117,9 @@ func ApplyHardwareSafeStandards(cfg *GameConfig) {
 
 	// Safe standard for Wayland: enable Gamescope if binary is present
 	isWayland := os.Getenv("WAYLAND_DISPLAY") != "" || os.Getenv("XDG_SESSION_TYPE") == "wayland"
-	if _, err := exec.LookPath("gamescope"); err == nil && isWayland {
-		cfg.UseGamescope = true
-	} else {
-		cfg.UseGamescope = false
-	}
+	_, gsErr := exec.LookPath("gamescope")
+	cfg.UseGamescope = gsErr == nil && isWayland
 
-	if _, err := exec.LookPath("powerprofilesctl"); err == nil {
-		cfg.ManagePower = true
-	} else {
-		cfg.ManagePower = false
-	}
+	_, pwrErr := exec.LookPath("powerprofilesctl")
+	cfg.ManagePower = pwrErr == nil
 }
