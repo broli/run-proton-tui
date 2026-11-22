@@ -32,16 +32,16 @@ Attempt launch without an existing \fIrpt.toml\fR configuration file using best-
 Clean and reset the Wine prefix (\fI./proton-prefix/\fR) before launching. Automatically preserves existing game saves, player documents, and screenshots into a safe destination (default: \fI~/Games/Backups/\fR or custom \fIbackup_dir\fR).
 .TP
 .BR \-\-clean\-zero ", " \-\-vanilla
-Launch in pure upstream Proton baseline with zero extra flags or wrappers (Gate 1). Disables Gamescope, prime-run, taskset P-core pinning, and powerdevil profile switching.
+Launch in pure upstream Proton baseline with zero extra flags or wrappers. Disables Gamescope, prime-run, taskset P-core pinning, and powerdevil profile switching.
 .TP
 .BR \-v ", " \-\-log
 Enable verbose logging. Captures Proton Python runner logs, DXVK info, DXVK-NVAPI, and VKD3D output into \fI.logs/session.log\fR.
 .TP
 .BR \-d ", " \-\-diag ", " \-\-diagnostics
-Run non-destructive pre-flight health diagnostics (verifying target file presence, execute permissions, prefix containment, and conflict detection) and print the report to stdout.
+Run non-destructive pre-flight health diagnostics (verifying target file presence, prefix containment, and conflict detection) and print the report to stdout.
 .TP
-.BR \-\-dump\-spec ", " \-\-helpdump
-Print a comprehensive, machine-readable JSON specification of \fBrpt\fR's configuration schema, detected hardware capabilities, installed Proton runners, hook lifecycle, and best practices. Used by AI assistants and automation tools.
+.BR \-\-dump\-spec ", " \-\-helpdump ", " \-\-spec
+Print a comprehensive, machine-readable JSON specification of \fBrpt\fR's configuration schema, detected hardware capabilities, installed Proton runners, hook lifecycle, and best practices. Used by automation tools and configuration generators.
 .TP
 .BR \-\-gamescope " [\fItrue\fR|\fIfalse\fR]"
 Force Gamescope micro-compositor sandboxing on or off.
