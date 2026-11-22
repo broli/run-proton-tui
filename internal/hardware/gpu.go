@@ -24,12 +24,7 @@ type GPUInfo struct {
 // caused by running Gamescope on the NVIDIA dGPU directly.
 func DetectGPU() (*GPUInfo, error) {
 	info := &GPUInfo{
-		HasPrimeRun:      false,
-		HasNvidia:        false,
-		HasIntel:         false,
-		HasAMD:           false,
-		ConnectedOutputs: make([]string, 0),
-		PreferredOutput:  "",
+		PreferredOutput: "auto",
 	}
 
 	// 1. Check for prime-run in PATH
@@ -56,26 +51,8 @@ func DetectGPU() (*GPUInfo, error) {
 		}
 	}
 
-	// 3. Scan /sys/class/drm/card*-*/status for active display connectors
-	connectorStatuses, _ := filepath.Glob("/sys/class/drm/card*-*/status")
-	for _, statusFile := range connectorStatuses {
-		content, err := os.ReadFile(statusFile)
-		if err != nil {
-			continue
-		}
-		if strings.TrimSpace(string(content)) == "connected" {
-			// Extract connector name (e.g. "card1-HDMI-A-1" -> "HDMI-A-1")
-			dir := filepath.Base(filepath.Dir(statusFile))
-			parts := strings.SplitN(dir, "-", 2)
-			if len(parts) == 2 {
-				connectorName := parts[1]
-				info.ConnectedOutputs = append(info.ConnectedOutputs, connectorName)
-			}
-		}
-	}
-
-	// 4. Default display output to auto (let host compositor decide)
-	info.PreferredOutput = "auto"
+	// 3. Scan active display connectors
+	info.ConnectedOutputs = GetConnectedDisplayOutputs()
 
 	return info, nil
 }
