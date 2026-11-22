@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,18 @@ type SignatureDefinition struct {
 	Keywords       []string `toml:"keywords"`
 	Observation    string   `toml:"observation"`
 	Recommendation string   `toml:"recommendation"`
+	keywordBytes   [][]byte
+}
+
+// KeywordBytes returns pre-allocated byte slices for the signature's keywords.
+func (s *SignatureDefinition) KeywordBytes() [][]byte {
+	if len(s.keywordBytes) == 0 && len(s.Keywords) > 0 {
+		s.keywordBytes = make([][]byte, len(s.Keywords))
+		for i, kw := range s.Keywords {
+			s.keywordBytes[i] = []byte(strings.ToLower(kw))
+		}
+	}
+	return s.keywordBytes
 }
 
 // SignaturesFile defines the schema of an external signatures.toml dictionary.
@@ -84,6 +97,12 @@ func LoadSignatures(gameDir string) []SignatureDefinition {
 		}
 	}
 
+	for i := range sigs {
+		for j := range sigs[i].Keywords {
+			sigs[i].Keywords[j] = strings.ToLower(sigs[i].Keywords[j])
+		}
+	}
+
 	return sigs
 }
 
@@ -92,6 +111,16 @@ func MatchSignature(line string, sig SignatureDefinition) bool {
 	lower := strings.ToLower(line)
 	for _, kw := range sig.Keywords {
 		if strings.Contains(lower, strings.ToLower(kw)) {
+			return true
+		}
+	}
+	return false
+}
+
+// MatchSignatureBytes checks if a pre-lowercased byte slice matches any signature keywords.
+func MatchSignatureBytes(lower []byte, sig SignatureDefinition) bool {
+	for _, kw := range sig.KeywordBytes() {
+		if bytes.Contains(lower, kw) {
 			return true
 		}
 	}

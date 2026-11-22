@@ -32,12 +32,9 @@ func GetHistoryFilePath(gameDir string) string {
 	return filepath.Join(gameDir, ".logs", "session-history.json")
 }
 
-// RecordSession appends a new session entry to the local JSON history ledger.
-// CRITICAL PRIVACY RULE: If cfg.EnableLocalTelemetry is false, this function
-// exits immediately and writes absolutely nothing to disk (Opt-In / Default OFF).
+// RecordSession appends a new session entry to the local JSON history ledger if telemetry is enabled.
 func RecordSession(gameDir string, cfg *config.GameConfig, result *SessionResult, hwSummary string) error {
 	if cfg == nil || !cfg.EnableLocalTelemetry {
-		// Strict default: zero persistent tracking when disabled
 		return nil
 	}
 
@@ -53,11 +50,11 @@ func RecordSession(gameDir string, cfg *config.GameConfig, result *SessionResult
 
 	history, err := ReadSessionHistory(gameDir)
 	if err != nil {
-		history = make([]SessionRecord, 0)
+		history = nil
 	}
 
 	// Identify quirks applied
-	quirks := make([]string, 0)
+	var quirks []string
 	if cfg.UseGamescope {
 		geomStr := "Native"
 		if cfg.GamescopeWidth > 0 && cfg.GamescopeHeight > 0 {
@@ -128,7 +125,7 @@ func ReadSessionHistory(gameDir string) ([]SessionRecord, error) {
 	data, err := os.ReadFile(historyFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return make([]SessionRecord, 0), nil
+			return nil, nil
 		}
 		return nil, err
 	}

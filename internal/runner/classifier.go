@@ -41,8 +41,7 @@ func is2DUtility(baseName string) bool {
 	return false
 }
 
-// ClassifyExecutable analyzes the filename and path of an executable to suggest optimal execution settings.
-// Crucially, it preserves user agency: these are recommendations that the user can freely toggle.
+// ClassifyExecutable analyzes the filename and path of an executable to suggest execution defaults.
 func ClassifyExecutable(exePath string) ClassificationResult {
 	base := strings.ToLower(filepath.Base(exePath))
 
@@ -59,7 +58,7 @@ func ClassifyExecutable(exePath string) ClassificationResult {
 	// 3D Game binaries
 	return ClassificationResult{
 		Type:               ExeType3DGame,
-		Rationale:          "Detected 3D game executable. Recommended: NVIDIA dGPU offload + Gamescope sandboxing (1080p) + P-Core pinning for peak FPS and stutter prevention.",
+		Rationale:          "Detected 3D game executable. Recommended: Dedicated GPU offload + Gamescope sandboxing + CPU performance core pinning for peak FPS and stutter prevention.",
 		RecommendGamescope: true,
 		RecommendPrimeRun:  true,
 		RecommendPCores:    true,

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -40,17 +41,9 @@ type LaunchOptions struct {
 	StderrPipe io.Writer
 }
 
-// RunGame coordinates the complete execution pipeline:
-// 1. Resolves effective profile configuration (2D installer vs 3D game)
-// 2. Executes Pre-Launch lifecycle hooks (symlinks, /dev/shm JIT, photo persistence)
-// 3. Manages power profile
-// 4. Builds Proton environment (with UMU ID and custom environment variables)
-// 5. Generates isolated runner script with dynamic process supervision and display export
-// 6. Executes with or without Gamescope sandbox
-// 7. Cleans up locks, flushes prefix, and executes Post-Exit lifecycle hooks
-// 8. Restores power profile
+// RunGame coordinates the complete execution pipeline for launching a game under Proton.
 func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
-	// 1. Effective Config (incorporates per-binary profiles e.g. Setup.exe vs Game.exe)
+	// Effective Config (incorporates per-binary profiles e.g. Setup.exe vs Game.exe)
 	cfg := opts.Config.GetEffectiveConfig(opts.Config.TargetExe)
 	gameDir := opts.GameDir
 	prefixDir := filepath.Join(gameDir, "proton-prefix")
@@ -65,16 +58,16 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 		}
 	}()
 
-	// 2. Ensure prefix and pfx subdirectories exist before Proton starts
+	// Ensure prefix and pfx subdirectories exist before Proton starts
 	pfxSubDir := filepath.Join(prefixDir, "pfx")
 	if err := os.MkdirAll(pfxSubDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create proton prefix directory: %w", err)
 	}
 
-	// 3. Pre-flight health and permissions check (+x on target and *Shipping.exe)
+	// Pre-flight health and permissions check
 	diagnostics.RunPreflightCheck(gameDir, cfg.TargetExe, prefixDir)
 
-	// 4. Pre-flight inter-game conflict detection
+	// Pre-flight inter-game conflict detection
 	if conflicts, err := prefix.ListOtherWineProcesses(prefixDir); err == nil && len(conflicts) > 0 {
 		if logFile != nil {
 			_, _ = fmt.Fprintf(logFile, "[PREFLIGHT:WARN] Detected %d active Wine/Proton process(es) in other prefixes:\n", len(conflicts))
@@ -84,14 +77,14 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 		}
 	}
 
-	// 5. Declarative filesystem directives (ensure_dirs, symlinks)
+	// Declarative filesystem directives (ensure_dirs, symlinks)
 	processFilesystemDirectives(gameDir, prefixDir, cfg.Filesystem, logFile)
 
-	// 6. Pre-clean abandoned locks and flush any lingering wineserver holding this prefix
+	// Pre-clean abandoned locks and flush any lingering wineserver holding this prefix
 	_ = prefix.Flush(prefixDir, cfg.ProtonPath)
 	_, _ = prefix.CleanStaleLocks()
 
-	// 7. Pre-Launch Lifecycle Hook Execution
+	// Pre-Launch Lifecycle Hook Execution
 	hookOpts := hooks.HookOptions{
 		GameDir:        gameDir,
 		PrefixDir:      prefixDir,
@@ -103,19 +96,24 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 	}
 	_, _ = hooks.ExecuteHook(ctx, hooks.PreLaunch, hookOpts)
 
-	// 8. Power Profile Management
+	// Power Profile Management
 	powerMgr := hardware.NewPowerManager()
 	if cfg.ManagePower {
 		_ = powerMgr.SetPerformance()
 		defer powerMgr.Restore()
 	}
 
-	// 9. Build Proton Environment (incorporates UMU ID, 2D/3D isolation, and custom variables)
+	// Build Proton Environment (incorporates UMU ID, 2D/3D isolation, and custom variables)
 	extraOverrides := ""
 	if len(cfg.DLLOverrides) > 0 {
+		var dllKeys []string
+		for dll := range cfg.DLLOverrides {
+			dllKeys = append(dllKeys, dll)
+		}
+		slices.Sort(dllKeys)
 		var parts []string
-		for dll, mode := range cfg.DLLOverrides {
-			parts = append(parts, fmt.Sprintf("%s=%s", dll, mode))
+		for _, dll := range dllKeys {
+			parts = append(parts, dll+"="+cfg.DLLOverrides[dll])
 		}
 		extraOverrides = strings.Join(parts, ";")
 	}
@@ -138,12 +136,12 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 	envMap := proton.BuildEnvironment(envOpts)
 	envSlice := proton.EnvSlice(envMap)
 
-	// 10. Resolve Executable and Directory
+	// Resolve Executable and Directory
 	fullExePath := filepath.Join(gameDir, cfg.TargetExe)
 	exeDir := filepath.Dir(fullExePath)
 	exeName := filepath.Base(fullExePath)
 
-	// 11. Command Prefix (CPU pinning + prime-run)
+	// Command Prefix (CPU pinning + prime-run)
 	cmdPrefix := ""
 	if cfg.UsePrimeRun {
 		if _, err := exec.LookPath("prime-run"); err == nil {
@@ -154,16 +152,28 @@ func RunGame(ctx context.Context, opts LaunchOptions) (*SessionResult, error) {
 		cmdPrefix = fmt.Sprintf("taskset -c %s %s", cfg.PCoresMask, cmdPrefix)
 	}
 
-	// 10. Generate Transient Wrapper Script & Child Exit Code Tracking
+	// Generate Transient Wrapper Script & Child Exit Code Tracking
 	childExitFile := filepath.Join(os.TempDir(), fmt.Sprintf("rpt-child-exit-%d-%d", os.Getpid(), time.Now().UnixNano()))
 	wrapperScript := filepath.Join(gameDir, ".rpt_runner.sh")
 	uid := os.Getuid()
 
 	// Locate clipboard bridge if available
-	home := pathutil.UserHomeDir()
-	bridgeBin := filepath.Join(home, "bin", "gamescope-clip-bridge")
+	bridgeBin := ""
+	if bin, err := exec.LookPath("gamescope-clip-bridge"); err == nil {
+		bridgeBin = bin
+	} else if home := pathutil.UserHomeDir(); home != "" {
+		for _, cand := range []string{
+			filepath.Join(home, ".local", "bin", "gamescope-clip-bridge"),
+			filepath.Join(home, "bin", "gamescope-clip-bridge"),
+		} {
+			if _, err := os.Stat(cand); err == nil {
+				bridgeBin = cand
+				break
+			}
+		}
+	}
 	bridgeSnippet := ""
-	if _, err := os.Stat(bridgeBin); err == nil {
+	if bridgeBin != "" {
 		bridgeSnippet = fmt.Sprintf(`
 CLIP_BRIDGE_PID=""
 if [ -x "%s" ] && [ "$DISPLAY" != ":0" ]; then
@@ -182,8 +192,9 @@ fi
 		}
 	}
 
-	displayExport := `echo "$DISPLAY" > /tmp/gamescope-rpt-display`
-	displayCleanup := `rm -f /tmp/gamescope-rpt-display 2>/dev/null`
+	displayTmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("gamescope-rpt-display-%d", os.Getpid()))
+	displayExport := fmt.Sprintf(`echo "$DISPLAY" > "%s"`, displayTmpFile)
+	displayCleanup := fmt.Sprintf(`rm -f "%s" 2>/dev/null`, displayTmpFile)
 	if cfg.DisplayFile != "" {
 		displayExport += fmt.Sprintf("\necho \"$DISPLAY\" > %s", cfg.DisplayFile)
 		displayCleanup += fmt.Sprintf("\nrm -f %s 2>/dev/null", cfg.DisplayFile)
@@ -234,7 +245,7 @@ exit $EXIT_CODE
 		_, _ = hooks.ExecuteHook(context.Background(), hooks.PostExit, hookOpts)
 	}()
 
-	// 12. Prepare Process Command (with or without Gamescope)
+	// Prepare Process Command (with or without Gamescope)
 	var cmd *exec.Cmd
 	var effectiveArgs []string
 	effectiveArgs = append(effectiveArgs, cfg.ExtraArgs...)
