@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/hardware"
@@ -82,11 +84,8 @@ func detectDistroAndKernel() (string, string) {
 	}
 
 	kernel := "Unknown"
-	if kbytes, err := os.ReadFile("/proc/version"); err == nil {
-		fields := strings.Fields(string(kbytes))
-		if len(fields) >= 3 {
-			kernel = fields[2]
-		}
+	if kbytes, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil {
+		kernel = strings.TrimSpace(string(kbytes))
 	}
 
 	return distro, kernel
@@ -158,14 +157,14 @@ func GenerateProtonDBReport(opts ExportOptions) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("### ProtonDB Report for %s (AppID: %s)\n\n", opts.GameTitle, opts.AppID))
 
-	sb.WriteString("#### 🖥️ System Specs\n")
+	sb.WriteString("#### System Specs\n")
 	sb.WriteString(fmt.Sprintf("- **OS / Kernel**: %s (Kernel %s)\n", distro, kernel))
 	sb.WriteString(fmt.Sprintf("- **Session**: %s (%s)\n", sessType, desktop))
 	sb.WriteString(fmt.Sprintf("- **CPU**: %s\n", cpuDesc))
 	sb.WriteString(fmt.Sprintf("- **GPU**: %s\n", gpuDesc.String()))
 	sb.WriteString(fmt.Sprintf("- **Runner**: %s\n\n", runnerName))
 
-	sb.WriteString("#### ⚙️ Configuration & Tweaks Applied\n")
+	sb.WriteString("#### Configuration & Tweaks Applied\n")
 	if cfg.UseGamescope {
 		geomStr := "Native"
 		if cfg.GamescopeWidth > 0 && cfg.GamescopeHeight > 0 {
@@ -183,9 +182,14 @@ func GenerateProtonDBReport(opts ExportOptions) string {
 		sb.WriteString(fmt.Sprintf("- **CPU Pinning**: P-cores mask `%s`\n", cfg.PCoresMask))
 	}
 	if len(cfg.DLLOverrides) > 0 {
+		var keys []string
+		for k := range cfg.DLLOverrides {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
 		var ovList []string
-		for k, v := range cfg.DLLOverrides {
-			ovList = append(ovList, fmt.Sprintf("%s=%s", k, v))
+		for _, k := range keys {
+			ovList = append(ovList, fmt.Sprintf("%s=%s", k, cfg.DLLOverrides[k]))
 		}
 		sb.WriteString(fmt.Sprintf("- **DLL Overrides**: `%s`\n", strings.Join(ovList, ", ")))
 	}
@@ -194,6 +198,7 @@ func GenerateProtonDBReport(opts ExportOptions) string {
 		for k := range cfg.EnvVars {
 			envKeys = append(envKeys, k)
 		}
+		slices.Sort(envKeys)
 		sb.WriteString(fmt.Sprintf("- **Custom Environment Variables**: `%s`\n", strings.Join(envKeys, ", ")))
 	}
 	if cfg.PreLaunchHook != "" {
@@ -204,9 +209,9 @@ func GenerateProtonDBReport(opts ExportOptions) string {
 	}
 
 	// Session & Empirical Summary
-	sb.WriteString("\n#### 📊 Session & Stability Summary\n")
+	sb.WriteString("\n#### Session & Stability Summary\n")
 	if opts.LastResult != nil {
-		durationStr := opts.LastResult.Duration.Round(100000000).String()
+		durationStr := opts.LastResult.Duration.Round(100 * time.Millisecond).String()
 		if opts.LastResult.CrashDetected {
 			sb.WriteString(fmt.Sprintf("- **Last Session**: Crash detected after %s (Exit Code %d)\n", durationStr, opts.LastResult.ExitCode))
 		} else {

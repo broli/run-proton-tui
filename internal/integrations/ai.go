@@ -29,8 +29,8 @@ The game crashed or exited prematurely. Below is the recent crash log excerpt:
 
 Provide a concise, 3-bullet diagnosis with the exact recommended fix (e.g. Proton version to use, environment variables like PROTON_ENABLE_NVAPI=1, or Wine DLL overrides like dwmapi=native,builtin). Keep it brief and focused strictly on the fix.`, gameName, safeExcerpt)
 
-	reqBody := map[string]interface{}{
-		"contents": []map[string]interface{}{
+	reqBody := map[string]any{
+		"contents": []map[string]any{
 			{
 				"parts": []map[string]string{
 					{"text": prompt},
@@ -44,7 +44,7 @@ Provide a concise, 3-bullet diagnosis with the exact recommended fix (e.g. Proto
 		return "", err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(data))
 	if err != nil {
 		return "", err
 	}
