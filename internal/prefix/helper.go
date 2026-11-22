@@ -6,25 +6,31 @@ import (
 	"path/filepath"
 )
 
-// GetWineserverBin resolves the path to the wineserver binary associated with the given Proton runner.
-func GetWineserverBin(protonPath string) string {
+// FindProtonTool locates a tool binary (such as "wineserver" or "wine") in the Proton distribution
+// or falls back to system PATH.
+func FindProtonTool(protonPath, toolName string) string {
 	if protonPath != "" {
 		pDir := filepath.Dir(protonPath)
-		cand1 := filepath.Join(pDir, "files/bin/wineserver")
+		cand1 := filepath.Join(pDir, "files/bin", toolName)
 		if _, err := os.Stat(cand1); err == nil {
 			return cand1
 		}
-		cand2 := filepath.Join(pDir, "dist/bin/wineserver")
+		cand2 := filepath.Join(pDir, "dist/bin", toolName)
 		if _, err := os.Stat(cand2); err == nil {
 			return cand2
 		}
 	}
 
-	if sysWs, err := exec.LookPath("wineserver"); err == nil {
-		return sysWs
+	if sysBin, err := exec.LookPath(toolName); err == nil {
+		return sysBin
 	}
 
 	return ""
+}
+
+// GetWineserverBin resolves the path to the wineserver binary associated with the given Proton runner.
+func GetWineserverBin(protonPath string) string {
+	return FindProtonTool(protonPath, "wineserver")
 }
 
 // Flush performs a complete, safe flush of the Wine prefix:

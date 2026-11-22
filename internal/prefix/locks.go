@@ -21,7 +21,7 @@ func CleanStaleLocks() ([]string, error) {
 		return nil, err
 	}
 
-	cleaned := make([]string, 0)
+	var cleaned []string
 
 	for _, lockPath := range lockFiles {
 		fd, err := syscall.Open(lockPath, syscall.O_RDWR, 0600)

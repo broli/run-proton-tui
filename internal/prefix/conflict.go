@@ -32,7 +32,7 @@ func ListOtherWineProcesses(currentPrefix string) ([]ProcessConflict, error) {
 		return nil, err
 	}
 
-	conflicts := make([]ProcessConflict, 0)
+	var conflicts []ProcessConflict
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -69,15 +69,7 @@ func ListOtherWineProcesses(currentPrefix string) ([]ProcessConflict, error) {
 			continue
 		}
 
-		pfxMatch := ""
-		for _, envEntry := range bytes.Split(envBytes, []byte{0}) {
-			str := string(envEntry)
-			if strings.HasPrefix(str, "WINEPREFIX=") {
-				pfxMatch = strings.TrimPrefix(str, "WINEPREFIX=")
-				break
-			}
-		}
-
+		pfxMatch := extractWinePrefix(envBytes)
 		if pfxMatch != "" {
 			realPfx, err := filepath.EvalSymlinks(pfxMatch)
 			if err == nil {
@@ -151,22 +143,40 @@ func KillPrefixOrphans(targetPrefix string) (int, error) {
 			continue
 		}
 
-		for _, envEntry := range bytes.Split(envBytes, []byte{0}) {
-			str := string(envEntry)
-			if strings.HasPrefix(str, "WINEPREFIX=") {
-				pfxMatch := strings.TrimPrefix(str, "WINEPREFIX=")
-				if realPfx, err := filepath.EvalSymlinks(pfxMatch); err == nil {
-					pfxMatch = realPfx
+		pfxMatch := extractWinePrefix(envBytes)
+		if pfxMatch != "" {
+			if realPfx, err := filepath.EvalSymlinks(pfxMatch); err == nil {
+				pfxMatch = realPfx
+			}
+			if pfxMatch == canonicalTarget {
+				if proc, err := os.FindProcess(pid); err == nil && proc.Signal(syscall.SIGKILL) == nil {
+					killed++
 				}
-				if pfxMatch == canonicalTarget {
-					if proc, err := os.FindProcess(pid); err == nil && proc.Signal(syscall.SIGKILL) == nil {
-						killed++
-					}
-				}
-				break
 			}
 		}
 	}
 
 	return killed, nil
+}
+
+var winePrefixKey = []byte("WINEPREFIX=")
+
+func extractWinePrefix(env []byte) string {
+	remaining := env
+	for len(remaining) > 0 {
+		idx := bytes.Index(remaining, winePrefixKey)
+		if idx == -1 {
+			return ""
+		}
+		// Verify start boundary: must be at offset 0 or preceded by null byte
+		if idx == 0 || remaining[idx-1] == 0 {
+			val := remaining[idx+len(winePrefixKey):]
+			if end := bytes.IndexByte(val, 0); end != -1 {
+				return string(val[:end])
+			}
+			return string(val)
+		}
+		remaining = remaining[idx+len(winePrefixKey):]
+	}
+	return ""
 }
