@@ -143,19 +143,8 @@ func ReadRegistryOverridesSeparated(prefixDir string) (userOverrides, systemDefa
 
 
 func resolveWineBin(protonPath string) (string, error) {
-	if protonPath != "" {
-		pDir := filepath.Dir(protonPath)
-		wineBin := filepath.Join(pDir, "files/bin/wine")
-		if _, err := os.Stat(wineBin); err == nil {
-			return wineBin, nil
-		}
-		wineBin = filepath.Join(pDir, "dist/bin/wine")
-		if _, err := os.Stat(wineBin); err == nil {
-			return wineBin, nil
-		}
-	}
-	if sysWine, err := exec.LookPath("wine"); err == nil {
-		return sysWine, nil
+	if wineBin := prefix.FindProtonTool(protonPath, "wine"); wineBin != "" {
+		return wineBin, nil
 	}
 	return "", fmt.Errorf("wine binary not found to execute reg command")
 }
