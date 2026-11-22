@@ -91,7 +91,7 @@ func ClearPreset(cfg *config.GameConfig) {
 	cfg.PresetName = ""
 	cfg.UmuID = ""
 	cfg.DisplayFile = ""
-	cfg.WaitProcesses = make([]string, 0)
+	cfg.WaitProcesses = nil
 }
 
 // CuratedPresets contains tested configurations for major standalone/non-Steam titles.

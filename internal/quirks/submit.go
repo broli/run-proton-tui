@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
@@ -50,17 +51,27 @@ func GenerateQuirkRecipe(gameDir string, cfg *config.GameConfig) (string, string
 	sb.WriteString(fmt.Sprintf("- **CPU P-Core Pinning**: `%v` (Mask: `%s`)\n", cfg.UsePCores, cfg.PCoresMask))
 
 	if len(cfg.DLLOverrides) > 0 {
+		var dllKeys []string
+		for k := range cfg.DLLOverrides {
+			dllKeys = append(dllKeys, k)
+		}
+		slices.Sort(dllKeys)
 		sb.WriteString("\n### DLL Overrides\n```toml\n[dll_overrides]\n")
-		for k, v := range cfg.DLLOverrides {
-			sb.WriteString(fmt.Sprintf("%s = %q\n", k, v))
+		for _, k := range dllKeys {
+			sb.WriteString(fmt.Sprintf("%s = %q\n", k, cfg.DLLOverrides[k]))
 		}
 		sb.WriteString("```\n")
 	}
 
 	if len(cfg.EnvVars) > 0 {
+		var envKeys []string
+		for k := range cfg.EnvVars {
+			envKeys = append(envKeys, k)
+		}
+		slices.Sort(envKeys)
 		sb.WriteString("\n### Environment Variables\n```bash\n")
-		for k, v := range cfg.EnvVars {
-			sb.WriteString(fmt.Sprintf("export %s=%q\n", k, v))
+		for _, k := range envKeys {
+			sb.WriteString(fmt.Sprintf("export %s=%q\n", k, cfg.EnvVars[k]))
 		}
 		sb.WriteString("```\n")
 	}
