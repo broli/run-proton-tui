@@ -11,6 +11,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	submenuLabelStyle = lipgloss.NewStyle().Bold(true).Foreground(style.ColorText)
+	submenuStateStyle = lipgloss.NewStyle().Foreground(style.ColorSecondary)
+)
+
 // SubMenuType represents which category dialog is active.
 type SubMenuType int
 
@@ -208,12 +213,12 @@ func (v *SubMenuView) View() string {
 
 	switch v.Type {
 	case MenuTarget:
-		title = "🎯 TARGET & RUNNER COMPATIBILITY"
+		title = "TARGET & RUNNER COMPATIBILITY"
 		desc = "Select target binary, Proton runner version, quirks preset, and ProtonDB ratings"
 
 		pfxPreset := "Standard Defaults"
 		if cfg.PresetName != "" {
-			pfxPreset = "⚡ " + cfg.PresetName
+			pfxPreset = cfg.PresetName
 		}
 
 		pdbStatus := "Unknown / Unrated"
@@ -239,7 +244,7 @@ func (v *SubMenuView) View() string {
 		}
 
 	case MenuDisplay:
-		title = "📺 DISPLAY & GAMESCOPE SANDBOX"
+		title = "DISPLAY & GAMESCOPE SANDBOX"
 		desc = "Configure display outputs, monitor size detection, and Gamescope scaling"
 
 		gsStatus := style.BadgeMuted.Render("OFF (Native Window)")
@@ -283,7 +288,7 @@ func (v *SubMenuView) View() string {
 		}
 
 	case MenuHardware:
-		title = "⚡ HARDWARE & ENGINE PERFORMANCE"
+		title = "HARDWARE & ENGINE PERFORMANCE"
 		desc = "GPU offloading, CPU thread affinity, and accessibility bridge"
 
 		pcoreStatus := style.BadgeMuted.Render("OFF (All Threads)")
@@ -378,14 +383,8 @@ func (v *SubMenuView) View() string {
 		}
 	}
 
-	header := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(style.ColorPrimary).
-		Render(title)
-
-	subHeader := lipgloss.NewStyle().
-		Foreground(style.ColorMuted).
-		Render(desc)
+	header := style.TitleStyle.Render(title)
+	subHeader := style.SubheaderStyle.Render(desc)
 
 	divider := lipgloss.NewStyle().
 		Foreground(style.ColorBorder).
@@ -402,8 +401,8 @@ func (v *SubMenuView) View() string {
 
 	for _, it := range items {
 		kBadge := style.KeyBadge.Render(it.keys)
-		lblStr := lipgloss.NewStyle().Bold(true).Foreground(style.ColorText).Render(it.label)
-		stStr := lipgloss.NewStyle().Foreground(style.ColorSecondary).Render(it.state)
+		lblStr := submenuLabelStyle.Render(it.label)
+		stStr := submenuStateStyle.Render(it.state)
 
 		b.WriteString(fmt.Sprintf("  %s %-32s %s\n\n", kBadge, lblStr, stStr))
 	}

@@ -1,10 +1,11 @@
 package views
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/pathutil"
@@ -35,12 +36,12 @@ func DiscoverExecutables(gameDir string) []ExeItem {
 	var items []ExeItem
 	baseDepth := strings.Count(gameDir, string(os.PathSeparator))
 
-	_ = filepath.Walk(gameDir, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.WalkDir(gameDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if info.IsDir() {
-			name := info.Name()
+		if d.IsDir() {
+			name := d.Name()
 			if pathutil.IsIgnoredDir(name) {
 				return filepath.SkipDir
 			}
@@ -50,7 +51,11 @@ func DiscoverExecutables(gameDir string) []ExeItem {
 			return nil
 		}
 
-		if strings.HasSuffix(strings.ToLower(info.Name()), ".exe") {
+		if strings.HasSuffix(strings.ToLower(d.Name()), ".exe") {
+			info, err := d.Info()
+			if err != nil {
+				return nil
+			}
 			rel, _ := filepath.Rel(gameDir, path)
 			items = append(items, ExeItem{
 				RelativePath:   rel,
@@ -67,30 +72,39 @@ func DiscoverExecutables(gameDir string) []ExeItem {
 	// 3. Binaries matching directory name come earlier
 	// 4. Larger file size comes earlier
 	dirBase := strings.ToLower(filepath.Base(gameDir))
-	sort.SliceStable(items, func(i, j int) bool {
-		iIs3D := items[i].Classification.Type == runner.ExeType3DGame
-		jIs3D := items[j].Classification.Type == runner.ExeType3DGame
-		if iIs3D != jIs3D {
-			return iIs3D
+	slices.SortStableFunc(items, func(a, b ExeItem) int {
+		aIs3D := a.Classification.Type == runner.ExeType3DGame
+		bIs3D := b.Classification.Type == runner.ExeType3DGame
+		if aIs3D != bIs3D {
+			if aIs3D {
+				return -1
+			}
+			return 1
 		}
 
-		iRel := strings.ToLower(items[i].RelativePath)
-		jRel := strings.ToLower(items[j].RelativePath)
-		iInGameDir := strings.HasPrefix(iRel, "games/") || strings.HasPrefix(iRel, "game/")
-		jInGameDir := strings.HasPrefix(jRel, "games/") || strings.HasPrefix(jRel, "game/")
-		if iInGameDir != jInGameDir {
-			return iInGameDir
+		aRel := strings.ToLower(a.RelativePath)
+		bRel := strings.ToLower(b.RelativePath)
+		aInGameDir := strings.HasPrefix(aRel, "games/") || strings.HasPrefix(aRel, "game/")
+		bInGameDir := strings.HasPrefix(bRel, "games/") || strings.HasPrefix(bRel, "game/")
+		if aInGameDir != bInGameDir {
+			if aInGameDir {
+				return -1
+			}
+			return 1
 		}
 
-		iBase := strings.ToLower(filepath.Base(items[i].RelativePath))
-		jBase := strings.ToLower(filepath.Base(items[j].RelativePath))
-		iMatch := strings.Contains(iBase, dirBase)
-		jMatch := strings.Contains(jBase, dirBase)
-		if iMatch != jMatch {
-			return iMatch
+		aBase := strings.ToLower(filepath.Base(a.RelativePath))
+		bBase := strings.ToLower(filepath.Base(b.RelativePath))
+		aMatch := strings.Contains(aBase, dirBase)
+		bMatch := strings.Contains(bBase, dirBase)
+		if aMatch != bMatch {
+			if aMatch {
+				return -1
+			}
+			return 1
 		}
 
-		return items[i].Size > items[j].Size
+		return cmp.Compare(b.Size, a.Size)
 	})
 
 	return items
@@ -175,7 +189,7 @@ func (p *ExePickerView) Update(msg tea.Msg) (*ExePickerView, bool, bool) {
 // View renders the executable list.
 func (p *ExePickerView) View() string {
 	var sb strings.Builder
-	sb.WriteString(style.TitleStyle.Render("🎯 Select Game Executable (Press [1-9] or [Enter]/[Space] to Select, [i] Filter Setups, [Esc] to Cancel)"))
+	sb.WriteString(style.TitleStyle.Render("Select Game Executable (Press [1-9] or [Enter]/[Space] to Select, [i] Filter Setups, [Esc] to Cancel)"))
 	sb.WriteString("\n\n")
 
 	if len(p.FilteredItems) == 0 {
@@ -185,10 +199,10 @@ func (p *ExePickerView) View() string {
 
 	for i, item := range p.FilteredItems {
 		cursor := "  "
-		lineStyle := lipgloss.NewStyle().Foreground(style.ColorText)
+		lineStyle := style.ItemStyle
 		if i == p.Cursor {
 			cursor = "👉"
-			lineStyle = lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight)
+			lineStyle = style.SelectedItemStyle
 		}
 
 		numKey := ""

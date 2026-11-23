@@ -94,7 +94,7 @@ func BackupSaves(prefixDir string, gameName string) (string, error) {
 
 func copyDir(src, dst string) (int, error) {
 	count := 0
-	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -105,13 +105,18 @@ func copyDir(src, dst string) (int, error) {
 		}
 		targetPath := filepath.Join(dst, rel)
 
-		if info.IsDir() {
+		if d.IsDir() {
 			return os.MkdirAll(targetPath, 0755)
 		}
 
 		// Don't copy logs, temp files or large crash dumps
-		lower := strings.ToLower(info.Name())
+		lower := strings.ToLower(d.Name())
 		if strings.HasSuffix(lower, ".log") || strings.HasSuffix(lower, ".tmp") || strings.HasSuffix(lower, ".dmp") {
+			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil {
 			return nil
 		}
 

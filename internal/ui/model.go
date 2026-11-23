@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -61,6 +62,8 @@ type Model struct {
 	ActiveOverrides map[string]string
 	GPUInfo         *hardware.GPUInfo
 	CPUTopo         *hardware.CPUTopology
+	HasNTSync       bool
+	HasGamescope    bool
 	StatusMessage   string
 	PrefixCleaned   bool
 	Width           int
@@ -113,6 +116,9 @@ func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 	emuInfo, _ := integrations.ScanEmulators(gameDir)
 	gpuInfo, _ := hardware.DetectGPU()
 	cpuTopo, _ := hardware.DetectCPUTopology()
+	_, gsErr := exec.LookPath("gamescope")
+	hasGamescope := gsErr == nil
+	hasNTSync := hardware.HasNTSync()
 
 	// If target_exe is empty but exes were discovered, pick the first
 	if cfg.TargetExe == "" && len(exes) > 0 {
@@ -170,6 +176,8 @@ func NewModel(gameDir string, cfg *config.GameConfig) (*Model, error) {
 		ActiveOverrides: activeOverrides,
 		GPUInfo:         gpuInfo,
 		CPUTopo:         cpuTopo,
+		HasNTSync:       hasNTSync,
+		HasGamescope:    hasGamescope,
 		Width:           termWidth,
 		Height:          termHeight,
 		ShouldLaunch:    false,
@@ -300,7 +308,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if msg.Report != nil {
 			m.ProtonDB = msg.Report
 			m.Config.AppID = msg.AppID
-			_ = config.SaveConfig(m.GameDir, m.Config)
+			m.saveConfig()
 			if msg.Report.Title != "" {
 				m.StatusMessage = fmt.Sprintf("ProtonDB: %s (%d reports) - %s", msg.Report.GetTierBadge(), msg.Report.Total, msg.Report.Title)
 			} else {
@@ -355,7 +363,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.StatusMessage = fmt.Sprintf("Selected binary: %s", m.Config.TargetExe)
 				}
-				_ = config.SaveConfig(m.GameDir, m.Config)
+				m.saveConfig()
 				m.State = StateDashboard
 			} else if cancel {
 				m.State = StateDashboard
@@ -368,14 +376,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if applied {
 					if preset := m.PresetPickerView.Preset; preset != nil {
 						preset.ApplyToConfig(m.Config, true)
-						_ = config.SaveConfig(m.GameDir, m.Config)
+						m.saveConfig()
 						m.StatusMessage = fmt.Sprintf("Applied %s preset!", preset.Name)
 					}
 					m.State = StateDashboard
 				} else if cleared {
 					quirks.ClearPreset(m.Config)
 					m.StatusMessage = "Quirks preset cleared; using standard defaults"
-					_ = config.SaveConfig(m.GameDir, m.Config)
+					m.saveConfig()
 					m.State = StateDashboard
 				} else if cancel {
 					m.State = StateDashboard
@@ -387,7 +395,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.DetectionMenuView != nil {
 				done, applied := m.DetectionMenuView.Update(msg)
 				if applied {
-					_ = config.SaveConfig(m.GameDir, m.Config)
+					m.saveConfig()
 					m.StatusMessage = m.DetectionMenuView.StatusMessage
 				}
 				if done {
@@ -401,7 +409,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ProtonPickerView, selected, cancel = m.ProtonPickerView.Update(msg)
 			if selected {
 				m.Config.ProtonPath = m.ProtonPickerView.Selected.Path
-				_ = config.SaveConfig(m.GameDir, m.Config)
+				m.saveConfig()
 				m.State = StateDashboard
 			} else if cancel {
 				m.State = StateDashboard
@@ -419,7 +427,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				for k, v := range m.Config.DLLOverrides {
 					m.ActiveOverrides[k] = v
 				}
-				_ = config.SaveConfig(m.GameDir, m.Config)
+				m.saveConfig()
 				m.State = StateDashboard
 			}
 			return m, nil
@@ -470,7 +478,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				case views.TelemetryActionToggle:
 					m.Config.EnableLocalTelemetry = !m.Config.EnableLocalTelemetry
-					_ = config.SaveConfig(m.GameDir, m.Config)
+					m.saveConfig()
 					if m.Config.EnableLocalTelemetry {
 						m.TelemetryView.StatusMessage = "Local session telemetry ENABLED (Local-only, anonymous logging)."
 					} else {
@@ -544,11 +552,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.GamescopeView != nil {
 				done, detected := m.GamescopeView.Update(msg)
 				if detected {
-					_ = config.SaveConfig(m.GameDir, m.Config)
+					m.saveConfig()
 					m.updateSubMenuData()
 				}
 				if done {
-					_ = config.SaveConfig(m.GameDir, m.Config)
+					m.saveConfig()
 					m.updateSubMenuData()
 					if m.PrevState != 0 {
 						m.State = m.PrevState
@@ -571,7 +579,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 						hasPrimeRun := m.GPUInfo != nil && m.GPUInfo.HasPrimeRun
 						m.Config.ResetToSafeDefaults(hasPrimeRun, pcoresMask)
-						_ = config.SaveConfig(m.GameDir, m.Config)
+						m.saveConfig()
 						m.ActiveOverrides = make(map[string]string)
 						m.StatusMessage = "✓ Settings successfully reverted to safe defaults (Target & Runner preserved)"
 						m.updateSubMenuData()
@@ -593,7 +601,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.ProfilesView != nil {
 				activeChanged, configModified, returnToDash := m.ProfilesView.Update(msg)
 				if configModified {
-					_ = config.SaveConfigFile(m.GameDir, m.ConfigFile)
+					m.saveConfigFile()
 				}
 				if activeChanged {
 					m.Config = m.ConfigFile.GetActiveProfile()
@@ -637,7 +645,7 @@ func (m *Model) getSubMenuData() views.SubMenuData {
 		ProtonName:      pName,
 		ProtonDB:        m.ProtonDB,
 		HasPrimeRun:     m.GPUInfo != nil && m.GPUInfo.HasPrimeRun,
-		HasGamescope:    true,
+		HasGamescope:    m.HasGamescope,
 		ActiveOverrides: m.ActiveOverrides,
 		OpaqueBackdrop:  m.Config.OpaqueBackdrop,
 		StatusMessage:   m.StatusMessage,
@@ -699,7 +707,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 
 	case views.ActionToggleGamescope:
 		m.Config.UseGamescope = !m.Config.UseGamescope
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		if m.Config.UseGamescope {
 			geomStr := "Native"
 			if m.Config.GamescopeWidth > 0 && m.Config.GamescopeHeight > 0 {
@@ -721,7 +729,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 
 	case views.ActionTogglePCores:
 		m.Config.UsePCores = !m.Config.UsePCores
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		if m.Config.UsePCores {
 			m.StatusMessage = fmt.Sprintf("CPU P-Core Pinning ENABLED (Threads %s)", m.Config.PCoresMask)
 		} else {
@@ -732,7 +740,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 
 	case views.ActionTogglePrimeRun:
 		m.Config.UsePrimeRun = !m.Config.UsePrimeRun
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		if m.Config.UsePrimeRun {
 			m.StatusMessage = "GPU Runner: prime-run (Dedicated GPU)"
 		} else {
@@ -743,7 +751,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 
 	case views.ActionToggleXalia:
 		m.Config.UseXalia = !m.Config.UseXalia
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		if m.Config.UseXalia {
 			m.StatusMessage = "Proton Xalia UI Bridge ENABLED"
 		} else {
@@ -753,19 +761,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		return m, nil
 
 	case views.ActionCycleDisplayOutput:
-		outputs := hardware.GetConnectedDisplayOutputs()
-		options := append([]string{"auto"}, outputs...)
-		curIdx := 0
-		for i, o := range options {
-			if strings.EqualFold(o, m.Config.GamescopeOutput) {
-				curIdx = i
-				break
-			}
-		}
-		nextIdx := (curIdx + 1) % len(options)
-		m.Config.GamescopeOutput = options[nextIdx]
-		_ = config.SaveConfig(m.GameDir, m.Config)
-		m.StatusMessage = fmt.Sprintf("Display output set to: %s", m.Config.GamescopeOutput)
+		m.cycleDisplayOutput()
 		m.updateSubMenuData()
 		return m, nil
 
@@ -775,14 +771,14 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		m.Config.GamescopeWidth = w
 		m.Config.GamescopeHeight = h
 		m.Config.GamescopeRefresh = 0 // Untouched / Native
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 
 		dispName := target
 		if dispName == "" || strings.EqualFold(dispName, "auto") {
 			dispName = "Auto-detected monitor"
 		}
 		if err != nil {
-			m.StatusMessage = fmt.Sprintf("⚠️ Detection fallback (%s): %dx%d (Refresh: Untouched / Native)", dispName, w, h)
+			m.StatusMessage = fmt.Sprintf("Detection fallback (%s): %dx%d (Refresh: Untouched / Native)", dispName, w, h)
 		} else {
 			m.StatusMessage = fmt.Sprintf("✓ Detected %s: %dx%d (Refresh: Untouched / Native)", dispName, w, h)
 		}
@@ -837,7 +833,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 
 	case views.ActionToggleLogging:
 		m.Config.EnableLogging = !m.Config.EnableLogging
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		if m.Config.EnableLogging {
 			m.StatusMessage = "Session logging ENABLED (writes to .logs/ on launch)"
 		} else {
@@ -855,7 +851,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 
 	case views.ActionToggleBackdrop:
 		m.Config.OpaqueBackdrop = !m.Config.OpaqueBackdrop
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		if m.Config.OpaqueBackdrop {
 			m.StatusMessage = "Backdrop: Solid Dark"
 		} else {
@@ -881,7 +877,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 
 	case views.ActionResetGamescope:
 		m.Config.ResetGamescopeToDefaults()
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		m.StatusMessage = "✓ Display & Gamescope reset to safe defaults (1080p, Linear, SDR, Untouched Hz)"
 		m.updateSubMenuData()
 		return m, nil
@@ -893,7 +889,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 		}
 		hasPrimeRun := m.GPUInfo != nil && m.GPUInfo.HasPrimeRun
 		m.Config.ResetHardwareToDefaults(hasPrimeRun, pcoresMask)
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		m.StatusMessage = "✓ Hardware performance reset to hardware-detected safe defaults"
 		m.updateSubMenuData()
 		return m, nil
@@ -901,7 +897,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 	case views.ActionResetOverrides:
 		m.Config.DLLOverrides = make(map[string]string)
 		m.ActiveOverrides = make(map[string]string)
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		m.StatusMessage = "✓ DLL overrides cleared back to clean system registry defaults"
 		m.updateSubMenuData()
 		return m, nil
@@ -914,7 +910,7 @@ func (m *Model) handleSubMenuAction(act views.SubMenuAction) (tea.Model, tea.Cmd
 	case views.ActionGenerateBugReport:
 		ver := m.Version
 		if ver == "" {
-			ver = "0.11.1"
+			ver = "0.11.2"
 		}
 		_, err := diagnostics.OpenBugReport(diagnostics.BugReportOptions{
 			Version: ver,
@@ -939,7 +935,7 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter", "1":
 		m.ShouldLaunch = true
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		return m, tea.Quit
 
 	case "2":
@@ -1000,22 +996,22 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "g":
 		m.Config.UseGamescope = !m.Config.UseGamescope
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		return m, nil
 
 	case "p":
 		m.Config.UsePCores = !m.Config.UsePCores
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		return m, nil
 
 	case "v":
 		m.Config.UsePrimeRun = !m.Config.UsePrimeRun
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		return m, nil
 
 	case "x":
 		m.Config.UseXalia = !m.Config.UseXalia
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		return m, nil
 
 	case "o":
@@ -1043,19 +1039,7 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "m", "M":
-		outputs := hardware.GetConnectedDisplayOutputs()
-		options := append([]string{"auto"}, outputs...)
-		curIdx := 0
-		for i, o := range options {
-			if strings.EqualFold(o, m.Config.GamescopeOutput) {
-				curIdx = i
-				break
-			}
-		}
-		nextIdx := (curIdx + 1) % len(options)
-		m.Config.GamescopeOutput = options[nextIdx]
-		_ = config.SaveConfig(m.GameDir, m.Config)
-		m.StatusMessage = fmt.Sprintf("Display output set to: %s", m.Config.GamescopeOutput)
+		m.cycleDisplayOutput()
 		return m, nil
 
 	case "h", "H":
@@ -1089,7 +1073,7 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "L":
 		m.Config.EnableLogging = !m.Config.EnableLogging
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		if m.Config.EnableLogging {
 			m.StatusMessage = "Session logging ENABLED (writes to .logs/ on launch)"
 		} else {
@@ -1099,7 +1083,7 @@ func (m *Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "b":
 		m.Config.OpaqueBackdrop = !m.Config.OpaqueBackdrop
-		_ = config.SaveConfig(m.GameDir, m.Config)
+		m.saveConfig()
 		return m, nil
 
 	case "q", "ctrl+c":
@@ -1184,10 +1168,11 @@ func (m *Model) View() string {
 			Emulator:          m.Emulator,
 			ProtonDB:          m.ProtonDB,
 			Classification:    runner.ClassifyExecutable(m.Config.TargetExe),
-			HasNTSync:         hardware.HasNTSync(),
+			HasNTSync:         m.HasNTSync,
 			HasPrimeRun:       m.GPUInfo != nil && m.GPUInfo.HasPrimeRun,
-			HasGamescope:      true,
+			HasGamescope:      m.HasGamescope,
 			ActiveOverrides:   m.ActiveOverrides,
+			PrefixActive:      prefix.IsInitialized(prefix.DefaultPrefixDir(m.GameDir)),
 			ProtonName:        m.getProtonName(),
 			ActiveProfileName: m.ConfigFile.ActiveProfile,
 			ProfileCount:      len(m.ConfigFile.Profiles),
@@ -1215,10 +1200,7 @@ func (m *Model) contributeProtonDB() {
 
 	clipErr := launcher.CopyToClipboard(report)
 
-	targetURL := fmt.Sprintf("https://www.protondb.com/app/%s", m.Config.AppID)
-	if !m.Config.HasValidAppID() {
-		targetURL = "https://www.protondb.com/contribute"
-	}
+	targetURL := m.Config.ProtonDBURL()
 	openErr := launcher.OpenURL(targetURL)
 
 	if clipErr != nil {
@@ -1232,4 +1214,36 @@ func (m *Model) contributeProtonDB() {
 	if m.ProtonDBView != nil {
 		m.ProtonDBView.Status = m.StatusMessage
 	}
+}
+
+func (m *Model) cycleDisplayOutput() {
+	outputs := hardware.GetConnectedDisplayOutputs()
+	options := append([]string{"auto"}, outputs...)
+	curIdx := 0
+	for i, o := range options {
+		if strings.EqualFold(o, m.Config.GamescopeOutput) {
+			curIdx = i
+			break
+		}
+	}
+	nextIdx := (curIdx + 1) % len(options)
+	m.Config.GamescopeOutput = options[nextIdx]
+	m.saveConfig()
+	m.StatusMessage = fmt.Sprintf("Display output set to: %s", m.Config.GamescopeOutput)
+}
+
+func (m *Model) saveConfig() bool {
+	if err := config.SaveConfig(m.GameDir, m.Config); err != nil {
+		m.StatusMessage = fmt.Sprintf("Error saving configuration: %v", err)
+		return false
+	}
+	return true
+}
+
+func (m *Model) saveConfigFile() bool {
+	if err := config.SaveConfigFile(m.GameDir, m.ConfigFile); err != nil {
+		m.StatusMessage = fmt.Sprintf("Error saving configuration: %v", err)
+		return false
+	}
+	return true
 }

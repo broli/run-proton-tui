@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -29,7 +30,7 @@ import (
 )
 
 var (
-	version = "0.11.1"
+	version = "0.11.2"
 )
 
 func main() {
@@ -38,7 +39,7 @@ func main() {
 	flagYes := flag.Bool("y", false, "Alias for --now")
 	flagClean := flag.Bool("clean", false, "Clean / reset Wine prefix before launch (with automatic save backup)")
 	flagCleanShort := flag.Bool("c", false, "Alias for --clean")
-	flagCleanZero := flag.Bool("clean-zero", false, "Launch in pure upstream Proton baseline with zero extra flags or wrappers (Gate 1)")
+	flagCleanZero := flag.Bool("clean-zero", false, "Launch in pure upstream Proton baseline with zero extra flags or wrappers")
 	flagVanilla := flag.Bool("vanilla", false, "Alias for --clean-zero")
 	flagLog := flag.Bool("log", false, "Enable verbose Proton & DXVK logging to .logs/")
 	flagLogShort := flag.Bool("v", false, "Alias for --log")
@@ -46,7 +47,8 @@ func main() {
 	flagDiag := flag.Bool("diag", false, "Alias for --diagnostics")
 	flagDiagShort := flag.Bool("d", false, "Alias for --diagnostics")
 	flagVersion := flag.Bool("version", false, "Show version information")
-	flagDumpSpec := flag.Bool("dump-spec", false, "Export system and game details for an AI assistant (like ChatGPT or Claude) to configure your game")
+	flagDumpSpec := flag.Bool("dump-spec", false, "Export machine-readable system and game configuration specification as JSON")
+	flagSpec := flag.Bool("spec", false, "Alias for --dump-spec")
 	flagHelpDump := flag.Bool("helpdump", false, "Alias for --dump-spec")
 	flagCreateDesktop := flag.Bool("create-desktop", false, "Generate an XDG .desktop application launcher icon for this game")
 	flagDesktopDir := flag.String("desktop-dir", "applications", "Destination for .desktop shortcut (applications, desktop, local)")
@@ -87,7 +89,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  rpt --clean-zero --now          # Test pure upstream Proton baseline (zero extra flags)\n")
 		fmt.Fprintf(os.Stderr, "  rpt --clean --now               # Safe prefix reset followed by instant launch\n")
 		fmt.Fprintf(os.Stderr, "  rpt --create-desktop            # Create 1-click desktop/applications menu shortcut\n")
-		fmt.Fprintf(os.Stderr, "  rpt --dump-spec                 # Output system details and hook guidance for AI assistants\n")
+		fmt.Fprintf(os.Stderr, "  rpt --dump-spec                 # Output system specification and runtime configuration as JSON\n")
 		fmt.Fprintf(os.Stderr, "  rpt --report-protondb           # Generate standardized ProtonDB Markdown report & copy to clipboard\n")
 		fmt.Fprintf(os.Stderr, "  rpt --submit-quirk              # Submit game quirks to broli/run-proton-tui under MIT License\n")
 		fmt.Fprintf(os.Stderr, "  rpt --bug-report                # Generate sanitized bug report, copy to clipboard & open GitHub\n")
@@ -95,7 +97,7 @@ func main() {
 
 	flag.Parse()
 
-	if *flagDumpSpec || *flagHelpDump {
+	if *flagDumpSpec || *flagHelpDump || *flagSpec {
 		specBytes, err := diagnostics.GenerateSpecDump(version)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating specification dump: %v\n", err)
@@ -156,7 +158,7 @@ func main() {
 				os.Exit(1)
 			}
 			if skipTUI && *flagGuess {
-				fmt.Println(style.BadgeWarning.Render("⚠️  No rpt.toml found; proceeding with best-guess heuristics (--guess)"))
+				fmt.Println(style.BadgeWarning.Render("Warning: No rpt.toml found; proceeding with best-guess heuristics (--guess)"))
 			}
 			cfgFile = config.NewConfigFileWithDefault()
 			config.ApplyHardwareSafeStandards(cfgFile.GetActiveProfile())
@@ -205,14 +207,14 @@ func main() {
 	// Auto-detect quirks preset only if guessing is explicitly allowed
 	if cfg.PresetName == "" && cfg.TargetExe != "" && *flagGuess {
 		if p := quirks.DetectQuirks(gameDir, cfg.TargetExe, cfg.AppID, cfg.ProtonPath); p != nil {
-			fmt.Printf("💡 Detected and applied game preset: %s (%s)\n", p.Name, p.MatchedSource)
+			fmt.Printf("Detected and applied game preset: %s (%s)\n", p.Name, p.MatchedSource)
 			p.ApplyToConfig(cfg, false)
 		}
 	}
 
 	if *flagDryRun || *flagPrintCmd {
 		fmt.Println("================================================================================")
-		fmt.Printf("🚀 rpt Launch Command Dry-Run (Profile: %s)\n", cfgFile.ActiveProfile)
+		fmt.Printf("rpt Launch Command Dry-Run (Profile: %s)\n", cfgFile.ActiveProfile)
 		fmt.Println("================================================================================")
 		fmt.Printf("• Game Directory:   %s\n", gameDir)
 		fmt.Printf("• Target Binary:    %s\n", cfg.TargetExe)
@@ -239,8 +241,13 @@ func main() {
 		}
 		fmt.Println("\n--- Injected Environment Overrides ---")
 		if len(cfg.EnvVars) > 0 {
-			for k, v := range cfg.EnvVars {
-				fmt.Printf("  export %s=%q\n", k, v)
+			var envKeys []string
+			for k := range cfg.EnvVars {
+				envKeys = append(envKeys, k)
+			}
+			slices.Sort(envKeys)
+			for _, k := range envKeys {
+				fmt.Printf("  export %s=%q\n", k, cfg.EnvVars[k])
 			}
 		} else {
 			fmt.Println("  (None)")
@@ -429,7 +436,7 @@ func main() {
 	if *flagDiagnostics || *flagDiag || *flagDiagShort {
 		report := diagnostics.RunPreflightCheck(gameDir, cfg.TargetExe, pfxDir)
 		fmt.Printf("=== Health Report for %s ===\n", filepath.Base(gameDir))
-		fmt.Printf("Target Exe: %s (Exists: %v, Auto-Fixed +x: %v)\n", cfg.TargetExe, report.TargetExeExists, report.TargetExeFixed)
+		fmt.Printf("Target Exe: %s (Exists: %v)\n", cfg.TargetExe, report.TargetExeExists)
 		fmt.Printf("Inside Prefix Hazard: %v\n", report.InsidePrefixHazard)
 		fmt.Printf("Game Dir Writable: %v\n", report.GameDirWritable)
 		fmt.Printf("Prefix Dir Writable: %v\n", report.PrefixDirWritable)
@@ -439,7 +446,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	// 2. Pre-flight health check (auto-adds +x if missing)
+	// Pre-flight health check
 	diagnostics.RunPreflightCheck(gameDir, cfg.TargetExe, pfxDir)
 
 	if *flagReportProtonDB {
@@ -455,10 +462,7 @@ func main() {
 		if err := launcher.CopyToClipboard(report); err == nil {
 			fmt.Println("\n[✓] Report copied to system clipboard!")
 		}
-		targetURL := fmt.Sprintf("https://www.protondb.com/app/%s", cfg.AppID)
-		if !cfg.HasValidAppID() {
-			targetURL = "https://www.protondb.com/contribute"
-		}
+		targetURL := cfg.ProtonDBURL()
 		_ = launcher.OpenURL(targetURL)
 		fmt.Printf("[✓] Opened %s in your default browser.\n", targetURL)
 		os.Exit(0)
@@ -577,23 +581,8 @@ func main() {
 
 	// Trap SIGINT (Ctrl+C) and SIGTERM so user aborts can be intercepted cleanly,
 	// child processes safely terminated, prefix flushed, and post-session diagnostics displayed.
-	ctx, cancel := context.WithCancel(context.Background())
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		select {
-		case sig, ok := <-sigChan:
-			if ok && sig != nil {
-				cancel()
-			}
-		case <-ctx.Done():
-		}
-	}()
-	defer func() {
-		signal.Stop(sigChan)
-		cancel()
-	}()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	result, err := runner.RunGame(ctx, opts)
 	if err != nil {

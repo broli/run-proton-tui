@@ -14,6 +14,18 @@ type CleanResult struct {
 	Success   bool
 }
 
+func canonicalizePath(p string) string {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		abs = p
+	}
+	abs = filepath.Clean(abs)
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		return filepath.Clean(real)
+	}
+	return abs
+}
+
 // CheckPrefixContainment inspects if a given path is located inside the prefix directory.
 // This is the core guardrail that prevents users from wiping their game installations.
 func CheckPrefixContainment(prefixDir string, testPath string) bool {
@@ -21,23 +33,8 @@ func CheckPrefixContainment(prefixDir string, testPath string) bool {
 		return false
 	}
 
-	absPrefix, err := filepath.Abs(prefixDir)
-	if err != nil {
-		absPrefix = prefixDir
-	}
-	absPrefix = filepath.Clean(absPrefix)
-	if realPrefix, err := filepath.EvalSymlinks(absPrefix); err == nil {
-		absPrefix = filepath.Clean(realPrefix)
-	}
-
-	absPath, err := filepath.Abs(testPath)
-	if err != nil {
-		absPath = testPath
-	}
-	absPath = filepath.Clean(absPath)
-	if realPath, err := filepath.EvalSymlinks(absPath); err == nil {
-		absPath = filepath.Clean(realPath)
-	}
+	absPrefix := canonicalizePath(prefixDir)
+	absPath := canonicalizePath(testPath)
 
 	if absPath == absPrefix {
 		return true

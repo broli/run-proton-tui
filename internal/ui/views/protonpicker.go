@@ -11,12 +11,19 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	runnerBadgeCol  = lipgloss.NewStyle().Width(16)
+	activeRunnerTag = " " + style.ActiveTagStyle.Render("✓ Active")
+)
+
 // ProtonPickerView handles interactive Proton runner selection.
 type ProtonPickerView struct {
 	Runners     []proton.Runner
 	Cursor      int
 	Selected    proton.Runner
 	CurrentPath string
+	realCurrent string
+	realPaths   []string
 	Width       int
 	Height      int
 }
@@ -25,12 +32,15 @@ type ProtonPickerView struct {
 func NewProtonPickerView(runners []proton.Runner, currentPath string) *ProtonPickerView {
 	cursor := 0
 	realCurrent, _ := filepath.EvalSymlinks(currentPath)
+	realPaths := make([]string, len(runners))
 
+	found := false
 	for i, r := range runners {
 		realR, _ := filepath.EvalSymlinks(r.Path)
-		if r.Path == currentPath || (realCurrent != "" && realR == realCurrent) {
+		realPaths[i] = realR
+		if !found && (r.Path == currentPath || (realCurrent != "" && realR == realCurrent)) {
 			cursor = i
-			break
+			found = true
 		}
 	}
 
@@ -44,6 +54,8 @@ func NewProtonPickerView(runners []proton.Runner, currentPath string) *ProtonPic
 		Cursor:      cursor,
 		Selected:    sel,
 		CurrentPath: currentPath,
+		realCurrent: realCurrent,
+		realPaths:   realPaths,
 		Width:       80,
 		Height:      24,
 	}
@@ -113,15 +125,13 @@ func getBadge(r proton.Runner) string {
 // View renders the Proton runner list.
 func (p *ProtonPickerView) View() string {
 	var sb strings.Builder
-	sb.WriteString(style.TitleStyle.Render("⚡ Select Proton Compatibility Tool (Press [Enter] to Select, [Esc] to Cancel)"))
+	sb.WriteString(style.TitleStyle.Render("Select Proton Compatibility Tool (Press [Enter] to Select, [Esc] to Cancel)"))
 	sb.WriteString("\n\n")
 
 	if len(p.Runners) == 0 {
 		sb.WriteString(style.BadgeWarning.Render("No Proton runners found in Steam or compatibility directories."))
 		return sb.String()
 	}
-
-	realCurrent, _ := filepath.EvalSymlinks(p.CurrentPath)
 
 	maxVisible := 14
 	if p.Height > 18 {
@@ -157,20 +167,23 @@ func (p *ProtonPickerView) View() string {
 	for i := start; i < end; i++ {
 		r := p.Runners[i]
 		cursor := "  "
-		lineStyle := lipgloss.NewStyle().Foreground(style.ColorText)
+		lineStyle := style.ItemStyle
 		if i == p.Cursor {
 			cursor = "👉"
-			lineStyle = lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight)
+			lineStyle = style.SelectedItemStyle
 		}
 
 		badge := getBadge(r)
-		badgeCol := lipgloss.NewStyle().Width(16).Render(badge)
+		badgeCol := runnerBadgeCol.Render(badge)
 
-		realR, _ := filepath.EvalSymlinks(r.Path)
-		isActive := r.Path == p.CurrentPath || (realCurrent != "" && realR == realCurrent)
+		realR := ""
+		if i < len(p.realPaths) {
+			realR = p.realPaths[i]
+		}
+		isActive := r.Path == p.CurrentPath || (p.realCurrent != "" && realR == p.realCurrent)
 		activeTag := ""
 		if isActive {
-			activeTag = " " + lipgloss.NewStyle().Foreground(style.ColorSuccess).Bold(true).Render("✓ Active")
+			activeTag = activeRunnerTag
 		}
 
 		sb.WriteString(fmt.Sprintf("%s %s %s%s\n", cursor, badgeCol, lineStyle.Render(r.Name), activeTag))
@@ -196,14 +209,17 @@ func (p *ProtonPickerView) View() string {
 		cur := p.Runners[p.Cursor]
 		badge := getBadge(cur)
 
-		realCur, _ := filepath.EvalSymlinks(cur.Path)
-		isActive := cur.Path == p.CurrentPath || (realCurrent != "" && realCur == realCurrent)
+		realCur := ""
+		if p.Cursor < len(p.realPaths) {
+			realCur = p.realPaths[p.Cursor]
+		}
+		isActive := cur.Path == p.CurrentPath || (p.realCurrent != "" && realCur == p.realCurrent)
 		activeStatus := ""
 		if isActive {
 			activeStatus = " " + lipgloss.NewStyle().Foreground(style.ColorSuccess).Bold(true).Render("[Currently Configured]")
 		}
 
-		sb.WriteString(fmt.Sprintf(" 💡 %s  %s%s\n", style.HeaderStyle.Render(cur.Name), badge, activeStatus))
+		sb.WriteString(fmt.Sprintf(" %s  %s%s\n", style.HeaderStyle.Render(cur.Name), badge, activeStatus))
 		if cur.Recommendation != "" {
 			sb.WriteString(fmt.Sprintf("    %s\n", style.SubheaderStyle.Render(cur.Recommendation)))
 		}

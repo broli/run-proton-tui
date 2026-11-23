@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -23,12 +23,7 @@ type CPUTopology struct {
 // On Intel hybrid CPUs (like i7-13620H), pinning game threads to P-cores prevents
 // severe stuttering caused by thread migration to Gracemont E-cores.
 func DetectCPUTopology() (*CPUTopology, error) {
-	topo := &CPUTopology{
-		TotalThreads: 0,
-		IsHybrid:     false,
-		PCoresMask:   "",
-		ECoresMask:   "",
-	}
+	topo := &CPUTopology{}
 
 	// 1. Read /proc/cpuinfo to count logical processors and extract CPU model
 	if f, err := os.Open("/proc/cpuinfo"); err == nil {
@@ -106,15 +101,9 @@ func formatCoreRange(cores []int) string {
 		return ""
 	}
 
-	coreSet := make(map[int]bool, len(cores))
-	for _, c := range cores {
-		coreSet[c] = true
-	}
-	sorted := make([]int, 0, len(coreSet))
-	for c := range coreSet {
-		sorted = append(sorted, c)
-	}
-	sort.Ints(sorted)
+	sorted := slices.Clone(cores)
+	slices.Sort(sorted)
+	sorted = slices.Compact(sorted)
 
 	var ranges []string
 	start := sorted[0]

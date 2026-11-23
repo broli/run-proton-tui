@@ -68,3 +68,31 @@ func TestPreserveSavesWithPicturesAndCustomDir(t *testing.T) {
 		t.Errorf("Expected screenshot.png to be preserved in Pictures/, but stat failed: %v", err)
 	}
 }
+
+func TestExtractWinePrefix(t *testing.T) {
+	// False match: variable with suffix WINEPREFIX
+	raw := []byte("FOO=1\x00OTHER_WINEPREFIX=/wrong/path\x00WINEPREFIX=/correct/prefix\x00BAR=2\x00")
+	pfx := extractWinePrefix(raw)
+	if pfx != "/correct/prefix" {
+		t.Errorf("Expected /correct/prefix, got %q", pfx)
+	}
+
+	// First entry
+	rawFirst := []byte("WINEPREFIX=/first/prefix\x00OTHER=val\x00")
+	if pfx := extractWinePrefix(rawFirst); pfx != "/first/prefix" {
+		t.Errorf("Expected /first/prefix, got %q", pfx)
+	}
+
+	// No null terminator at end of buffer
+	rawNoEnd := []byte("FOO=1\x00WINEPREFIX=/end/prefix")
+	if pfx := extractWinePrefix(rawNoEnd); pfx != "/end/prefix" {
+		t.Errorf("Expected /end/prefix, got %q", pfx)
+	}
+
+	// Absent
+	rawNone := []byte("FOO=1\x00BAR=2\x00")
+	if pfx := extractWinePrefix(rawNone); pfx != "" {
+		t.Errorf("Expected empty string, got %q", pfx)
+	}
+}
+

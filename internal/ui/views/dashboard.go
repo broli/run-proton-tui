@@ -3,12 +3,11 @@ package views
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
-	"github.com/broli/run-proton-tui/internal/hardware"
 	"github.com/broli/run-proton-tui/internal/integrations"
-	"github.com/broli/run-proton-tui/internal/prefix"
 	"github.com/broli/run-proton-tui/internal/runner"
 	"github.com/broli/run-proton-tui/internal/ui/style"
 	"github.com/charmbracelet/lipgloss"
@@ -16,25 +15,26 @@ import (
 
 // DashboardData provides all dynamic state required to render the main overview screen.
 type DashboardData struct {
-	GameTitle       string
-	GameDir         string
-	Config          *config.GameConfig
-	Emulator        *integrations.EmulatorInfo
-	ProtonDB        *integrations.ProtonDBReport
-	Classification  runner.ClassificationResult
-	HasNTSync       bool
-	HasPrimeRun     bool
-	HasGamescope    bool
-	ActiveOverrides map[string]string
-	PrefixSize      string
-	ProtonName      string
+	GameTitle         string
+	GameDir           string
+	Config            *config.GameConfig
+	Emulator          *integrations.EmulatorInfo
+	ProtonDB          *integrations.ProtonDBReport
+	Classification    runner.ClassificationResult
+	HasNTSync         bool
+	HasPrimeRun       bool
+	HasGamescope      bool
+	ActiveOverrides   map[string]string
+	PrefixActive      bool
+	PrefixSize        string
+	ProtonName        string
 	ActiveProfileName string
 	ProfileCount      int
-	StatusMessage   string
-	Width           int
-	Height          int
-	OpaqueBackdrop  bool
-	Version         string
+	StatusMessage     string
+	Width             int
+	Height            int
+	OpaqueBackdrop    bool
+	Version           string
 }
 
 func lbl(name string) string {
@@ -71,9 +71,9 @@ func RenderDashboard(d DashboardData) string {
 	}
 	verStr := d.Version
 	if verStr == "" {
-		verStr = "0.11.1"
+		verStr = "0.11.2"
 	}
-	leftHeader := fmt.Sprintf("🎮 rpt v%s │ Game: %s", verStr, d.GameTitle)
+	leftHeader := fmt.Sprintf("rpt v%s │ Game: %s", verStr, d.GameTitle)
 	rightHeader := fmt.Sprintf("%s  •  [s] Desktop Icon  •  [?] Help  •  [q] Quit", style.KeyStyle.Render(backdropText))
 	spaceCount := contentWidth - lipgloss.Width(leftHeader) - lipgloss.Width(rightHeader) - 2
 	if spaceCount < 2 {
@@ -90,7 +90,7 @@ func RenderDashboard(d DashboardData) string {
 
 	// 3. Left Panel: Target & Compatibility
 	var leftSb strings.Builder
-	leftSb.WriteString(style.SectionTitle.Render("🎯 Target Executable & Compatibility") + "\n\n")
+	leftSb.WriteString(style.SectionTitle.Render("Target Executable & Compatibility") + "\n\n")
 
 	// Executable & Classification Tag
 	exeTag := style.BadgeHighlight.Render("3D Game Engine")
@@ -131,7 +131,7 @@ func RenderDashboard(d DashboardData) string {
 
 	// Wine Prefix Status
 	pfxInfo := "Not Initialized (Created on launch)"
-	if prefix.IsInitialized(prefix.DefaultPrefixDir(d.GameDir)) {
+	if d.PrefixActive {
 		if d.PrefixSize != "" {
 			pfxInfo = fmt.Sprintf("Active (%s)", d.PrefixSize)
 		} else {
@@ -158,15 +158,15 @@ func RenderDashboard(d DashboardData) string {
 	// Quirks Preset Status (UMU & Custom Quirks)
 	presetStatus := style.SubheaderStyle.Render("Standard Defaults ([d] Detect)")
 	if d.Config.PresetName != "" {
-		presetStatus = fmt.Sprintf("%s %s", style.BadgeSuccess.Render("⚡ "+d.Config.PresetName), style.KeyStyle.Render("([d] View)"))
+		presetStatus = fmt.Sprintf("%s %s", style.BadgeSuccess.Render(d.Config.PresetName), style.KeyStyle.Render("([d] View)"))
 	} else if d.Config.UmuID != "" && d.Config.UmuID != "umu-default" {
-		presetStatus = fmt.Sprintf("%s %s", style.BadgeHighlight.Render("⚡ UMU: "+d.Config.UmuID), style.KeyStyle.Render("([d] View)"))
+		presetStatus = fmt.Sprintf("%s %s", style.BadgeHighlight.Render("UMU: "+d.Config.UmuID), style.KeyStyle.Render("([d] View)"))
 	}
 	leftSb.WriteString(fmt.Sprintf("%s %s\n", lbl("Quirks Preset:"), presetStatus))
 
 	// 4. Right Panel: Hardware & Execution Stack
 	var rightSb strings.Builder
-	rightSb.WriteString(style.SectionTitle.Render("⚡ Hardware & Execution Pipeline") + "\n\n")
+	rightSb.WriteString(style.SectionTitle.Render("Hardware & Execution Pipeline") + "\n\n")
 
 	renderRow := func(label, status string) {
 		rightSb.WriteString(fmt.Sprintf("%s %s\n", lbl(label), status))
@@ -206,7 +206,7 @@ func RenderDashboard(d DashboardData) string {
 
 	// NT Sync
 	syncStatus := style.BadgeHighlight.Render("FSYNC (futex)")
-	if hardware.HasNTSync() {
+	if d.HasNTSync {
 		syncStatus = style.BadgeSuccess.Render("/dev/ntsync (Kernel Fast)")
 	}
 	renderRow("Sync Engine:", syncStatus)
@@ -232,6 +232,7 @@ func RenderDashboard(d DashboardData) string {
 		for k := range d.ActiveOverrides {
 			oList = append(oList, k)
 		}
+		slices.Sort(oList)
 		summary := strings.Join(oList, ", ")
 		runes := []rune(summary)
 		if len(runes) > 22 {
@@ -274,7 +275,7 @@ func RenderDashboard(d DashboardData) string {
 
 	// 5. Command Preview Box (Full Width)
 	cmdPreview := buildPreviewCommand(d)
-	cmdHeader := style.SectionTitle.Render("🚀 Execution Pipeline Preview:") + "\n"
+	cmdHeader := style.SectionTitle.Render("Execution Pipeline Preview:") + "\n"
 	cmdContent := lipgloss.NewStyle().Width(contentWidth - 4).Render(cmdPreview)
 	sb.WriteString(cmdBoxStyle.Width(contentWidth).Render(cmdHeader + cmdContent))
 	sb.WriteString("\n")
@@ -335,7 +336,7 @@ func renderMenuDock(width int, opaque bool, targetExe, protonName string) string
 	var row1, row2 []string
 	for i, it := range items {
 		rKey := style.KeyBadge.Render(it.key)
-		title := lipgloss.NewStyle().Bold(true).Foreground(style.ColorPrimary).Render(it.label)
+		title := style.TitleStyle.Render(it.label)
 		sub := style.SubheaderStyle.Render(it.sub)
 
 		card := fmt.Sprintf("%s %s\n    %s", rKey, title, sub)
@@ -353,7 +354,7 @@ func renderMenuDock(width int, opaque bool, targetExe, protonName string) string
 	grid := r1 + "\n\n" + r2
 
 	quickTips := style.SubheaderStyle.Render("Quick Hotkeys: [P] Profiles • [e] Exe • [d] Quirks • [D] Detections • [g] Gamescope • [v] GPU • [?] Help")
-	dockContent := style.SectionTitle.Render("📂 Main Menu & Categories (Press key to open sub-menu):") + "\n\n" + grid + "\n\n" + quickTips
+	dockContent := style.SectionTitle.Render("Main Menu & Categories (Press key to open sub-menu):") + "\n\n" + grid + "\n\n" + quickTips
 
 	return style.GetPanelStyle(opaque).Width(width).Render(dockContent)
 }

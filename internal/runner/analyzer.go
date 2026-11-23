@@ -2,6 +2,7 @@ package runner
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,23 @@ import (
 	"github.com/broli/run-proton-tui/internal/config"
 	"github.com/broli/run-proton-tui/internal/ui/style"
 	"github.com/charmbracelet/lipgloss"
+)
+
+var (
+	markerGamescope    = []byte("[gamescope]")
+	markerCODA         = []byte("CODA transfers")
+	markerBinkw32      = []byte("binkw32")
+	markerBacktrace    = []byte("backtrace")
+	markerPageFault    = []byte("page fault")
+	markerSigsegv      = []byte("SIGSEGV")
+	markerDxvkInfo     = []byte("info:   DXVK:")
+	markerD3d9Info     = []byte("info:   D3D9:")
+	markerGsSurface    = []byte("[Gamescope WSI] Made gamescope surface")
+	markerGsSwapchain  = []byte("[Gamescope WSI] Created swapchain")
+	markerVkError      = []byte("VK_ERROR")
+	markerVulkan       = []byte("vulkan")
+	markerFailed       = []byte("failed")
+	markerFailedToOpen = []byte("failed to open")
 )
 
 // DiagnosticInsight represents an automated deduction from the game session log.
@@ -120,31 +138,32 @@ func AnalyzeSessionLog(logPath string, cfg *config.GameConfig, exitCodes ...int)
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.Contains(line, "[gamescope]") {
+		raw := scanner.Bytes()
+		if bytes.Contains(raw, markerGamescope) {
 			hasGamescope = true
 		}
-		if strings.Contains(line, "CODA transfers") || strings.Contains(line, "binkw32") {
+		if bytes.Contains(raw, markerCODA) || bytes.Contains(raw, markerBinkw32) {
 			hasCODA = true
 		}
-		if strings.Contains(line, "backtrace") || strings.Contains(line, "page fault") || strings.Contains(line, "SIGSEGV") {
+		if bytes.Contains(raw, markerBacktrace) || bytes.Contains(raw, markerPageFault) || bytes.Contains(raw, markerSigsegv) {
 			hasWineServerCrash = true
 		}
-		if strings.Contains(line, "info:   DXVK:") || strings.Contains(line, "info:   D3D9:") ||
-			strings.Contains(line, "[Gamescope WSI] Made gamescope surface") ||
-			strings.Contains(line, "[Gamescope WSI] Created swapchain") {
+		if bytes.Contains(raw, markerDxvkInfo) || bytes.Contains(raw, markerD3d9Info) ||
+			bytes.Contains(raw, markerGsSurface) ||
+			bytes.Contains(raw, markerGsSwapchain) {
 			hasDXVKInit = true
 		}
-		if strings.Contains(line, "VK_ERROR") || (strings.Contains(line, "vulkan") && strings.Contains(line, "failed")) {
+		if bytes.Contains(raw, markerVkError) || (bytes.Contains(raw, markerVulkan) && bytes.Contains(raw, markerFailed)) {
 			hasVulkanError = true
 		}
-		if strings.Contains(line, "failed to open") {
+		if bytes.Contains(raw, markerFailedToOpen) {
 			hasFailedToOpen = true
 		}
 
 		// Proactive scan against modular signatures dictionary
+		lower := bytes.ToLower(raw)
 		for _, sig := range signatures {
-			if !matchedSigCategories[sig.Category] && MatchSignature(line, sig) {
+			if !matchedSigCategories[sig.Category] && MatchSignatureBytes(lower, sig) {
 				matchedSigCategories[sig.Category] = true
 				insights = append(insights, DiagnosticInsight{
 					Category:       sig.Category,
@@ -234,7 +253,7 @@ func GenerateAIHelperPackage(result *SessionResult, cfg *config.GameConfig, insi
 	var sb strings.Builder
 	exp := ExplainExitCode(result.ExitCode)
 
-	sb.WriteString("### 🎮 Linux Game Launch Diagnostic Helper\n\n")
+	sb.WriteString("### Linux Game Launch Diagnostic Helper\n\n")
 	sb.WriteString("I am trying to run a Windows game on Linux using `rpt` (Run Proton TUI), but the game stopped unexpectedly or took too long to load.\n")
 	sb.WriteString("Please review the system environment, game settings, and error logs below.\n\n")
 
@@ -325,10 +344,10 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 	exp := ExplainExitCode(result.ExitCode)
 
 	if result.AbortedByUser {
-		lines = append(lines, titleStyle.Render("⚠️  SESSION TERMINATED BY USER (Ctrl+C)"))
+		lines = append(lines, titleStyle.Render("SESSION TERMINATED BY USER (Ctrl+C)"))
 		lines = append(lines, quoteStyle.Render(fmt.Sprintf("Status: %s", exp.Description)))
 	} else {
-		lines = append(lines, titleStyle.Render(fmt.Sprintf("💥 PROCESS TERMINATED UNEXPECTEDLY (Exit Code: %d after %v)", result.ExitCode, result.Duration.Round(100*time.Millisecond))))
+		lines = append(lines, titleStyle.Render(fmt.Sprintf("PROCESS TERMINATED UNEXPECTEDLY (Exit Code: %d after %v)", result.ExitCode, result.Duration.Round(100*time.Millisecond))))
 		lines = append(lines, quoteStyle.Render(fmt.Sprintf("Status: %s", exp.Description)))
 	}
 	lines = append(lines, "")
@@ -351,9 +370,7 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 		lines = append(lines, textStyle.Render("  1. Analyze runtime logs in .logs/ for the fatal error or assertion."))
 	}
 	if absHelpFilePath != "" {
-		lines = append(lines, textStyle.Render(fmt.Sprintf("  2. Or ask an AI assistant to analyze the logs using the pre-formatted report in %s.", absHelpFilePath)))
-	} else {
-		lines = append(lines, textStyle.Render("  2. Or ask an AI assistant to analyze the logs."))
+		lines = append(lines, textStyle.Render(fmt.Sprintf("  2. Review the pre-formatted diagnostic report in %s.", absHelpFilePath)))
 	}
 	lines = append(lines, "")
 
@@ -381,10 +398,10 @@ func FormatDiagnosticReport(result *SessionResult, cfg *config.GameConfig, insig
 	lines = append(lines, textStyle.Render("  • Test Alternate Runner: Switch between GE-Proton, Proton Experimental, or Proton 9.0."))
 	lines = append(lines, "")
 
-	// AI Assistant Helper file instructions with absolute path
+	// Diagnostic report file details
 	if absHelpFilePath != "" {
-		lines = append(lines, headerStyle.Render("📋 Ask AI to Analyze Logs:"))
-		lines = append(lines, fixStyle.Render(fmt.Sprintf("  📄 Diagnostic file created at: %s", absHelpFilePath)))
+		lines = append(lines, headerStyle.Render("Ask AI to Analyze Logs:"))
+		lines = append(lines, fixStyle.Render(fmt.Sprintf("  Diagnostic file created at: %s", absHelpFilePath)))
 		lines = append(lines, mutedStyle.Render("  1. Copy the contents of the file above."))
 		lines = append(lines, mutedStyle.Render("  2. Paste it into your favorite AI assistant (like ChatGPT, Claude, etc.)."))
 		lines = append(lines, quoteStyle.Render("  The AI assistant will analyze the logs and environment to propose targeted fixes."))

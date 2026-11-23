@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/proton"
@@ -91,8 +92,15 @@ func NewOverridesView(prefixDir, protonBin string, activeReg map[string]string, 
 
 	seen := make(map[string]bool)
 
+	var activeRegKeys []string
+	for dll := range activeReg {
+		activeRegKeys = append(activeRegKeys, dll)
+	}
+	slices.Sort(activeRegKeys)
+
 	// 2. Classify registry entries into user vs system
-	for dll, mode := range activeReg {
+	for _, dll := range activeRegKeys {
+		mode := activeReg[dll]
 		if dll == "" || presetDLLs[dll] || seen[dll] {
 			continue
 		}
@@ -126,8 +134,15 @@ func NewOverridesView(prefixDir, protonBin string, activeReg map[string]string, 
 		}
 	}
 
+	var savedKeys []string
+	for dll := range savedOverrides {
+		savedKeys = append(savedKeys, dll)
+	}
+	slices.Sort(savedKeys)
+
 	// 3. Incorporate custom overrides from rpt.toml
-	for dll, mode := range savedOverrides {
+	for _, dll := range savedKeys {
+		mode := savedOverrides[dll]
 		if dll == "" || presetDLLs[dll] || seen[dll] || proton.IsWineDefaultDLL(dll) {
 			continue
 		}
@@ -424,10 +439,10 @@ func (o *OverridesView) View() string {
 	for i := startIndex; i < endIndex; i++ {
 		it := items[i]
 		cursor := "  "
-		lineStyle := lipgloss.NewStyle().Foreground(style.ColorText)
+		lineStyle := style.ItemStyle
 		if i == o.Cursor {
 			cursor = "👉"
-			lineStyle = lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight)
+			lineStyle = style.SelectedItemStyle
 		}
 
 		box := style.BadgeMuted.Render("[ ]")
@@ -447,10 +462,7 @@ func (o *OverridesView) View() string {
 			mode = m
 		}
 
-		modeBadge := lipgloss.NewStyle().
-			Bold(true).
-			Foreground(style.ColorSecondary).
-			Render(fmt.Sprintf("[%s]", mode))
+		modeBadge := style.ModeBadgeStyle.Render(fmt.Sprintf("[%s]", mode))
 
 		sb.WriteString(fmt.Sprintf("%s %s %s %s %s\n",
 			cursor,

@@ -5,15 +5,25 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
+)
+
+var (
+	cachedHome     string
+	cachedHomeOnce sync.Once
 )
 
 // UserHomeDir returns the current user's home directory.
-// It queries os.UserHomeDir() and falls back to os.Getenv("HOME").
+// It queries os.UserHomeDir() once, falling back to os.Getenv("HOME").
 func UserHomeDir() string {
-	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		return home
-	}
-	return os.Getenv("HOME")
+	cachedHomeOnce.Do(func() {
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			cachedHome = home
+		} else {
+			cachedHome = os.Getenv("HOME")
+		}
+	})
+	return cachedHome
 }
 
 // Sanitize replaces all occurrences of the user's home directory with "~".

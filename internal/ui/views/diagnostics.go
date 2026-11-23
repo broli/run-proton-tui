@@ -36,34 +36,22 @@ func (d *DiagnosticsView) Update(msg tea.Msg) (*DiagnosticsView, bool) {
 // View renders the health report.
 func (d *DiagnosticsView) View() string {
 	var sb strings.Builder
-	sb.WriteString(style.TitleStyle.Render("🩺 System & Game Health Diagnostics (Press [Enter] or [Esc] to Return)"))
+	sb.WriteString(style.TitleStyle.Render("System & Game Health Diagnostics (Press [Enter] or [Esc] to Return)"))
 	sb.WriteString("\n\n")
 
 	rep := d.Report
 
-	// 1. Target Executable
+	// Target Executable
 	if rep.TargetExeExists {
 		sb.WriteString(style.BadgeSuccess.Render(" ✓ Target Executable Exists "))
-		if rep.TargetExeFixed {
-			sb.WriteString(style.BadgeWarning.Render(" Added missing +x executable permission "))
-		}
 	} else {
 		sb.WriteString(style.BadgeDanger.Render(" ✗ Target Executable Not Found "))
 	}
 	sb.WriteString("\n\n")
 
-	// 2. Shipping Binaries
-	if len(rep.ShippingExesFixed) > 0 {
-		sb.WriteString(style.HeaderStyle.Render("Auto-fixed Executable Permissions (+x):\n"))
-		for _, s := range rep.ShippingExesFixed {
-			sb.WriteString(fmt.Sprintf("  • %s\n", s))
-		}
-		sb.WriteString("\n")
-	}
-
-	// 3. Prefix Containment Guardrail
+	// Prefix Containment Guardrail
 	if rep.InsidePrefixHazard {
-		sb.WriteString(style.BadgeDanger.Render(" ⚠️ HAZARD: Game binary is located inside Wine prefix! "))
+		sb.WriteString(style.BadgeDanger.Render(" HAZARD: Game binary is located inside Wine prefix! "))
 		sb.WriteString("\n  Prefix cleaning has been locked to prevent game data loss.\n\n")
 	} else {
 		sb.WriteString(style.BadgeSuccess.Render(" ✓ Directory Guardrail: Game is safely separated from Wine prefix "))

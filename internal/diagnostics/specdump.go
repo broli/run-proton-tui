@@ -7,7 +7,7 @@ import (
 	"github.com/broli/run-proton-tui/internal/proton"
 )
 
-// SpecDump defines the root structure of the machine-readable specification for AI assistants and automation tools.
+// SpecDump defines the root structure of the machine-readable specification for automation and configuration tools.
 type SpecDump struct {
 	SchemaVersion         string                 `json:"schema_version"`
 	RptVersion            string                 `json:"rpt_version"`
@@ -103,7 +103,7 @@ func GenerateSpecDump(rptVersion string) ([]byte, error) {
 		{"gamescope_height", "int", "0 (auto/native)", "Gamescope virtual canvas height (0 = auto)"},
 		{"gamescope_refresh", "int", "0 (native)", "Gamescope target display refresh rate in Hz (0 = native/untouched)"},
 		{"use_prime_run", "bool", "false (Clean Zero) / dynamic (hybrid GPU)", "Execute game with prime-run NVIDIA GPU offloading"},
-		{"use_pcores", "bool", "false (Clean Zero) / dynamic (hybrid CPU)", "Pin execution to Intel Performance cores via taskset"},
+		{"use_pcores", "bool", "false (Clean Zero) / dynamic (hybrid CPU)", "Pin execution to Performance cores via taskset"},
 		{"pcores_mask", "string", "dynamic (detected mask)", "CPU affinity mask for Performance core threads"},
 		{"manage_power", "bool", "false (Clean Zero) / dynamic (powerprofilesctl)", "Automatically switch KDE power profile to performance"},
 		{"use_xalia", "bool", "false", "Enable Proton Xalia UI automation accessibility bridge"},
@@ -151,15 +151,14 @@ func GenerateSpecDump(rptVersion string) ([]byte, error) {
 
 	aiGuidelines := []string{
 		"1. PRIMARY GOAL: Configure the game's 'rpt.toml' using self-contained profiles under [profiles.<name>] (with active_profile pointing to the active profile name) for graphics, runner path, Gamescope, CPU pinning, and DLL overrides.",
-		"2. 'CLEAN ZERO' BASELINE GATE: Before diagnosing deep issues, writing custom patches, or adding workarounds, verify baseline behavior with pure upstream defaults and zero extra flags.",
+		"2. CLEAN ZERO BASELINE: Before diagnosing deep issues, writing custom patches, or adding workarounds, verify baseline behavior with pure upstream defaults and zero extra flags.",
 		"3. SINGLE-VARIABLE ISOLATION (STRICT DELTA TESTING): Never stack workarounds or arguments (A + B + C + D). Test each variable in isolation; if variable A does not resolve the issue, revert it before testing B.",
 		"4. VERIFY EXCEPTION CAUSALITY: Never assume a logged exception, Wine 'fixme:', or stub warning caused a process exit. Correlate timestamps, thread IDs, and parent process termination before attempting to patch or stub an error.",
 		"5. COMPOSITOR SANDBOXING OVER ENGINE FLAGS: When dealing with fractional scaling or display resolution mismatches on Wayland, prefer external compositor isolation (Gamescope virtual canvas) over forcing internal engine render flags (e.g. -vulkan or -force-d3d11).",
-		"6. '1-2 GAMES VS EVERY GAME' RULE: If a fix or tweak is game-specific (such as binary patching, Wine ntoskrnl.exe kernel patch checks, memory mapping /dev/shm, or anti-cheat workarounds), DO NOT modify the rpt binary. Write a lifecycle hook in 'hooks/pre_launch.sh'.",
+		"6. GAME-SPECIFIC ISOLATION: If a fix or tweak is game-specific (such as binary patching, Wine ntoskrnl.exe kernel patch checks, memory mapping /dev/shm, or anti-cheat workarounds), write a lifecycle hook in 'hooks/pre_launch.sh' rather than patching generic tools.",
 		"7. IDEMPOTENCY: All hook scripts must be strictly idempotent. Always check if a patch, directory, or symlink is already applied before modifying anything.",
-		"8. PREFIX FLUSHING & STALE LOCKS ARE AUTOMATIC: DO NOT add wineserver -k, wineserver -w, killall wine, or /tmp/.wine-* lock cleanup to hooks. rpt automatically flushes the Wine prefix, isolates and terminates lingering prefix processes, and cleans stale socket locks via non-blocking flock before launch, inside the process wrapper, and during teardown.",
+		"8. PREFIX FLUSHING & STALE LOCKS ARE AUTOMATIC: rpt automatically flushes the Wine prefix, isolates and terminates lingering prefix processes, and cleans stale socket locks via non-blocking flock before launch, inside the process wrapper, and during teardown.",
 		"9. ESCALATION & DEEP DOCUMENTATION: If simple baseline testing and single-variable delta tuning do not resolve the issue, consult the 'best_practices' dictionary in this dump and review 'documentation_links.troubleshooting_methodology' before attempting invasive patches or binary edits.",
-		"10. COMMUNITY CONTRIBUTION: If your generated hook or configuration resolves an issue, remind the user to submit it to ProtonDB or as an rpt community hook to help fellow Linux gamers!",
 	}
 
 	hookRecipes := map[string]HookRecipe{
@@ -200,7 +199,7 @@ exit 0
 	}
 
 	bestPractices := map[string]string{
-		"clean_zero_vs_safe_defaults":           "Distinguish between Level 0 ('Clean Zero' Baseline) and Level 1 ('Safe Hardware-Aware Defaults'). When diagnosing issues (Gate 1), always begin with pure upstream defaults (use_gamescope=false, use_prime_run=false, use_pcores=false, manage_power=false). Once baseline functionality is verified, introduce safe hardware defaults (Gamescope for Wayland fractional scaling, prime-run for hybrid laptops, P-core pinning for hybrid CPUs) one variable at a time (Gate 2).",
+		"clean_zero_vs_safe_defaults":           "Distinguish between Level 0 (Clean Baseline) and Level 1 (Hardware-Aware Defaults). When diagnosing issues, always begin with pure upstream defaults (use_gamescope=false, use_prime_run=false, use_pcores=false, manage_power=false). Once baseline functionality is verified, introduce hardware defaults (Gamescope for Wayland fractional scaling, prime-run for hybrid laptops, P-core pinning for hybrid CPUs) one variable at a time.",
 		"clean_zero_baseline":                   "Before diagnosing complex crashes, applying registry tweaks, or writing launch hooks, always verify baseline behavior with pure upstream defaults and zero extra flags. If a clean prefix and default Proton runner launches the title, do not introduce speculative arguments.",
 		"single_variable_delta_isolation":       "Never combine multiple unverified arguments or workarounds at once (A + B + C + D). Test each variable strictly in isolation. If introducing variable A does not fix the issue or produces a different symptom, revert A completely before testing variable B. Stacking workarounds creates compounding failure states and obscures the true root cause.",
 		"verify_exception_causality":            "Never assume a logged Wine exception, 'fixme:' stub, or console warning caused a game exit. Wine routinely outputs benign warnings during normal execution. Always correlate exact log timestamps, thread IDs, and parent/child process exit signals before attempting to patch a binary or stub an error.",
@@ -224,8 +223,8 @@ exit 0
 	dump := SpecDump{
 		SchemaVersion:         "rpt-spec-v2",
 		RptVersion:            rptVersion,
-		Title:                 "AI Assistant Game Setup Helper",
-		Description:           "System and launcher specification for AI assistants (like ChatGPT, Claude, etc.) to configure games and write launch hooks under run-proton-tui.",
+		Title:                 "System & Game Specification",
+		Description:           "System and launcher specification for configuration tools and automated setup under run-proton-tui.",
 		AIAssistantGuidelines: aiGuidelines,
 		Hardware:              hwSpec,
 		InstalledRunners:      runnerSpecs,

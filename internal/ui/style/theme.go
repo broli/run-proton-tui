@@ -53,6 +53,21 @@ var (
 	ValueStyle = lipgloss.NewStyle().
 			Foreground(ColorText)
 
+	ItemStyle = lipgloss.NewStyle().
+			Foreground(ColorText)
+
+	SelectedItemStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ColorHighlight)
+
+	ActiveTagStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ColorSuccess)
+
+	ModeBadgeStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ColorSecondary)
+
 	// Status Badges & Pills
 	BadgeSuccess = lipgloss.NewStyle().
 			Bold(true).

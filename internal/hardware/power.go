@@ -16,11 +16,7 @@ type PowerManager struct {
 
 // NewPowerManager initializes a PowerManager and checks if powerprofilesctl is available.
 func NewPowerManager() *PowerManager {
-	pm := &PowerManager{
-		OriginalProfile: "",
-		Changed:         false,
-		Available:       false,
-	}
+	pm := &PowerManager{}
 
 	if _, err := exec.LookPath("powerprofilesctl"); err == nil {
 		pm.Available = true

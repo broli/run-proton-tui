@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
@@ -12,6 +13,12 @@ import (
 	"github.com/broli/run-proton-tui/internal/ui/style"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+)
+
+var detectionNavHelp = fmt.Sprintf("%s    %s    %s",
+	lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[↑/↓/1-6/A] Select Routine"),
+	lipgloss.NewStyle().Foreground(style.ColorSuccess).Render("[Enter/Space] Run Selected"),
+	lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc/q] Return to Dashboard"),
 )
 
 // DetectionRoutine identifies a specific hardware or game discovery process.
@@ -249,8 +256,13 @@ func (v *DetectionMenuView) runRoutine(routine DetectionRoutine) {
 		if preset.UmuID != "" {
 			f = append(f, fmt.Sprintf("UMU GameFix ID:     %s", preset.UmuID))
 		}
-		for k, val := range preset.EnvVars {
-			f = append(f, fmt.Sprintf("Env Var:            %s = %s", k, val))
+		var envKeys []string
+		for k := range preset.EnvVars {
+			envKeys = append(envKeys, k)
+		}
+		slices.Sort(envKeys)
+		for _, k := range envKeys {
+			f = append(f, fmt.Sprintf("Env Var:            %s = %s", k, preset.EnvVars[k]))
 		}
 		if len(preset.ExtraArgs) > 0 {
 			f = append(f, fmt.Sprintf("Extra Launch Args:  %s", strings.Join(preset.ExtraArgs, " ")))
@@ -337,7 +349,11 @@ func (v *DetectionMenuView) runRoutine(routine DetectionRoutine) {
 		hasPrime := gpu != nil && gpu.HasPrimeRun
 		f = append(f, fmt.Sprintf("• GPU:     prime-run capable = %v", hasPrime))
 		isHybrid := topo != nil && topo.IsHybrid
-		f = append(f, fmt.Sprintf("• CPU:     Intel Hybrid P-Cores = %v (Mask: %s)", isHybrid, topo.PCoresMask))
+		mask := ""
+		if topo != nil {
+			mask = topo.PCoresMask
+		}
+		f = append(f, fmt.Sprintf("• CPU:     Hybrid Performance Cores = %v (Mask: %s)", isHybrid, mask))
 		if preset != nil {
 			f = append(f, fmt.Sprintf("• Quirks:  %s (%s)", preset.Name, preset.MatchedSource))
 		} else {
@@ -360,7 +376,7 @@ func (v *DetectionMenuView) runRoutine(routine DetectionRoutine) {
 				cfg.UsePrimeRun = hasPrime
 				if isHybrid {
 					cfg.UsePCores = true
-					cfg.PCoresMask = topo.PCoresMask
+					cfg.PCoresMask = mask
 				}
 				if preset != nil {
 					preset.ApplyToConfig(cfg, true)
@@ -407,7 +423,7 @@ func (v *DetectionMenuView) View() string {
 	}{
 		{"1", "Detect Displays & Resolution", "Query DRM sysfs connectors for monitor resolution & refresh"},
 		{"2", "Detect GPU & Prime-Run", "Probe PCI bus & Vulkan ICDs for NVIDIA dedicated GPU offload"},
-		{"3", "Detect CPU Topology & Cores", "Check Linux sysfs for hybrid Intel P-cores and taskset mask"},
+		{"3", "Detect CPU Topology & Cores", "Check Linux sysfs for hybrid P-cores and taskset mask"},
 		{"4", "Scan for Game Quirks & Recipes", "Check local manifests, curated rules, and UMU ProtonFixes DB"},
 		{"5", "Discover Executables & Emulators", "Scan game directory for PE binaries, launchers, and Steam emulators"},
 		{"6", "Scan Installed Proton Runners", "Discover Proton-GE, CachyOS, DW-Proton, and Steam runners"},
@@ -416,24 +432,19 @@ func (v *DetectionMenuView) View() string {
 
 	for i, r := range routines {
 		prefix := "   "
-		lblStyle := lipgloss.NewStyle().Foreground(style.ColorText)
-		keyStyle := lipgloss.NewStyle().Bold(true).Foreground(style.ColorSecondary)
+		lblStyle := style.ItemStyle
+		keyStyle := style.ModeBadgeStyle
 		if i == v.Cursor {
 			prefix = " > "
-			lblStyle = lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight)
-			keyStyle = lipgloss.NewStyle().Bold(true).Foreground(style.ColorHighlight)
+			lblStyle = style.SelectedItemStyle
+			keyStyle = style.SelectedItemStyle
 		}
 
 		b.WriteString(fmt.Sprintf("%s[%s] %-32s : %s\n", prefix, keyStyle.Render(r.key), lblStyle.Render(r.name), r.desc))
 	}
 
 	b.WriteString("\n" + divider + "\n")
-	navHelp := fmt.Sprintf("%s    %s    %s",
-		lipgloss.NewStyle().Foreground(style.ColorHighlight).Render("[↑/↓/1-6/A] Select Routine"),
-		lipgloss.NewStyle().Foreground(style.ColorSuccess).Render("[Enter/Space] Run Selected"),
-		lipgloss.NewStyle().Foreground(style.ColorMuted).Render("[Esc/q] Return to Dashboard"),
-	)
-	b.WriteString(navHelp)
+	b.WriteString(detectionNavHelp)
 
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).

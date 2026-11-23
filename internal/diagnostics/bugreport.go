@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
@@ -56,8 +56,8 @@ func GenerateBugReport(opts BugReportOptions) (string, string) {
 	sb.WriteString(fmt.Sprintf("rpt Version:      %s\n", rptVer))
 	sb.WriteString(fmt.Sprintf("Go Runtime:       %s (%s/%s)\n", runtime.Version(), runtime.GOOS, runtime.GOARCH))
 
-	if kernelOut, err := exec.Command("uname", "-sr").Output(); err == nil {
-		sb.WriteString(fmt.Sprintf("Linux Kernel:     %s", string(kernelOut)))
+	if release, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil {
+		sb.WriteString(fmt.Sprintf("Linux Kernel:     Linux %s\n", strings.TrimSpace(string(release))))
 	}
 
 	desktop := os.Getenv("XDG_CURRENT_DESKTOP")
@@ -115,8 +115,13 @@ func GenerateBugReport(opts BugReportOptions) (string, string) {
 		}
 		if len(opts.Config.DLLOverrides) > 0 {
 			sb.WriteString("\n[dll_overrides]\n")
-			for k, v := range opts.Config.DLLOverrides {
-				sb.WriteString(fmt.Sprintf("%s = %q\n", k, v))
+			var dllKeys []string
+			for k := range opts.Config.DLLOverrides {
+				dllKeys = append(dllKeys, k)
+			}
+			slices.Sort(dllKeys)
+			for _, k := range dllKeys {
+				sb.WriteString(fmt.Sprintf("%s = %q\n", k, opts.Config.DLLOverrides[k]))
 			}
 		}
 		sb.WriteString("```\n\n")

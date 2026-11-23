@@ -121,7 +121,7 @@ StartupNotify=true
 X-rpt-target-exe=%s
 `, cleanTitle, cleanTitle, execCmd, cleanDir, cleanIcon, cleanExe)
 
-	if err := os.WriteFile(destPath, []byte(content), 0755); err != nil {
+	if err := os.WriteFile(destPath, []byte(content), 0644); err != nil {
 		return "", fmt.Errorf("failed to write desktop file: %w", err)
 	}
 

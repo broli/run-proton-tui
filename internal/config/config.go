@@ -2,8 +2,9 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -188,7 +189,7 @@ func (f *GameConfigFile) ProfileNames() []string {
 	for name := range f.Profiles {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 
@@ -238,8 +239,7 @@ type GameConfig struct {
 	GeometryAutoDetected bool                         `toml:"-"`
 }
 
-// NewCleanZeroConfig returns a pristine, unadorned baseline configuration (Gate 1).
-// All performance wrappers, compositor sandboxing, CPU pinning, and power management are disabled.
+// NewCleanZeroConfig returns a pristine baseline configuration without wrappers or optimizations.
 func NewCleanZeroConfig() *GameConfig {
 	cfg := NewDefaultConfig()
 	cfg.OpaqueBackdrop = false
@@ -252,7 +252,7 @@ func NewDefaultConfig() *GameConfig {
 		TargetExe:           "",
 		ProtonPath:          "",
 		AppID:               "0",
-		UseGamescope:        false, // Baseline is false (Clean Zero)
+		UseGamescope:        false,
 		GamescopeOutput:     "auto",
 		GamescopeWidth:      0, // 0 = Auto / Native
 		GamescopeHeight:     0, // 0 = Auto / Native
@@ -261,7 +261,7 @@ func NewDefaultConfig() *GameConfig {
 		GamescopeFilter:     "linear",
 		GamescopeWindowMode: "fullscreen",
 		GamescopeExtraArgs:  make([]string, 0),
-		UsePCores:           false, // Baseline is false (Clean Zero)
+		UsePCores:           false,
 		PCoresMask:          "",     // Determined dynamically
 		UsePrimeRun:         false, // Baseline is false (Clean Zero)
 		ManagePower:         false, // Baseline is false (Clean Zero)
@@ -304,7 +304,7 @@ func (c *GameConfig) ResetHardwareToDefaults(hasPrimeRun bool, pcoresMask string
 	c.UseXalia = false
 }
 
-// ResetToCleanZero resets all options to the pure upstream Proton baseline (Gate 1),
+// ResetToCleanZero resets all options to the pure upstream Proton baseline,
 // preserving only the user's selected TargetExe, ProtonPath, and AppID.
 func (c *GameConfig) ResetToCleanZero() {
 	c.UseGamescope = false
@@ -367,69 +367,28 @@ func (c *GameConfig) Clone() *GameConfig {
 		return nil
 	}
 	cpy := *c
-	if c.DLLOverrides != nil {
-		cpy.DLLOverrides = make(map[string]string, len(c.DLLOverrides))
-		for k, v := range c.DLLOverrides {
-			cpy.DLLOverrides[k] = v
-		}
-	}
-	if c.ExtraArgs != nil {
-		cpy.ExtraArgs = make([]string, len(c.ExtraArgs))
-		copy(cpy.ExtraArgs, c.ExtraArgs)
-	}
-	if c.EnvVars != nil {
-		cpy.EnvVars = make(map[string]string, len(c.EnvVars))
-		for k, v := range c.EnvVars {
-			cpy.EnvVars[k] = v
-		}
-	}
-	if c.WaitProcesses != nil {
-		cpy.WaitProcesses = make([]string, len(c.WaitProcesses))
-		copy(cpy.WaitProcesses, c.WaitProcesses)
-	}
+	cpy.DLLOverrides = maps.Clone(c.DLLOverrides)
+	cpy.ExtraArgs = slices.Clone(c.ExtraArgs)
+	cpy.EnvVars = maps.Clone(c.EnvVars)
+	cpy.WaitProcesses = slices.Clone(c.WaitProcesses)
+	cpy.GamescopeExtraArgs = slices.Clone(c.GamescopeExtraArgs)
+	cpy.HookDirs = slices.Clone(c.HookDirs)
+
 	if c.Profiles != nil {
 		cpy.Profiles = make(map[string]*ExecutableProfile, len(c.Profiles))
 		for k, v := range c.Profiles {
 			if v != nil {
 				profCpy := *v
-				if v.ExtraArgs != nil {
-					profCpy.ExtraArgs = make([]string, len(v.ExtraArgs))
-					copy(profCpy.ExtraArgs, v.ExtraArgs)
-				}
-				if v.GamescopeExtraArgs != nil {
-					profCpy.GamescopeExtraArgs = make([]string, len(v.GamescopeExtraArgs))
-					copy(profCpy.GamescopeExtraArgs, v.GamescopeExtraArgs)
-				}
-				if v.DLLOverrides != nil {
-					profCpy.DLLOverrides = make(map[string]string, len(v.DLLOverrides))
-					for dk, dv := range v.DLLOverrides {
-						profCpy.DLLOverrides[dk] = dv
-					}
-				}
-				if v.EnvVars != nil {
-					profCpy.EnvVars = make(map[string]string, len(v.EnvVars))
-					for ek, ev := range v.EnvVars {
-						profCpy.EnvVars[ek] = ev
-					}
-				}
-				if v.WaitProcesses != nil {
-					profCpy.WaitProcesses = make([]string, len(v.WaitProcesses))
-					copy(profCpy.WaitProcesses, v.WaitProcesses)
-				}
+				profCpy.ExtraArgs = slices.Clone(v.ExtraArgs)
+				profCpy.GamescopeExtraArgs = slices.Clone(v.GamescopeExtraArgs)
+				profCpy.DLLOverrides = maps.Clone(v.DLLOverrides)
+				profCpy.EnvVars = maps.Clone(v.EnvVars)
+				profCpy.WaitProcesses = slices.Clone(v.WaitProcesses)
 				if v.Filesystem != nil {
 					fsCpy := *v.Filesystem
-					if v.Filesystem.EnsureDirs != nil {
-						fsCpy.EnsureDirs = make([]string, len(v.Filesystem.EnsureDirs))
-						copy(fsCpy.EnsureDirs, v.Filesystem.EnsureDirs)
-					}
-					if v.Filesystem.Symlinks != nil {
-						fsCpy.Symlinks = make([]SymlinkDirective, len(v.Filesystem.Symlinks))
-						copy(fsCpy.Symlinks, v.Filesystem.Symlinks)
-					}
-					if v.Filesystem.ExtraBackupPaths != nil {
-						fsCpy.ExtraBackupPaths = make([]string, len(v.Filesystem.ExtraBackupPaths))
-						copy(fsCpy.ExtraBackupPaths, v.Filesystem.ExtraBackupPaths)
-					}
+					fsCpy.EnsureDirs = slices.Clone(v.Filesystem.EnsureDirs)
+					fsCpy.Symlinks = slices.Clone(v.Filesystem.Symlinks)
+					fsCpy.ExtraBackupPaths = slices.Clone(v.Filesystem.ExtraBackupPaths)
 					profCpy.Filesystem = &fsCpy
 				}
 				if v.CloudSync != nil {
@@ -444,26 +403,9 @@ func (c *GameConfig) Clone() *GameConfig {
 		csCpy := *c.CloudSync
 		cpy.CloudSync = &csCpy
 	}
-	if c.GamescopeExtraArgs != nil {
-		cpy.GamescopeExtraArgs = make([]string, len(c.GamescopeExtraArgs))
-		copy(cpy.GamescopeExtraArgs, c.GamescopeExtraArgs)
-	}
-	if c.HookDirs != nil {
-		cpy.HookDirs = make([]string, len(c.HookDirs))
-		copy(cpy.HookDirs, c.HookDirs)
-	}
-	if c.Filesystem.EnsureDirs != nil {
-		cpy.Filesystem.EnsureDirs = make([]string, len(c.Filesystem.EnsureDirs))
-		copy(cpy.Filesystem.EnsureDirs, c.Filesystem.EnsureDirs)
-	}
-	if c.Filesystem.Symlinks != nil {
-		cpy.Filesystem.Symlinks = make([]SymlinkDirective, len(c.Filesystem.Symlinks))
-		copy(cpy.Filesystem.Symlinks, c.Filesystem.Symlinks)
-	}
-	if c.Filesystem.ExtraBackupPaths != nil {
-		cpy.Filesystem.ExtraBackupPaths = make([]string, len(c.Filesystem.ExtraBackupPaths))
-		copy(cpy.Filesystem.ExtraBackupPaths, c.Filesystem.ExtraBackupPaths)
-	}
+	cpy.Filesystem.EnsureDirs = slices.Clone(c.Filesystem.EnsureDirs)
+	cpy.Filesystem.Symlinks = slices.Clone(c.Filesystem.Symlinks)
+	cpy.Filesystem.ExtraBackupPaths = slices.Clone(c.Filesystem.ExtraBackupPaths)
 	return &cpy
 }
 
@@ -541,8 +483,7 @@ func (c *GameConfig) GetEffectiveConfig(targetExe string) *GameConfig {
 		eff.GamescopeFPSLimit = prof.GamescopeFPSLimit
 	}
 	if len(prof.GamescopeExtraArgs) > 0 {
-		eff.GamescopeExtraArgs = make([]string, len(prof.GamescopeExtraArgs))
-		copy(eff.GamescopeExtraArgs, prof.GamescopeExtraArgs)
+		eff.GamescopeExtraArgs = slices.Clone(prof.GamescopeExtraArgs)
 	}
 	if prof.UsePCores != nil {
 		eff.UsePCores = *prof.UsePCores
@@ -582,18 +523,9 @@ func (c *GameConfig) GetEffectiveConfig(targetExe string) *GameConfig {
 	}
 	if prof.Filesystem != nil {
 		fsCpy := *prof.Filesystem
-		if prof.Filesystem.EnsureDirs != nil {
-			fsCpy.EnsureDirs = make([]string, len(prof.Filesystem.EnsureDirs))
-			copy(fsCpy.EnsureDirs, prof.Filesystem.EnsureDirs)
-		}
-		if prof.Filesystem.Symlinks != nil {
-			fsCpy.Symlinks = make([]SymlinkDirective, len(prof.Filesystem.Symlinks))
-			copy(fsCpy.Symlinks, prof.Filesystem.Symlinks)
-		}
-		if prof.Filesystem.ExtraBackupPaths != nil {
-			fsCpy.ExtraBackupPaths = make([]string, len(prof.Filesystem.ExtraBackupPaths))
-			copy(fsCpy.ExtraBackupPaths, prof.Filesystem.ExtraBackupPaths)
-		}
+		fsCpy.EnsureDirs = slices.Clone(prof.Filesystem.EnsureDirs)
+		fsCpy.Symlinks = slices.Clone(prof.Filesystem.Symlinks)
+		fsCpy.ExtraBackupPaths = slices.Clone(prof.Filesystem.ExtraBackupPaths)
 		eff.Filesystem = fsCpy
 	}
 	if prof.CloudSync != nil {
@@ -601,24 +533,22 @@ func (c *GameConfig) GetEffectiveConfig(targetExe string) *GameConfig {
 		eff.CloudSync = &csCpy
 	}
 	if len(prof.ExtraArgs) > 0 {
-		eff.ExtraArgs = make([]string, len(prof.ExtraArgs))
-		copy(eff.ExtraArgs, prof.ExtraArgs)
+		eff.ExtraArgs = slices.Clone(prof.ExtraArgs)
 	}
 	if len(prof.WaitProcesses) > 0 {
-		eff.WaitProcesses = make([]string, len(prof.WaitProcesses))
-		copy(eff.WaitProcesses, prof.WaitProcesses)
+		eff.WaitProcesses = slices.Clone(prof.WaitProcesses)
 	}
-	for k, v := range prof.DLLOverrides {
+	if len(prof.DLLOverrides) > 0 {
 		if eff.DLLOverrides == nil {
-			eff.DLLOverrides = make(map[string]string)
+			eff.DLLOverrides = make(map[string]string, len(prof.DLLOverrides))
 		}
-		eff.DLLOverrides[k] = v
+		maps.Copy(eff.DLLOverrides, prof.DLLOverrides)
 	}
-	for k, v := range prof.EnvVars {
+	if len(prof.EnvVars) > 0 {
 		if eff.EnvVars == nil {
-			eff.EnvVars = make(map[string]string)
+			eff.EnvVars = make(map[string]string, len(prof.EnvVars))
 		}
-		eff.EnvVars[k] = v
+		maps.Copy(eff.EnvVars, prof.EnvVars)
 	}
 
 	return eff
@@ -637,4 +567,13 @@ func (c *GameConfig) HasValidAppID() bool {
 	}
 	return IsValidAppID(c.AppID)
 }
+
+// ProtonDBURL returns the web URL for the game or the contribution portal if no AppID is configured.
+func (c *GameConfig) ProtonDBURL() string {
+	if c != nil && c.HasValidAppID() {
+		return fmt.Sprintf("https://www.protondb.com/app/%s", strings.TrimSpace(c.AppID))
+	}
+	return "https://www.protondb.com/contribute"
+}
+
 

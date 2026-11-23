@@ -1,10 +1,11 @@
 package proton
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -69,37 +70,23 @@ func naturalCompare(s1, s2 string) int {
 			num1, err1 := strconv.ParseUint(string(r1[startI:i]), 10, 64)
 			num2, err2 := strconv.ParseUint(string(r2[startJ:j]), 10, 64)
 			if err1 == nil && err2 == nil {
-				if num1 != num2 {
-					if num1 > num2 {
-						return 1
-					}
-					return -1
+				if c := cmp.Compare(num1, num2); c != 0 {
+					return c
 				}
 			} else {
-				if string(r1[startI:i]) != string(r2[startJ:j]) {
-					if string(r1[startI:i]) > string(r2[startJ:j]) {
-						return 1
-					}
-					return -1
+				if c := strings.Compare(string(r1[startI:i]), string(r2[startJ:j])); c != 0 {
+					return c
 				}
 			}
 		} else {
-			if r1[i] != r2[j] {
-				if r1[i] > r2[j] {
-					return 1
-				}
-				return -1
+			if c := cmp.Compare(r1[i], r2[j]); c != 0 {
+				return c
 			}
 			i++
 			j++
 		}
 	}
-	if len(r1) > len(r2) {
-		return 1
-	} else if len(r1) < len(r2) {
-		return -1
-	}
-	return 0
+	return cmp.Compare(len(r1), len(r2))
 }
 
 func classifyRunner(name, dirPath, protonBin string) Runner {
@@ -175,7 +162,7 @@ func DiscoverRunners() ([]Runner, error) {
 		return nil, fmt.Errorf("user home directory unavailable")
 	}
 
-	searchDirs := append([]string{}, GetCompatibilityToolDirs()...)
+	searchDirs := slices.Clone(GetCompatibilityToolDirs())
 	searchDirs = append(searchDirs,
 		filepath.Join(home, ".local", "share", "Steam", "steamapps", "common"),
 		filepath.Join(home, ".config", "heroic", "tools", "wine"),
@@ -240,24 +227,29 @@ func DiscoverRunners() ([]Runner, error) {
 	}
 
 	// Sort runners: grouped by family tier, "Latest" first, then natural version descending
-	sort.Slice(results, func(i, j int) bool {
-		r1, r2 := results[i], results[j]
+	slices.SortFunc(results, func(r1, r2 Runner) int {
 		t1, t2 := runnerTier(r1), runnerTier(r2)
 		if t1 != t2 {
-			return t1 < t2
+			return cmp.Compare(t1, t2)
 		}
 
 		l1 := strings.Contains(strings.ToLower(r1.Name), "latest")
 		l2 := strings.Contains(strings.ToLower(r2.Name), "latest")
 		if l1 != l2 {
-			return l1
+			if l1 {
+				return -1
+			}
+			return 1
 		}
 
-		cmp := naturalCompare(r1.Name, r2.Name)
-		if cmp != 0 {
-			return cmp > 0
+		c := naturalCompare(r1.Name, r2.Name)
+		if c != 0 {
+			return -c
 		}
-		return r1.Name < r2.Name
+		if r1.Name != r2.Name {
+			return cmp.Compare(r1.Name, r2.Name)
+		}
+		return cmp.Compare(r1.Path, r2.Path)
 	})
 
 	return results, nil

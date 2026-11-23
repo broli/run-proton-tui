@@ -1,9 +1,9 @@
 package proton
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/broli/run-proton-tui/internal/config"
@@ -67,11 +67,11 @@ func BuildEnvironment(opts EnvOptions) map[string]string {
 	// Disable Wine's built-in lsteamclient to ensure game-provided emulator DLLs are called
 	overrides := "lsteamclient=d"
 	if opts.ExtraOverrides != "" {
-		overrides = fmt.Sprintf("%s;%s", overrides, opts.ExtraOverrides)
+		overrides = overrides + ";" + opts.ExtraOverrides
 	}
 	if existing, ok := env["WINEDLLOVERRIDES"]; ok && existing != "" {
 		if !strings.Contains(existing, "lsteamclient") {
-			overrides = fmt.Sprintf("%s;%s", overrides, existing)
+			overrides = overrides + ";" + existing
 		} else {
 			overrides = existing
 		}
@@ -152,11 +152,17 @@ func BuildEnvironment(opts EnvOptions) map[string]string {
 	return env
 }
 
-// EnvSlice converts the environment map into a []string slice suitable for exec.Cmd.Env.
+// EnvSlice converts the environment map into a sorted []string slice suitable for exec.Cmd.Env.
 func EnvSlice(envMap map[string]string) []string {
+	keys := make([]string, 0, len(envMap))
+	for k := range envMap {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
 	slice := make([]string, 0, len(envMap))
-	for k, v := range envMap {
-		slice = append(slice, fmt.Sprintf("%s=%s", k, v))
+	for _, k := range keys {
+		slice = append(slice, k+"="+envMap[k])
 	}
 	return slice
 }
